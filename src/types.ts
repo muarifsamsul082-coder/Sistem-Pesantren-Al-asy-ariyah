@@ -283,8 +283,17 @@ export function isSameRoom(a?: string, b?: string): boolean {
   return normalizeRoomName(a).toLowerCase() === normalizeRoomName(b).toLowerCase();
 }
 
-export function compressImage(file: File, maxWidth = 300, maxHeight = 400, quality = 0.65): Promise<string> {
+export function compressImage(file: File, maxWidth = 300, maxHeight = 400, quality = 0.75): Promise<string> {
   return new Promise((resolve) => {
+    // If SVG, read directly as data URL to preserve 100% vector sharpness
+    if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string || '');
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -305,12 +314,23 @@ export function compressImage(file: File, maxWidth = 300, maxHeight = 400, quali
           }
         }
 
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = Math.max(1, width);
+        canvas.height = Math.max(1, height);
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
+          const isPng = file.type === 'image/png' || file.name.toLowerCase().endsWith('.png');
+          if (isPng) {
+            // Clear canvas to preserve transparency for PNG
+            ctx.clearRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/png'));
+          } else {
+            // For JPEG/other, fill white background to prevent transparent areas from turning pitch black
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          }
         } else {
           resolve(e.target?.result as string || '');
         }

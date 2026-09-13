@@ -2437,7 +2437,7 @@ export default function StaffDashboard({
                 {/* Kop Surat Resmi */}
                 <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 flex items-center">
                   {pesantrenSettings.logoUrl ? (
-                    <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0 mix-blend-multiply" referrerPolicy="no-referrer" />
+                    <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="h-14 w-14 bg-slate-50 rounded-full border border-slate-200 flex items-center justify-center text-xl mr-4 shrink-0 select-none">🕌</div>
                   )}
@@ -2622,7 +2622,7 @@ export default function StaffDashboard({
                 {/* Kop Surat Resmi */}
                 <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 flex items-center">
                   {pesantrenSettings.logoUrl ? (
-                    <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0 mix-blend-multiply" referrerPolicy="no-referrer" />
+                    <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="h-14 w-14 bg-slate-50 rounded-full border border-slate-200 flex items-center justify-center text-xl mr-4 shrink-0 select-none">🕌</div>
                   )}
@@ -2778,7 +2778,7 @@ export default function StaffDashboard({
                 {/* Kop Surat Resmi */}
                 <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 flex items-center">
                   {pesantrenSettings.logoUrl ? (
-                    <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0 mix-blend-multiply" referrerPolicy="no-referrer" />
+                    <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="h-14 w-14 bg-slate-50 rounded-full border border-slate-200 flex items-center justify-center text-xl mr-4 shrink-0 select-none">🕌</div>
                   )}

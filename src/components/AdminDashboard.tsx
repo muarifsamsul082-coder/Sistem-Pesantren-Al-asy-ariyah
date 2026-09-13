@@ -6859,53 +6859,114 @@ export default function AdminDashboard({
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-emerald-900 uppercase mb-1">Lambang / Logo Pondok Pesantren</label>
-                <div className="flex flex-wrap gap-4 items-center">
-                  <label className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer transition active:scale-95 gap-1.5 shadow-xs">
-                    <UploadCloud className="h-4 w-4" /> Unggah Logo Pesantren
+              <div className="md:col-span-2 bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/80">
+                <label className="block text-xs font-semibold text-emerald-900 uppercase mb-1">
+                  Lambang / Logo Resmi Pondok Pesantren
+                </label>
+                <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">
+                  Logo ini akan ditampilkan di navbar atas, kop surat resmi, kartu santri, kwitansi, dan laporan cetak. Anda dapat mengunggah file gambar (PNG transparan disarankan) atau menempelkan tautan/URL langsung.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  <label className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer transition active:scale-95 gap-1.5 shadow-sm">
+                    <UploadCloud className="h-4 w-4" /> Unggah File Logo
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
                       className="hidden"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            showAlert('danger', 'Ukuran file terlalu besar! Maksimal ukuran file logo adalah 5MB.');
+                            return;
+                          }
                           try {
-                            const compressed = await compressImage(file, 400, 0.85);
+                            const compressed = await compressImage(file, 280, 280, 0.8);
+                            if (!compressed) throw new Error('Gagal memproses gambar');
                             setEditSettings({ ...editSettings, logoUrl: compressed });
                             setIsSettingsDirty(true);
-                          } catch (err) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              if (typeof reader.result === 'string') {
-                                setEditSettings({ ...editSettings, logoUrl: reader.result });
-                                setIsSettingsDirty(true);
-                              }
-                            };
-                            reader.readAsDataURL(file);
+                            showAlert('success', 'Logo berhasil dimuat! Jangan lupa klik tombol "Simpan Pengaturan Portal".');
+                          } catch (err: any) {
+                            showAlert('danger', `Gagal mengunggah logo: ${err?.message || 'Format gambar tidak didukung'}`);
                           }
                         }
                       }}
                     />
                   </label>
-                  {editSettings.logoUrl && (
-                    <div className="flex items-center gap-2 bg-emerald-50/70 px-3 py-1.5 rounded-xl border border-emerald-200">
-                      <img src={editSettings.logoUrl} alt="Logo Pesantren" className="h-9 w-9 object-contain bg-white rounded border border-emerald-100 p-0.5" referrerPolicy="no-referrer" />
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          setEditSettings({ ...editSettings, logoUrl: '' });
-                          setIsSettingsDirty(true);
-                        }} 
-                        className="text-red-600 text-xs hover:underline font-bold ml-1 cursor-pointer"
-                      >
-                        Hapus
-                      </button>
-                    </div>
+
+                  <div className="flex-1 w-full">
+                    <input
+                      type="text"
+                      placeholder="Atau tempel URL gambar logo (https://...)"
+                      value={editSettings.logoUrl?.startsWith('data:') ? '' : (editSettings.logoUrl || '')}
+                      onChange={(e) => {
+                        setEditSettings({ ...editSettings, logoUrl: e.target.value.trim() });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="w-full px-3 py-2 text-xs border border-emerald-200 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 font-mono"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditSettings({ ...editSettings, logoUrl: '/pesantren_logo.jpg' });
+                      setIsSettingsDirty(true);
+                      showAlert('success', 'Logo dikembalikan ke logo bawaan sistem (/pesantren_logo.jpg).');
+                    }}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold shrink-0 transition"
+                    title="Gunakan logo standar"
+                  >
+                    Reset Bawaan
+                  </button>
+                </div>
+
+                {/* Pratinjau Logo */}
+                <div className="mt-3 flex items-center gap-3 pt-2 border-t border-emerald-100/60">
+                  <span className="text-[11px] font-bold text-emerald-900">Pratinjau Tampilan:</span>
+                  
+                  {/* Pratinjau Background Terang */}
+                  <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-lg border border-slate-200 shadow-xs" title="Tampilan di latar terang">
+                    <span className="text-[9px] text-gray-400 font-mono">Terang:</span>
+                    <img
+                      src={editSettings.logoUrl || '/pesantren_logo.jpg'}
+                      alt="Pratinjau Logo"
+                      className="h-8 w-8 object-contain"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/pesantren_logo.jpg';
+                      }}
+                    />
+                  </div>
+
+                  {/* Pratinjau Background Gelap / Navbar */}
+                  <div className="flex items-center gap-1.5 bg-emerald-900 p-1.5 rounded-lg border border-emerald-950 shadow-xs" title="Tampilan di latar gelap (Navbar)">
+                    <span className="text-[9px] text-emerald-300 font-mono">Gelap:</span>
+                    <img
+                      src={editSettings.logoUrl || '/pesantren_logo.jpg'}
+                      alt="Pratinjau Logo Navbar"
+                      className="h-8 w-8 object-contain"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/pesantren_logo.jpg';
+                      }}
+                    />
+                  </div>
+
+                  {editSettings.logoUrl && editSettings.logoUrl !== '/pesantren_logo.jpg' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, logoUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="text-red-600 text-xs hover:underline font-bold ml-auto cursor-pointer"
+                    >
+                      Hapus Logo
+                    </button>
                   )}
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">Unggah file foto/logo resmi Pondok Pesantren yang tampil di setiap menu navbar, header, dan dashboard.</p>
               </div>
 
               <div className="md:col-span-2">
