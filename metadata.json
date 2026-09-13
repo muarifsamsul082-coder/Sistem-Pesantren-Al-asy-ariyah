@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Pondok Pesantren Al-Asy\u0027ariyah",
+  "description": "Portal and management application for Pondok Pesantren Al-Asy\u0027ariyah, including PPDB registration, tuition billing, news, announcements, and an Admin dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
