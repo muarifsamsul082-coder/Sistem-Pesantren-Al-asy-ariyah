@@ -241,6 +241,8 @@ export interface PortalSettings {
   pesantrenBankAccountNumber?: string;
   pesantrenBankAccountName?: string;
   rekeningList?: BankAccount[];
+  availableFormalClasses?: string[];
+  availableMadrasahClasses?: string[];
 }
 
 export interface UserSession {

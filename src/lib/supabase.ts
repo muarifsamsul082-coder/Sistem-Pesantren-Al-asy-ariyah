@@ -360,6 +360,8 @@ CREATE TABLE IF NOT EXISTS settings (
   ttd_akademik_url TEXT,
   stempel_akademik_url TEXT,
   rekening_list JSONB DEFAULT '[]'::jsonb,
+  available_formal_classes JSONB DEFAULT '["VII SMP Formal", "VIII SMP Formal", "IX SMP Formal", "X MA Formal", "XI MA Formal", "XII MA Formal", "-"]'::jsonb,
+  available_madrasah_classes JSONB DEFAULT '["1A MTs Diniyah", "1B MTs Diniyah", "2A MTs Diniyah", "2B MTs Diniyah", "3A MTs Diniyah", "1A MA Diniyah", "2A MA Diniyah", "3A MA Diniyah"]'::jsonb,
   ppdb_open BOOLEAN DEFAULT true,
   ppdb_start_date TEXT,
   ppdb_end_date TEXT,
@@ -407,9 +409,39 @@ CREATE TABLE IF NOT EXISTS staff_configs (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 10. TABEL MASTER DATA KELAS & SEKOLAH
+CREATE TABLE IF NOT EXISTS master_classes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL, -- 'formal' atau 'madrasah'
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed default master kelas jika tabel baru dibuat
+INSERT INTO master_classes (id, name, type) VALUES
+  ('formal_1', 'VII SMP Formal', 'formal'),
+  ('formal_2', 'VIII SMP Formal', 'formal'),
+  ('formal_3', 'IX SMP Formal', 'formal'),
+  ('formal_4', 'X MA Formal', 'formal'),
+  ('formal_5', 'XI MA Formal', 'formal'),
+  ('formal_6', 'XII MA Formal', 'formal'),
+  ('formal_7', '-', 'formal'),
+  ('madrasah_1', '1A MTs Diniyah', 'madrasah'),
+  ('madrasah_2', '1B MTs Diniyah', 'madrasah'),
+  ('madrasah_3', '2A MTs Diniyah', 'madrasah'),
+  ('madrasah_4', '2B MTs Diniyah', 'madrasah'),
+  ('madrasah_5', '3A MTs Diniyah', 'madrasah'),
+  ('madrasah_6', '1A MA Diniyah', 'madrasah'),
+  ('madrasah_7', '2A MA Diniyah', 'madrasah'),
+  ('madrasah_8', '3A MA Diniyah', 'madrasah')
+ON CONFLICT (id) DO NOTHING;
+
 -- ==============================================================================
 -- PENYESUAIAN STRUKTUR KOLOM & RELAKSASI NOT NULL (MENCEGAH ERROR INSERT)
 -- ==============================================================================
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS available_formal_classes JSONB DEFAULT '["VII SMP Formal", "VIII SMP Formal", "IX SMP Formal", "X MA Formal", "XI MA Formal", "XII MA Formal", "-"]'::jsonb;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS available_madrasah_classes JSONB DEFAULT '["1A MTs Diniyah", "1B MTs Diniyah", "2A MTs Diniyah", "2B MTs Diniyah", "3A MTs Diniyah", "1A MA Diniyah", "2A MA Diniyah", "3A MA Diniyah"]'::jsonb;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS kk TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS nik TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS class_pagi TEXT DEFAULT '1A MTs Diniyah';
@@ -532,6 +564,7 @@ ALTER TABLE bills REPLICA IDENTITY FULL;
 ALTER TABLE settings REPLICA IDENTITY FULL;
 ALTER TABLE events REPLICA IDENTITY FULL;
 ALTER TABLE staff_configs REPLICA IDENTITY FULL;
+ALTER TABLE master_classes REPLICA IDENTITY FULL;
 
 -- ==============================================================================
 -- HAK AKSES UNIVERSAL (ANON & AUTHENTICATED DAPAT MEMBACA & MENULIS DENGAN AMAN)
@@ -545,6 +578,7 @@ ALTER TABLE bills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE master_classes ENABLE ROW LEVEL SECURITY;
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role, postgres;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role, postgres;
@@ -565,6 +599,7 @@ BEGIN
   DROP POLICY IF EXISTS "Allow all on settings" ON settings;
   DROP POLICY IF EXISTS "Allow all on events" ON events;
   DROP POLICY IF EXISTS "Allow all on staff_configs" ON staff_configs;
+  DROP POLICY IF EXISTS "Allow all on master_classes" ON master_classes;
   DROP POLICY IF EXISTS "Public Access" ON ppdb;
   DROP POLICY IF EXISTS "Public Access" ON students;
   DROP POLICY IF EXISTS "Public Access" ON bills;
@@ -574,6 +609,7 @@ BEGIN
   DROP POLICY IF EXISTS "Public Access" ON settings;
   DROP POLICY IF EXISTS "Public Access" ON events;
   DROP POLICY IF EXISTS "Public Access" ON staff_configs;
+  DROP POLICY IF EXISTS "Public Access" ON master_classes;
 END $$;
 
 CREATE POLICY "Allow all on news" ON news FOR ALL USING (true) WITH CHECK (true);
@@ -585,6 +621,7 @@ CREATE POLICY "Allow all on bills" ON bills FOR ALL USING (true) WITH CHECK (tru
 CREATE POLICY "Allow all on settings" ON settings FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on events" ON events FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on staff_configs" ON staff_configs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on master_classes" ON master_classes FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
 -- REALTIME PUBLICATION (NOTIFIKASI OTOMATIS KE HP/LAPTOP LAIN SAAT ADA PENDAFTARAN)
@@ -592,12 +629,12 @@ CREATE POLICY "Allow all on staff_configs" ON staff_configs FOR ALL USING (true)
 DO $$
 BEGIN
   BEGIN
-    ALTER PUBLICATION supabase_realtime ADD TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs;
+    ALTER PUBLICATION supabase_realtime ADD TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes;
   EXCEPTION
     WHEN duplicate_object THEN
       NULL;
     WHEN undefined_object THEN
-      CREATE PUBLICATION supabase_realtime FOR TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs;
+      CREATE PUBLICATION supabase_realtime FOR TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes;
     WHEN OTHERS THEN
       NULL;
   END;
@@ -1356,6 +1393,8 @@ export function formatSettingsToSupabasePayload(s: PortalSettings) {
     ttd_akademik_url: s.ttdAkademikUrl || null,
     stempel_akademik_url: s.stempelAkademikUrl || null,
     rekening_list: s.rekeningList || [],
+    available_formal_classes: s.availableFormalClasses || [],
+    available_madrasah_classes: s.availableMadrasahClasses || [],
     ppdb_open: s.ppdbOpen,
     ppdb_start_date: s.ppdbStartDate || '',
     ppdb_end_date: s.ppdbEndDate || '',
@@ -1436,6 +1475,12 @@ export async function syncSettingsWithSupabase(currentSettings: PortalSettings):
         ttdAkademikUrl: data.ttd_akademik_url !== undefined ? data.ttd_akademik_url : currentSettings.ttdAkademikUrl,
         stempelAkademikUrl: data.stempel_akademik_url !== undefined ? data.stempel_akademik_url : currentSettings.stempelAkademikUrl,
         rekeningList: Array.isArray(data.rekening_list) ? data.rekening_list : currentSettings.rekeningList,
+        availableFormalClasses: (Array.isArray(data.available_formal_classes) && data.available_formal_classes.length > 0)
+          ? data.available_formal_classes
+          : currentSettings.availableFormalClasses,
+        availableMadrasahClasses: (Array.isArray(data.available_madrasah_classes) && data.available_madrasah_classes.length > 0)
+          ? data.available_madrasah_classes
+          : currentSettings.availableMadrasahClasses,
         ppdbOpen: remotePpdbOpen,
         ppdbStartDate: remoteStartDate || '',
         ppdbEndDate: remoteEndDate || '',
@@ -1632,6 +1677,93 @@ export async function pushStaffConfigToSupabase(role: string, config: { name: st
 }
 
 // ------------------------------------------------------------------------------
+// MASTER CLASSES SYNC & PUSH (KELAS FORMAL & MADRASAH DINIYAH)
+// ------------------------------------------------------------------------------
+export async function syncMasterClassesWithSupabase(localClasses: {
+  formal: string[];
+  madrasah: string[];
+}): Promise<{ formal: string[]; madrasah: string[] }> {
+  const client = getSupabaseClient();
+  if (!client) return localClasses;
+
+  try {
+    // 1. Coba ambil dari tabel terdedikasi `master_classes`
+    const { data, error } = await client.from('master_classes').select('*');
+    if (!error && data && data.length > 0) {
+      const formalList = data.filter((r: any) => r.type === 'formal').map((r: any) => r.name).filter(Boolean);
+      const madrasahList = data.filter((r: any) => r.type === 'madrasah').map((r: any) => r.name).filter(Boolean);
+
+      return {
+        formal: formalList.length > 0 ? formalList : localClasses.formal,
+        madrasah: madrasahList.length > 0 ? madrasahList : localClasses.madrasah
+      };
+    }
+  } catch (err) {
+    console.warn('Could not read from master_classes table, fallback to settings column:', err);
+  }
+
+  // 2. Fallback ke tabel `settings`
+  try {
+    const { data: settingsData } = await client.from('settings').select('available_formal_classes, available_madrasah_classes').eq('id', 'default_settings').single();
+    if (settingsData) {
+      const formal = (Array.isArray(settingsData.available_formal_classes) && settingsData.available_formal_classes.length > 0)
+        ? settingsData.available_formal_classes
+        : localClasses.formal;
+      const madrasah = (Array.isArray(settingsData.available_madrasah_classes) && settingsData.available_madrasah_classes.length > 0)
+        ? settingsData.available_madrasah_classes
+        : localClasses.madrasah;
+      return { formal, madrasah };
+    }
+  } catch (e) {
+    console.warn('Fallback syncMasterClasses from settings failed:', e);
+  }
+
+  return localClasses;
+}
+
+export async function pushMasterClassesToSupabase(classes: {
+  formal: string[];
+  madrasah: string[];
+}): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) return;
+
+  // 1. Simpan ke tabel master_classes jika ada
+  try {
+    const rows = [
+      ...classes.formal.map((name, idx) => ({
+        id: `formal_${idx + 1}_${name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`,
+        name: name.trim(),
+        type: 'formal'
+      })),
+      ...classes.madrasah.map((name, idx) => ({
+        id: `madrasah_${idx + 1}_${name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`,
+        name: name.trim(),
+        type: 'madrasah'
+      }))
+    ];
+
+    if (rows.length > 0) {
+      // Hapus data lama lalu upsert agar sinkron jika ada item yang dihapus
+      await client.from('master_classes').delete().neq('id', 'dummy_never_match');
+      await client.from('master_classes').upsert(rows);
+    }
+  } catch (err) {
+    console.warn('Failed to upsert to master_classes table, will save to settings table:', err);
+  }
+
+  // 2. Simpan juga ke kolom settings agar kompatibel di semua versi skrip Supabase
+  try {
+    await client.from('settings').update({
+      available_formal_classes: classes.formal,
+      available_madrasah_classes: classes.madrasah
+    }).eq('id', 'default_settings');
+  } catch (err) {
+    console.warn('Failed to update settings for master_classes:', err);
+  }
+}
+
+// ------------------------------------------------------------------------------
 // MASTER 1-CLICK SYNC ALL LOCAL DATA TO SUPABASE CLOUD
 // ------------------------------------------------------------------------------
 export async function pushAllLocalDataToSupabase(params: {
@@ -1643,6 +1775,7 @@ export async function pushAllLocalDataToSupabase(params: {
   bills: Bill[];
   settings: PortalSettings;
   events?: AcademicEvent[];
+  masterClasses?: { formal: string[]; madrasah: string[] };
 }): Promise<{ success: boolean; count: number; message: string }> {
   const client = getSupabaseClient();
   if (!client) return { success: false, count: 0, message: 'Koneksi Supabase belum dikonfigurasi.' };
@@ -1685,6 +1818,11 @@ export async function pushAllLocalDataToSupabase(params: {
       totalItems += 1;
     }
 
+    if (params.masterClasses && (params.masterClasses.formal.length > 0 || params.masterClasses.madrasah.length > 0)) {
+      await pushMasterClassesToSupabase(params.masterClasses);
+      totalItems += (params.masterClasses.formal.length + params.masterClasses.madrasah.length);
+    }
+
     if (params.events && params.events.length > 0) {
       await pushAllEventsToSupabase(params.events);
       totalItems += params.events.length;
@@ -1693,7 +1831,7 @@ export async function pushAllLocalDataToSupabase(params: {
     return {
       success: true,
       count: totalItems,
-      message: `Berhasil mengunggah ${totalItems} data (Berita, Pengumuman, Santri, PPDB, Kamar, Tagihan, Agenda & Pengaturan) ke cloud Supabase!`
+      message: `Berhasil mengunggah ${totalItems} data (Berita, Pengumuman, Santri, PPDB, Kamar, Tagihan, Kelas & Sekolah, Agenda & Pengaturan) ke cloud Supabase!`
     };
   } catch (err: any) {
     console.error('Error executing master push to Supabase:', err);
