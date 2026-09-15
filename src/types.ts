@@ -249,6 +249,8 @@ export interface UserSession {
   role: 'admin' | 'santri' | 'guest' | 'keamanan' | 'ketertiban' | 'kesehatan';
   email?: string;
   studentId?: string; // If role is santri
+  fullName?: string; // Individual name for this specific account
+  roleName?: string; // Display name for this specific account
 }
 
 export interface ForgotPasswordRequest {

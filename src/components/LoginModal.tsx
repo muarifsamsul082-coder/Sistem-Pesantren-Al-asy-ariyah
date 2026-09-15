@@ -112,7 +112,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       const defaultAccounts = [
         {
           id: 'admin-main',
-          fullName: 'Ustadz Ahmad Wildan, M.Pd',
+          fullName: localStorage.getItem('admin_custom_name_muarifsamsul082@gmail.com') || 'Muarif Samsul',
           email: 'muarifsamsul082@gmail.com',
           role: 'admin' as const,
           isConfirmed: true,
@@ -185,9 +185,20 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         setPassword('');
         setError('');
         onClose();
+        const customName = localStorage.getItem('admin_custom_name_' + inputEmail) || localStorage.getItem('staff_custom_name_' + inputEmail);
+        const resolvedFullName = customName || matchedUser.fullName || matchedUser.name || (inputEmail === 'muarifsamsul082@gmail.com' ? 'Muarif Samsul' : 'Pengurus');
+        
+        // Also persist custom name for this email so it's permanently retained
+        if (resolvedFullName && !customName) {
+          localStorage.setItem('admin_custom_name_' + inputEmail, resolvedFullName);
+          localStorage.setItem('staff_custom_name_' + inputEmail, resolvedFullName);
+        }
+
         onLoginSuccess({
           role: matchedUser.role || 'admin',
-          email: matchedUser.email
+          email: matchedUser.email,
+          fullName: resolvedFullName,
+          roleName: resolvedFullName
         });
       } else {
         setError('Password yang Anda masukkan salah. Silakan periksa kembali.');
@@ -233,6 +244,11 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       });
 
       if (match) {
+        if (match.status === 'Alumni') {
+          setError(`Akses Ditolak: Santri atas nama "${match.fullName || 'Santri'}" telah berstatus sebagai ALUMNI. Akses login portal wali santri dinonaktifkan untuk santri yang sudah menjadi alumni.`);
+          return;
+        }
+
         setUsername('');
         setWaliPassword('');
         setError('');
@@ -296,10 +312,10 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     customPasswords[emailClean] = regPassword.trim();
     localStorage.setItem('pesantren_custom_passwords', JSON.stringify(customPasswords));
 
-    // Save profile name
-    if (regRole === 'admin') {
-      localStorage.setItem('admin_custom_name_' + emailClean, regFullName.trim());
-    } else {
+    // Save profile name specifically for this account email
+    localStorage.setItem('admin_custom_name_' + emailClean, regFullName.trim());
+    localStorage.setItem('staff_custom_name_' + emailClean, regFullName.trim());
+    if (regRole !== 'admin') {
       localStorage.setItem(`${regRole}_config`, JSON.stringify({ name: regFullName.trim() }));
     }
 

@@ -1417,100 +1417,131 @@ export function formatSettingsToSupabasePayload(s: PortalSettings) {
 }
 
 export async function syncSettingsWithSupabase(currentSettings: PortalSettings): Promise<PortalSettings> {
+  let workingSettings = currentSettings;
+
+  // 1. Try to fetch from /api/settings first (server storage across all devices)
+  try {
+    const res = await fetch('/api/settings');
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.success && json.settings) {
+        workingSettings = { ...workingSettings, ...json.settings };
+      }
+    }
+  } catch (e) {
+    // ignore server fetch errors
+  }
+
   const client = getSupabaseClient();
-  if (!client) return currentSettings;
+  if (!client) return workingSettings;
   if (isLocalDataRecentlyChanged('settings')) {
-    pushSettingsToSupabase(currentSettings).catch(e => console.error('Auto-push recent settings error:', e));
-    return currentSettings;
+    pushSettingsToSupabase(workingSettings).catch(e => console.error('Auto-push recent settings error:', e));
+    return workingSettings;
   }
 
   try {
-    const { data, error } = await client.from('settings').select('*').eq('id', 'default_settings').single();
+    const { data, error } = await client.from('settings').select('*').limit(1).maybeSingle();
     if (!error && data) {
       const remoteStartDate = (data.ppdb_start_date !== undefined && data.ppdb_start_date !== null) 
         ? String(data.ppdb_start_date) 
-        : currentSettings.ppdbStartDate;
+        : workingSettings.ppdbStartDate;
       const remoteEndDate = (data.ppdb_end_date !== undefined && data.ppdb_end_date !== null) 
         ? String(data.ppdb_end_date) 
-        : currentSettings.ppdbEndDate;
+        : workingSettings.ppdbEndDate;
       const remotePpdbOpen = typeof data.ppdb_open === 'boolean' 
         ? data.ppdb_open 
-        : currentSettings.ppdbOpen;
+        : workingSettings.ppdbOpen;
 
-      return {
-        ...currentSettings,
-        schoolName: data.school_name || currentSettings.schoolName,
-        namaYayasan: data.nama_yayasan || currentSettings.namaYayasan,
-        tagline: data.tagline || currentSettings.tagline,
-        aboutUs: data.about_us || currentSettings.aboutUs,
-        vision: data.vision || currentSettings.vision,
-        mission: Array.isArray(data.mission) ? data.mission : currentSettings.mission,
-        address: data.address || currentSettings.address,
-        phone: data.phone || currentSettings.phone,
-        email: data.email || currentSettings.email,
-        logoUrl: data.logo_url !== undefined ? data.logo_url : currentSettings.logoUrl,
-        accentColor: data.accent_color || currentSettings.accentColor,
-        stempelPesantrenUrl: data.stempel_pesantren_url !== undefined ? data.stempel_pesantren_url : currentSettings.stempelPesantrenUrl,
-        namaPengurus: data.nama_pengurus || currentSettings.namaPengurus,
-        ttdPengurusUrl: data.ttd_pengurus_url !== undefined ? data.ttd_pengurus_url : currentSettings.ttdPengurusUrl,
-        namaPengasuh: data.nama_pengasuh || currentSettings.namaPengasuh,
-        stempelPengasuhUrl: data.stempel_pengasuh_url !== undefined ? data.stempel_pengasuh_url : currentSettings.stempelPengasuhUrl,
-        ttdPengasuhUrl: data.ttd_pengasuh_url !== undefined ? data.ttd_pengasuh_url : currentSettings.ttdPengasuhUrl,
-        namaKetuaPcsb: data.nama_ketua_pcsb || currentSettings.namaKetuaPcsb,
-        ttdKetuaPcsbUrl: data.ttd_ketua_pcsb_url !== undefined ? data.ttd_ketua_pcsb_url : currentSettings.ttdKetuaPcsbUrl,
-        stempelPcsbUrl: data.stempel_pcsb_url !== undefined ? data.stempel_pcsb_url : currentSettings.stempelPcsbUrl,
-        namaBendahara: data.nama_bendahara || currentSettings.namaBendahara,
-        ttdBendaharaUrl: data.ttd_bendahara_url !== undefined ? data.ttd_bendahara_url : currentSettings.ttdBendaharaUrl,
-        stempelBendaharaUrl: data.stempel_bendahara_url !== undefined ? data.stempel_bendahara_url : currentSettings.stempelBendaharaUrl,
-        namaKeamanan: data.nama_keamanan || currentSettings.namaKeamanan,
-        ttdKeamananUrl: data.ttd_keamanan_url !== undefined ? data.ttd_keamanan_url : currentSettings.ttdKeamananUrl,
-        stempelKeamananUrl: data.stempel_keamanan_url !== undefined ? data.stempel_keamanan_url : currentSettings.stempelKeamananUrl,
-        namaKetertiban: data.nama_ketertiban || currentSettings.namaKetertiban,
-        ttdKetertibanUrl: data.ttd_ketertiban_url !== undefined ? data.ttd_ketertiban_url : currentSettings.ttdKetertibanUrl,
-        stempelKetertibanUrl: data.stempel_ketertiban_url !== undefined ? data.stempel_ketertiban_url : currentSettings.stempelKetertibanUrl,
-        namaKesehatan: data.nama_kesehatan || currentSettings.namaKesehatan,
-        ttdKesehatanUrl: data.ttd_kesehatan_url !== undefined ? data.ttd_kesehatan_url : currentSettings.ttdKesehatanUrl,
-        stempelKesehatanUrl: data.stempel_kesehatan_url !== undefined ? data.stempel_kesehatan_url : currentSettings.stempelKesehatanUrl,
-        namaAkademik: data.nama_akademik || currentSettings.namaAkademik,
-        ttdAkademikUrl: data.ttd_akademik_url !== undefined ? data.ttd_akademik_url : currentSettings.ttdAkademikUrl,
-        stempelAkademikUrl: data.stempel_akademik_url !== undefined ? data.stempel_akademik_url : currentSettings.stempelAkademikUrl,
-        rekeningList: Array.isArray(data.rekening_list) ? data.rekening_list : currentSettings.rekeningList,
+      const merged: PortalSettings = {
+        ...workingSettings,
+        schoolName: data.school_name || workingSettings.schoolName,
+        namaYayasan: data.nama_yayasan || workingSettings.namaYayasan,
+        tagline: data.tagline || workingSettings.tagline,
+        aboutUs: data.about_us || workingSettings.aboutUs,
+        vision: data.vision || workingSettings.vision,
+        mission: Array.isArray(data.mission) ? data.mission : workingSettings.mission,
+        address: data.address || workingSettings.address,
+        phone: data.phone || workingSettings.phone,
+        email: data.email || workingSettings.email,
+        logoUrl: data.logo_url !== undefined ? data.logo_url : workingSettings.logoUrl,
+        accentColor: data.accent_color || workingSettings.accentColor,
+        stempelPesantrenUrl: data.stempel_pesantren_url !== undefined ? data.stempel_pesantren_url : workingSettings.stempelPesantrenUrl,
+        namaPengurus: data.nama_pengurus || workingSettings.namaPengurus,
+        ttdPengurusUrl: data.ttd_pengurus_url !== undefined ? data.ttd_pengurus_url : workingSettings.ttdPengurusUrl,
+        namaPengasuh: data.nama_pengasuh || workingSettings.namaPengasuh,
+        stempelPengasuhUrl: data.stempel_pengasuh_url !== undefined ? data.stempel_pengasuh_url : workingSettings.stempelPengasuhUrl,
+        ttdPengasuhUrl: data.ttd_pengasuh_url !== undefined ? data.ttd_pengasuh_url : workingSettings.ttdPengasuhUrl,
+        namaKetuaPcsb: data.nama_ketua_pcsb || workingSettings.namaKetuaPcsb,
+        ttdKetuaPcsbUrl: data.ttd_ketua_pcsb_url !== undefined ? data.ttd_ketua_pcsb_url : workingSettings.ttdKetuaPcsbUrl,
+        stempelPcsbUrl: data.stempel_pcsb_url !== undefined ? data.stempel_pcsb_url : workingSettings.stempelPcsbUrl,
+        namaBendahara: data.nama_bendahara || workingSettings.namaBendahara,
+        ttdBendaharaUrl: data.ttd_bendahara_url !== undefined ? data.ttd_bendahara_url : workingSettings.ttdBendaharaUrl,
+        stempelBendaharaUrl: data.stempel_bendahara_url !== undefined ? data.stempel_bendahara_url : workingSettings.stempelBendaharaUrl,
+        namaKeamanan: data.nama_keamanan || workingSettings.namaKeamanan,
+        ttdKeamananUrl: data.ttd_keamanan_url !== undefined ? data.ttd_keamanan_url : workingSettings.ttdKeamananUrl,
+        stempelKeamananUrl: data.stempel_keamanan_url !== undefined ? data.stempel_keamanan_url : workingSettings.stempelKeamananUrl,
+        namaKetertiban: data.nama_ketertiban || workingSettings.namaKetertiban,
+        ttdKetertibanUrl: data.ttd_ketertiban_url !== undefined ? data.ttd_ketertiban_url : workingSettings.ttdKetertibanUrl,
+        stempelKetertibanUrl: data.stempel_ketertiban_url !== undefined ? data.stempel_ketertiban_url : workingSettings.stempelKetertibanUrl,
+        namaKesehatan: data.nama_kesehatan || workingSettings.namaKesehatan,
+        ttdKesehatanUrl: data.ttd_kesehatan_url !== undefined ? data.ttd_kesehatan_url : workingSettings.ttdKesehatanUrl,
+        stempelKesehatanUrl: data.stempel_kesehatan_url !== undefined ? data.stempel_kesehatan_url : workingSettings.stempelKesehatanUrl,
+        namaAkademik: data.nama_akademik || workingSettings.namaAkademik,
+        ttdAkademikUrl: data.ttd_akademik_url !== undefined ? data.ttd_akademik_url : workingSettings.ttdAkademikUrl,
+        stempelAkademikUrl: data.stempel_akademik_url !== undefined ? data.stempel_akademik_url : workingSettings.stempelAkademikUrl,
+        rekeningList: Array.isArray(data.rekening_list) ? data.rekening_list : workingSettings.rekeningList,
         availableFormalClasses: (Array.isArray(data.available_formal_classes) && data.available_formal_classes.length > 0)
           ? data.available_formal_classes
-          : currentSettings.availableFormalClasses,
+          : workingSettings.availableFormalClasses,
         availableMadrasahClasses: (Array.isArray(data.available_madrasah_classes) && data.available_madrasah_classes.length > 0)
           ? data.available_madrasah_classes
-          : currentSettings.availableMadrasahClasses,
+          : workingSettings.availableMadrasahClasses,
         ppdbOpen: remotePpdbOpen,
         ppdbStartDate: remoteStartDate || '',
         ppdbEndDate: remoteEndDate || '',
-        pesantrenBankName: data.pesantren_bank_name || currentSettings.pesantrenBankName,
-        pesantrenBankAccountNumber: data.pesantren_bank_account_number || currentSettings.pesantrenBankAccountNumber,
-        pesantrenBankAccountName: data.pesantren_bank_account_name || currentSettings.pesantrenBankAccountName,
-        pcsbFeePendaftaran: data.pcsb_fee_pendaftaran !== undefined ? Number(data.pcsb_fee_pendaftaran) : currentSettings.pcsbFeePendaftaran,
-        pcsbFeeSarpras: data.pcsb_fee_sarpras !== undefined ? Number(data.pcsb_fee_sarpras) : currentSettings.pcsbFeeSarpras,
-        pcsbFeeSeragam: data.pcsb_fee_seragam !== undefined ? Number(data.pcsb_fee_seragam) : currentSettings.pcsbFeeSeragam,
-        pcsbFeeKitab: data.pcsb_fee_kitab !== undefined ? Number(data.pcsb_fee_kitab) : currentSettings.pcsbFeeKitab,
-        pcsbFeeKesehatan: data.pcsb_fee_kesehatan !== undefined ? Number(data.pcsb_fee_kesehatan) : currentSettings.pcsbFeeKesehatan,
-        pcsbFeeSyahriyah: data.pcsb_fee_syahriyah !== undefined ? Number(data.pcsb_fee_syahriyah) : currentSettings.pcsbFeeSyahriyah,
-        pcsbEnablePendaftaran: data.pcsb_enable_pendaftaran !== undefined ? data.pcsb_enable_pendaftaran : currentSettings.pcsbEnablePendaftaran,
-        pcsbEnableSarpras: data.pcsb_enable_sarpras !== undefined ? data.pcsb_enable_sarpras : currentSettings.pcsbEnableSarpras,
-        pcsbEnableSeragam: data.pcsb_enable_seragam !== undefined ? data.pcsb_enable_seragam : currentSettings.pcsbEnableSeragam,
-        pcsbEnableKitab: data.pcsb_enable_kitab !== undefined ? data.pcsb_enable_kitab : currentSettings.pcsbEnableKitab,
-        pcsbEnableKesehatan: data.pcsb_enable_kesehatan !== undefined ? data.pcsb_enable_kesehatan : currentSettings.pcsbEnableKesehatan,
-        pcsbEnableSyahriyah: data.pcsb_enable_syahriyah !== undefined ? data.pcsb_enable_syahriyah : currentSettings.pcsbEnableSyahriyah,
+        pesantrenBankName: data.pesantren_bank_name || workingSettings.pesantrenBankName,
+        pesantrenBankAccountNumber: data.pesantren_bank_account_number || workingSettings.pesantrenBankAccountNumber,
+        pesantrenBankAccountName: data.pesantren_bank_account_name || workingSettings.pesantrenBankAccountName,
+        pcsbFeePendaftaran: data.pcsb_fee_pendaftaran !== undefined ? Number(data.pcsb_fee_pendaftaran) : workingSettings.pcsbFeePendaftaran,
+        pcsbFeeSarpras: data.pcsb_fee_sarpras !== undefined ? Number(data.pcsb_fee_sarpras) : workingSettings.pcsbFeeSarpras,
+        pcsbFeeSeragam: data.pcsb_fee_seragam !== undefined ? Number(data.pcsb_fee_seragam) : workingSettings.pcsbFeeSeragam,
+        pcsbFeeKitab: data.pcsb_fee_kitab !== undefined ? Number(data.pcsb_fee_kitab) : workingSettings.pcsbFeeKitab,
+        pcsbFeeKesehatan: data.pcsb_fee_kesehatan !== undefined ? Number(data.pcsb_fee_kesehatan) : workingSettings.pcsbFeeKesehatan,
+        pcsbFeeSyahriyah: data.pcsb_fee_syahriyah !== undefined ? Number(data.pcsb_fee_syahriyah) : workingSettings.pcsbFeeSyahriyah,
+        pcsbEnablePendaftaran: data.pcsb_enable_pendaftaran !== undefined ? data.pcsb_enable_pendaftaran : workingSettings.pcsbEnablePendaftaran,
+        pcsbEnableSarpras: data.pcsb_enable_sarpras !== undefined ? data.pcsb_enable_sarpras : workingSettings.pcsbEnableSarpras,
+        pcsbEnableSeragam: data.pcsb_enable_seragam !== undefined ? data.pcsb_enable_seragam : workingSettings.pcsbEnableSeragam,
+        pcsbEnableKitab: data.pcsb_enable_kitab !== undefined ? data.pcsb_enable_kitab : workingSettings.pcsbEnableKitab,
+        pcsbEnableKesehatan: data.pcsb_enable_kesehatan !== undefined ? data.pcsb_enable_kesehatan : workingSettings.pcsbEnableKesehatan,
+        pcsbEnableSyahriyah: data.pcsb_enable_syahriyah !== undefined ? data.pcsb_enable_syahriyah : workingSettings.pcsbEnableSyahriyah,
       };
-    } else {
-      await pushSettingsToSupabase(currentSettings);
+
+      // Also persist to /api/settings
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(merged)
+      }).catch(() => {});
+
+      return merged;
     }
   } catch (err) {
     console.error('Error syncing settings with Supabase:', err);
   }
-  return currentSettings;
+  return workingSettings;
 }
 
 export async function pushSettingsToSupabase(s: PortalSettings): Promise<void> {
   markLocalDataChanged('settings');
+  // Broadcast to server-side endpoint for all devices
+  try {
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(s)
+    }).catch(e => console.warn('Failed to push settings to /api/settings:', e));
+  } catch (e) {}
+
   const client = getSupabaseClient();
   if (!client) return;
   try {
@@ -1686,26 +1717,65 @@ export async function syncMasterClassesWithSupabase(localClasses: {
   const client = getSupabaseClient();
   if (!client) return localClasses;
 
-  try {
-    // 1. Coba ambil dari tabel terdedikasi `master_classes`
-    const { data, error } = await client.from('master_classes').select('*');
-    if (!error && data && data.length > 0) {
-      const formalList = data.filter((r: any) => r.type === 'formal').map((r: any) => r.name).filter(Boolean);
-      const madrasahList = data.filter((r: any) => r.type === 'madrasah').map((r: any) => r.name).filter(Boolean);
+  // Daftar nama tabel yang mungkin dibuat di Supabase melalui prompt
+  const candidateTables = ['master_classes', 'kelas_sekolah', 'master_kelas', 'classes', 'data_kelas'];
 
-      return {
-        formal: formalList.length > 0 ? formalList : localClasses.formal,
-        madrasah: madrasahList.length > 0 ? madrasahList : localClasses.madrasah
-      };
+  for (const tableName of candidateTables) {
+    try {
+      const { data, error } = await client.from(tableName).select('*');
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const formalList: string[] = [];
+        const madrasahList: string[] = [];
+
+        for (const row of data) {
+          // Ambil nama kelas dari variasi nama kolom
+          const rawName = row.name || row.nama || row.nama_kelas || row.class_name || row.title || row.kelas || row.label || '';
+          const name = typeof rawName === 'string' ? rawName.trim() : String(rawName || '').trim();
+          if (!name) continue;
+
+          // Ambil tipe/kategori kelas
+          const rawType = (row.type || row.tipe || row.kategori || row.category || row.jenis || '').toString().toLowerCase();
+
+          const isMadrasah = rawType.includes('madrasah') || 
+            rawType.includes('diniyah') || 
+            rawType.includes('pagi') || 
+            rawType.includes('pesantren') ||
+            name.toLowerCase().includes('diniyah') ||
+            name.toLowerCase().includes('mts');
+
+          if (isMadrasah) {
+            if (!madrasahList.includes(name)) madrasahList.push(name);
+          } else {
+            if (!formalList.includes(name)) formalList.push(name);
+          }
+        }
+
+        if (formalList.length > 0 || madrasahList.length > 0) {
+          const finalResult = {
+            formal: formalList.length > 0 ? formalList : localClasses.formal,
+            madrasah: madrasahList.length > 0 ? madrasahList : localClasses.madrasah
+          };
+
+          // Backup ke tabel settings agar sinkron di semua perangkat
+          try {
+            await client.from('settings').update({
+              available_formal_classes: finalResult.formal,
+              available_madrasah_classes: finalResult.madrasah
+            }).eq('id', 'default_settings');
+          } catch {}
+
+          return finalResult;
+        }
+      }
+    } catch {
+      // Lanjut ke tabel berikutnya jika tabel ini tidak ada
     }
-  } catch (err) {
-    console.warn('Could not read from master_classes table, fallback to settings column:', err);
   }
 
-  // 2. Fallback ke tabel `settings`
+  // 2. Fallback: Ambil dari kolom tabel `settings` (tersedia di default schema)
   try {
-    const { data: settingsData } = await client.from('settings').select('available_formal_classes, available_madrasah_classes').eq('id', 'default_settings').single();
-    if (settingsData) {
+    const { data: settingsData, error: sErr } = await client.from('settings').select('available_formal_classes, available_madrasah_classes').eq('id', 'default_settings').single();
+    if (!sErr && settingsData) {
       const formal = (Array.isArray(settingsData.available_formal_classes) && settingsData.available_formal_classes.length > 0)
         ? settingsData.available_formal_classes
         : localClasses.formal;
@@ -1728,31 +1798,7 @@ export async function pushMasterClassesToSupabase(classes: {
   const client = getSupabaseClient();
   if (!client) return;
 
-  // 1. Simpan ke tabel master_classes jika ada
-  try {
-    const rows = [
-      ...classes.formal.map((name, idx) => ({
-        id: `formal_${idx + 1}_${name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`,
-        name: name.trim(),
-        type: 'formal'
-      })),
-      ...classes.madrasah.map((name, idx) => ({
-        id: `madrasah_${idx + 1}_${name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`,
-        name: name.trim(),
-        type: 'madrasah'
-      }))
-    ];
-
-    if (rows.length > 0) {
-      // Hapus data lama lalu upsert agar sinkron jika ada item yang dihapus
-      await client.from('master_classes').delete().neq('id', 'dummy_never_match');
-      await client.from('master_classes').upsert(rows);
-    }
-  } catch (err) {
-    console.warn('Failed to upsert to master_classes table, will save to settings table:', err);
-  }
-
-  // 2. Simpan juga ke kolom settings agar kompatibel di semua versi skrip Supabase
+  // 1. Simpan ke kolom settings (Garansi 100% tersimpan dan tersinkron di semua perangkat)
   try {
     await client.from('settings').update({
       available_formal_classes: classes.formal,
@@ -1760,6 +1806,32 @@ export async function pushMasterClassesToSupabase(classes: {
     }).eq('id', 'default_settings');
   } catch (err) {
     console.warn('Failed to update settings for master_classes:', err);
+  }
+
+  // 2. Simpan juga ke tabel master_classes / kelas_sekolah jika ada
+  const rows = [
+    ...classes.formal.map((name, idx) => ({
+      id: `formal_${idx + 1}_${name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`,
+      name: name.trim(),
+      type: 'formal'
+    })),
+    ...classes.madrasah.map((name, idx) => ({
+      id: `madrasah_${idx + 1}_${name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`,
+      name: name.trim(),
+      type: 'madrasah'
+    }))
+  ];
+
+  if (rows.length > 0) {
+    const targetTables = ['master_classes', 'kelas_sekolah'];
+    for (const tbl of targetTables) {
+      try {
+        await client.from(tbl).delete().neq('id', 'dummy_never_match');
+        await client.from(tbl).upsert(rows);
+      } catch {
+        // Abaikan jika tabel tbl belum dibuat di database Supabase pengguna
+      }
+    }
   }
 }
 

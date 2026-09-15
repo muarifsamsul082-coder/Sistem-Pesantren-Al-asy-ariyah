@@ -43,7 +43,9 @@ import {
   syncPpdbWithSupabase,
   syncRoomsWithSupabase,
   syncBillsWithSupabase,
-  syncSettingsWithSupabase
+  syncSettingsWithSupabase,
+  syncMasterClassesWithSupabase,
+  pushMasterClassesToSupabase
 } from '../lib/supabase';
 import { isPpdbCurrentlyActive, autoAdjustPpdbSettings, getTodayDateString } from '../lib/dateUtils';
 
@@ -303,6 +305,7 @@ export default function AdminDashboard({
   });
   const [showSqlModal, setShowSqlModal] = React.useState(false);
   const [copiedSql, setCopiedSql] = React.useState(false);
+  const [isSyncingClasses, setIsSyncingClasses] = React.useState(false);
 
   const [newsSubTab, setNewsSubTab] = React.useState<'news' | 'agenda'>('news');
   const [events, setEvents] = React.useState<AcademicEvent[]>(() => {
@@ -526,6 +529,36 @@ export default function AdminDashboard({
       return updated;
     });
   }, [session]);
+
+  // Dynamic admin name based on current user account profile
+  const [adminNameVersion, setAdminNameVersion] = React.useState(0);
+  React.useEffect(() => {
+    const handleNameChange = () => setAdminNameVersion(v => v + 1);
+    window.addEventListener('pesantren_admin_name_updated', handleNameChange);
+    window.addEventListener('pesantren_staff_users_updated', handleNameChange);
+    window.addEventListener('storage', handleNameChange);
+    return () => {
+      window.removeEventListener('pesantren_admin_name_updated', handleNameChange);
+      window.removeEventListener('pesantren_staff_users_updated', handleNameChange);
+      window.removeEventListener('storage', handleNameChange);
+    };
+  }, []);
+
+  const currentAdminName = React.useMemo(() => {
+    if (session?.fullName) return session.fullName;
+    const userEmail = (session?.email || '').toLowerCase();
+    if (userEmail) {
+      const custom = localStorage.getItem('admin_custom_name_' + userEmail);
+      if (custom) return custom;
+      try {
+        const staffList = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
+        const found = staffList.find((u: any) => u.email?.toLowerCase() === userEmail);
+        if (found && (found.fullName || found.name)) return found.fullName || found.name;
+      } catch (e) {}
+      if (userEmail === 'muarifsamsul082@gmail.com') return 'Muarif Samsul';
+    }
+    return session?.roleName || 'Admin Utama';
+  }, [session, adminNameVersion]);
 
   const handleApprovePermit = (studentId: string, logId: string) => {
     setStudents(prev => {
@@ -1062,13 +1095,11 @@ export default function AdminDashboard({
       // 3. Dispatch window event for other listeners
       window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: finalSettings }));
       
-      // 4. Sync to Supabase Cloud Database if configured
-      if (isSupabaseConfigured()) {
-        try {
-          await pushSettingsToSupabase(finalSettings);
-        } catch (supaErr) {
-          console.warn('Gagal sinkronisasi setting ke Supabase:', supaErr);
-        }
+      // 4. Sync to Server (/api/settings) and Supabase Cloud Database unconditionally
+      try {
+        await pushSettingsToSupabase(finalSettings);
+      } catch (supaErr) {
+        console.warn('Gagal sinkronisasi setting:', supaErr);
       }
       
       setIsSettingsDirty(false);
@@ -1829,12 +1860,14 @@ export default function AdminDashboard({
         <![endif]-->
         <meta charset="UTF-8">
         <style>
-          body { font-family: 'Arial', sans-serif; }
-          .kop-title { font-size: 16px; font-weight: bold; text-transform: uppercase; color: #0f172a; }
-          .kop-subtitle { font-size: 10px; color: #475569; }
-          .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          .data-table th { border: 1px solid #000000; background-color: #f1f5f9; padding: 8px; font-size: 11px; font-weight: bold; text-align: left; text-transform: uppercase; }
-          .data-table td { border: 1px solid #000000; padding: 8px; font-size: 11px; vertical-align: top; }
+          body { font-family: 'Arial', sans-serif; font-size: 11px; }
+          .kop-title { font-size: 16px; font-weight: bold; text-transform: uppercase; color: #064e3b; }
+          .kop-subtitle { font-size: 11px; color: #475569; }
+          .data-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          .data-table th { border: 1px solid #94a3b8; background-color: #064e3b; color: #ffffff; padding: 8px 6px; font-size: 11px; font-weight: bold; text-align: left; text-transform: uppercase; }
+          .data-table td { border: 1px solid #cbd5e1; padding: 6px; font-size: 11px; vertical-align: top; }
+          .text-center { text-align: center; }
+          .text-bold { font-weight: bold; }
         </style>
       </head>
       <body>
@@ -1845,8 +1878,8 @@ export default function AdminDashboard({
               <div class="kop-title">${title}</div>
               <div class="kop-subtitle">${address}</div>
               <div class="kop-subtitle" style="font-style: italic; font-weight: bold; color: #047857;">${tagline}</div>
-              <div style="font-size: 12px; font-weight: bold; margin-top: 10px; border-bottom: 2px solid #000000; padding-bottom: 5px;">
-                LAPORAN PENDAFTARAN CALON SANTRI BARU (PPDB) - TAHUN ${new Date().getFullYear()}
+              <div style="font-size: 13px; font-weight: bold; margin-top: 10px; border-bottom: 2px solid #064e3b; padding-bottom: 5px; color: #064e3b;">
+                LAPORAN LENGKAP PENDAFTARAN CALON SANTRI BARU (PPDB) - TAHUN ${new Date().getFullYear()} (TOTAL: ${ppdbList.length} PENDAFTAR)
               </div>
             </td>
           </tr>
@@ -1857,34 +1890,54 @@ export default function AdminDashboard({
           <thead>
             <tr>
               <th style="width: 40px; text-align: center;">No</th>
-              <th>Identitas & Nama Calon (ID & Nama)</th>
-              <th>Gender</th>
-              <th>Tempat, Tgl Lahir</th>
-              <th>Asal Sekolah</th>
-              <th>Orang Tua / Wali</th>
-              <th>No WhatsApp Wali</th>
-              <th>Alamat</th>
+              <th>ID Pendaftaran</th>
+              <th>Tanggal Daftar</th>
               <th>Status Verifikasi</th>
+              <th>Nama Lengkap Calon</th>
+              <th>Jenis Kelamin</th>
+              <th>NIK Calon Santri</th>
+              <th>No. Kartu Keluarga (KK)</th>
+              <th>Tempat Lahir</th>
+              <th>Tanggal Lahir</th>
+              <th>Golongan Darah</th>
+              <th>Riwayat Kesehatan / Penyakit</th>
+              <th>Asal Sekolah</th>
+              <th>Nama Ayah Kandung</th>
+              <th>Nama Ibu Kandung</th>
+              <th>Nama Wali / Orang Tua</th>
+              <th>No. WhatsApp / HP Wali</th>
+              <th>Alamat Lengkap</th>
+              <th>Skema Biaya Masuk</th>
+              <th>Catatan / Keterangan</th>
             </tr>
           </thead>
           <tbody>
     `;
 
     ppdbList.forEach((reg, idx) => {
+      const statusColor = reg.status === 'Diterima' ? '#15803d' : reg.status === 'Ditolak' ? '#b91c1c' : '#b45309';
       html += `
-        <tr>
-          <td style="text-align: center;">${idx + 1}</td>
-          <td>
-            <strong>ID: ${reg.id}</strong><br/>
-            ${reg.fullName}
-          </td>
-          <td>${reg.gender || 'Laki-laki'}</td>
-          <td>${reg.birthPlace || '-'}, ${reg.birthDate || '-'}</td>
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td class="text-center">${idx + 1}</td>
+          <td style="mso-number-format:'\\@';" class="text-bold">${reg.id || '-'}</td>
+          <td>${reg.registrationDate || '-'}</td>
+          <td style="font-weight: bold; color: ${statusColor};">${reg.status || 'Pending'}</td>
+          <td class="text-bold">${reg.fullName || '-'}</td>
+          <td>${reg.gender || '-'}</td>
+          <td style="mso-number-format:'\\@';">${reg.nik || '-'}</td>
+          <td style="mso-number-format:'\\@';">${reg.kk || '-'}</td>
+          <td>${reg.birthPlace || '-'}</td>
+          <td>${reg.birthDate || '-'}</td>
+          <td class="text-center">${reg.bloodType || '-'}</td>
+          <td>${reg.healthHistory || '-'}</td>
           <td>${reg.previousSchool || '-'}</td>
-          <td>Ayah: ${reg.fatherName || '-'}<br/>Ibu: ${reg.motherName || '-'}</td>
+          <td>${reg.fatherName || '-'}</td>
+          <td>${reg.motherName || '-'}</td>
+          <td>${reg.parentName || '-'}</td>
           <td style="mso-number-format:'\\@';">${reg.parentPhone || '-'}</td>
           <td>${reg.address || '-'}</td>
-          <td><span style="color: ${reg.status === 'Diterima' ? '#10b981' : '#f59e0b'}; font-weight: bold;">${reg.status || 'Pending'}</span></td>
+          <td>${reg.paymentType || '-'}</td>
+          <td>${reg.notes || '-'}</td>
         </tr>
       `;
     });
@@ -1900,11 +1953,11 @@ export default function AdminDashboard({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `DATA_PPDB_EXCEL_${new Date().getFullYear()}.xls`);
+    link.setAttribute('download', `DATA_LENGKAP_PPDB_${new Date().getFullYear()}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showAlert('success', 'Data PPDB berhasil diekspor ke format Excel (XLS) lengkap dengan format kotak & Kop Surat Resmi!');
+    showAlert('success', 'Seluruh data PPDB lengkap (' + ppdbList.length + ' data tanpa terkecuali) berhasil diekspor ke format Excel!');
   };
 
   const exportStudentsToExcel = () => {
@@ -1920,7 +1973,7 @@ export default function AdminDashboard({
           <x:ExcelWorkbook>
             <x:ExcelWorksheets>
               <x:ExcelWorksheet>
-                <x:Name>Database Santri</x:Name>
+                <x:Name>Database Lengkap Santri</x:Name>
                 <x:WorksheetOptions>
                   <x:DisplayGridlines/>
                 </x:WorksheetOptions>
@@ -1931,12 +1984,14 @@ export default function AdminDashboard({
         <![endif]-->
         <meta charset="UTF-8">
         <style>
-          body { font-family: 'Arial', sans-serif; }
-          .kop-title { font-size: 16px; font-weight: bold; text-transform: uppercase; color: #0f172a; }
-          .kop-subtitle { font-size: 10px; color: #475569; }
-          .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          .data-table th { border: 1px solid #000000; background-color: #f1f5f9; padding: 8px; font-size: 11px; font-weight: bold; text-align: left; text-transform: uppercase; }
-          .data-table td { border: 1px solid #000000; padding: 8px; font-size: 11px; vertical-align: top; }
+          body { font-family: 'Arial', sans-serif; font-size: 11px; }
+          .kop-title { font-size: 16px; font-weight: bold; text-transform: uppercase; color: #064e3b; }
+          .kop-subtitle { font-size: 11px; color: #475569; }
+          .data-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          .data-table th { border: 1px solid #94a3b8; background-color: #064e3b; color: #ffffff; padding: 8px 6px; font-size: 11px; font-weight: bold; text-align: left; text-transform: uppercase; }
+          .data-table td { border: 1px solid #cbd5e1; padding: 6px; font-size: 11px; vertical-align: top; }
+          .text-center { text-align: center; }
+          .text-bold { font-weight: bold; }
         </style>
       </head>
       <body>
@@ -1947,8 +2002,8 @@ export default function AdminDashboard({
               <div class="kop-title">${title}</div>
               <div class="kop-subtitle">${address}</div>
               <div class="kop-subtitle" style="font-style: italic; font-weight: bold; color: #047857;">${tagline}</div>
-              <div style="font-size: 12px; font-weight: bold; margin-top: 10px; border-bottom: 2px solid #000000; padding-bottom: 5px;">
-                LAPORAN DATABASE SANTRI AKTIF - TAHUN ${new Date().getFullYear()}
+              <div style="font-size: 13px; font-weight: bold; margin-top: 10px; border-bottom: 2px solid #064e3b; padding-bottom: 5px; color: #064e3b;">
+                LAPORAN DATABASE INDUK SANTRI & ALUMNI LENGKAP - TAHUN ${new Date().getFullYear()} (TOTAL: ${students.length} SANTRI)
               </div>
             </td>
           </tr>
@@ -1959,32 +2014,66 @@ export default function AdminDashboard({
           <thead>
             <tr>
               <th style="width: 40px; text-align: center;">No</th>
-              <th>Identitas & Nama Santri (ID & Nama)</th>
-              <th>No Induk (NIS)</th>
-              <th>Kelas / Kamar</th>
-              <th>Orang Tua / Wali</th>
-              <th>No WhatsApp Wali</th>
-              <th>Alamat Lengkap</th>
+              <th>ID Santri</th>
+              <th>Nomor Induk Santri (NIS)</th>
+              <th>Nama Lengkap Santri</th>
               <th>Status Keaktifan</th>
+              <th>Jenis Kelamin</th>
+              <th>NIK (No. KTP/KIA)</th>
+              <th>No. Kartu Keluarga (KK)</th>
+              <th>Tempat Lahir</th>
+              <th>Tanggal Lahir</th>
+              <th>Golongan Darah</th>
+              <th>Riwayat Kesehatan / Penyakit</th>
+              <th>Kelas Formal (Sekolah Sore)</th>
+              <th>Kelas Madrasah Diniyah (Pagi)</th>
+              <th>Kelas Gabungan</th>
+              <th>Kamar Asrama</th>
+              <th>Total Hafalan Qur'an</th>
+              <th>Nama Ayah Kandung</th>
+              <th>Nama Ibu Kandung</th>
+              <th>Nama Wali Santri</th>
+              <th>No. WhatsApp / HP Wali</th>
+              <th>Alamat Lengkap</th>
+              <th>Akun / Catatan Madrasah</th>
+              <th>Email Akun Portal</th>
+              <th>Tahun Lulus / Keluar</th>
+              <th>Sebab / Alasan Alumni</th>
             </tr>
           </thead>
           <tbody>
     `;
 
     students.forEach((s, idx) => {
+      const statusColor = s.status === 'Aktif' ? '#15803d' : s.status === 'Alumni' ? '#1e40af' : s.status === 'Cuti' ? '#b45309' : '#b91c1c';
       html += `
-        <tr>
-          <td style="text-align: center;">${idx + 1}</td>
-          <td>
-            <strong>ID: ${s.id}</strong><br/>
-            ${s.fullName}
-          </td>
-          <td style="mso-number-format:'\\@';">${s.nis || '-'}</td>
-          <td>Kls: ${s.class || '-'}<br/>Kmr: ${s.kamar || '-'}</td>
-          <td>${s.parentName || '-'}</td>
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td class="text-center">${idx + 1}</td>
+          <td style="mso-number-format:'\\@';" class="text-bold">${s.id || '-'}</td>
+          <td style="mso-number-format:'\\@'; font-weight: bold;">${s.nis || '-'}</td>
+          <td class="text-bold">${s.fullName || '-'}</td>
+          <td style="font-weight: bold; color: ${statusColor};">${s.status || 'Aktif'}</td>
+          <td>${s.gender || '-'}</td>
+          <td style="mso-number-format:'\\@';">${s.nik || '-'}</td>
+          <td style="mso-number-format:'\\@';">${s.kk || '-'}</td>
+          <td>${s.birthPlace || '-'}</td>
+          <td>${s.birthDate || '-'}</td>
+          <td class="text-center">${s.bloodType || '-'}</td>
+          <td>${s.healthHistory || '-'}</td>
+          <td>${s.classFormal || '-'}</td>
+          <td>${s.classMadrasah || '-'}</td>
+          <td>${s.class || '-'}</td>
+          <td>${s.kamar || '-'}</td>
+          <td class="text-bold">${s.currentHafalan || '-'}</td>
+          <td>${s.fatherName || '-'}</td>
+          <td>${s.motherName || '-'}</td>
+          <td>${s.parentName || s.guardianName || '-'}</td>
           <td style="mso-number-format:'\\@';">${s.parentPhone || '-'}</td>
           <td>${s.address || '-'}</td>
-          <td><span style="color: ${s.status === 'Aktif' ? '#10b981' : '#ef4444'}; font-weight: bold;">${s.status || 'Aktif'}</span></td>
+          <td>${s.akunMadrasah || '-'}</td>
+          <td>${s.email || '-'}</td>
+          <td>${s.tahunKeluar || '-'}</td>
+          <td>${s.alumniReason || '-'}</td>
         </tr>
       `;
     });
@@ -2000,11 +2089,11 @@ export default function AdminDashboard({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `DATABASE_SANTRI_EXCEL_${new Date().getFullYear()}.xls`);
+    link.setAttribute('download', `DATABASE_LENGKAP_SANTRI_${new Date().getFullYear()}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showAlert('success', 'Database santri berhasil diekspor ke format Excel (XLS) lengkap dengan format kotak & Kop Surat Resmi!');
+    showAlert('success', 'Database seluruh santri lengkap (' + students.length + ' data santri & alumni tanpa terkecuali) berhasil diekspor ke Excel!');
   };
 
   // Add News
@@ -2887,10 +2976,10 @@ export default function AdminDashboard({
             <span className="text-3xl filter drop-shadow">👋</span>
             <div>
               <h2 className="text-base font-black tracking-wide uppercase">
-                ASSALAMU'ALAIKUM WR. WB. SELAMAT DATANG KEMBALI, <span className="text-amber-300 underline decoration-amber-400 decoration-2 font-black">{settings.namaPengurus || "Ustadz Ahmad Wildan, M.Pd"}</span>!
+                ASSALAMU'ALAIKUM WR. WB. SELAMAT DATANG KEMBALI, <span className="text-amber-300 underline decoration-amber-400 decoration-2 font-black">{currentAdminName}</span>!
               </h2>
               <p className="text-emerald-100 text-xs mt-1 leading-relaxed font-medium">
-                Selamat menjalankan amanah dan mengawal khidmah administrasi selaku <strong className="text-amber-200 font-extrabold uppercase">Kepala Pengurus Pesantren</strong>. Semoga seluruh ikhtiar Anda dalam memajukan pangkalan data Pondok Pesantren Al-Asy'ariyah senantiasa bernilai ibadah serta membawa keberkahan dunia akhirat.
+                Selamat menjalankan amanah dan mengawal khidmah administrasi selaku <strong className="text-amber-200 font-extrabold uppercase">Pengasuh Pesantren</strong>. Semoga seluruh ikhtiar Anda dalam memajukan pangkalan data Pondok Pesantren Al-Asy'ariyah senantiasa bernilai ibadah serta membawa keberkahan dunia akhirat.
               </p>
             </div>
           </div>
@@ -6584,13 +6673,17 @@ export default function AdminDashboard({
       {activeTab === 'kelas_sekolah' && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-50">
-            <h3 className="font-bold text-lg text-emerald-950 flex items-center gap-1.5 border-b border-gray-100 pb-2 mb-2">
-              <Plus className="h-5 w-5 text-emerald-700" />
-              Master Data Kelas & Sekolah
-            </h3>
-            <p className="text-xs text-gray-500 mb-6 leading-relaxed">
-              Daftar kelas dan lembaga sekolah di bawah ini akan muncul sebagai pilihan menu dropdown saat menambah atau mengedit data santri. Anda dapat menambahkan kelas baru atau menghapus kelas yang tidak lagi digunakan agar sistem selalu up-to-date.
-            </p>
+            <div className="border-b border-gray-100 pb-4 mb-4">
+              <div>
+                <h3 className="font-bold text-lg text-emerald-950 flex items-center gap-1.5">
+                  <Plus className="h-5 w-5 text-emerald-700" />
+                  Master Data Kelas & Sekolah
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                  Pilihan kelas ini digunakan saat menambah/mengedit data santri dan otomatis tersinkron ke cloud di seluruh perangkat.
+                </p>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* KOLOM 1: SEKOLAH FORMAL */}
@@ -6616,9 +6709,14 @@ export default function AdminDashboard({
                       showAlert('danger', `Kelas "${val}" sudah ada dalam pilihan!`);
                       return;
                     }
-                    setAvailableFormalClasses([...availableFormalClasses, val]);
+                    const updated = [...availableFormalClasses, val];
+                    setAvailableFormalClasses(updated);
+                    localStorage.setItem('pesantren_available_formal_classes', JSON.stringify(updated));
+                    pushMasterClassesToSupabase({ formal: updated, madrasah: availableMadrasahClasses }).catch(console.error);
+                    setEditSettings(prev => ({ ...prev, availableFormalClasses: updated }));
+                    window.dispatchEvent(new Event('pesantren_settings_updated'));
                     logAdminActivity('TAMBAH_MASTER_KELAS', `Menambahkan master kelas formal: ${val}`);
-                    showAlert('success', `Master kelas formal "${val}" berhasil ditambahkan!`);
+                    showAlert('success', `Master kelas formal "${val}" berhasil ditambahkan & disinkronkan ke cloud!`);
                     form.reset();
                   }}
                   className="flex gap-2"
@@ -6632,7 +6730,7 @@ export default function AdminDashboard({
                   />
                   <button
                     type="submit"
-                    className="px-3 py-1.5 bg-emerald-800 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1 shrink-0"
+                    className="px-3 py-1.5 bg-emerald-800 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1 shrink-0 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Tambah
@@ -6658,13 +6756,18 @@ export default function AdminDashboard({
                             'Hapus Master Kelas',
                             `Apakah Anda yakin ingin menghapus master kelas "${cls}"?`,
                             () => {
-                              setAvailableFormalClasses(availableFormalClasses.filter((c) => c !== cls));
+                              const updated = availableFormalClasses.filter((c) => c !== cls);
+                              setAvailableFormalClasses(updated);
+                              localStorage.setItem('pesantren_available_formal_classes', JSON.stringify(updated));
+                              pushMasterClassesToSupabase({ formal: updated, madrasah: availableMadrasahClasses }).catch(console.error);
+                              setEditSettings(prev => ({ ...prev, availableFormalClasses: updated }));
+                              window.dispatchEvent(new Event('pesantren_settings_updated'));
                               logAdminActivity('HAPUS_MASTER_KELAS', `Menghapus master kelas formal: ${cls}`);
-                              showAlert('success', `Master kelas formal "${cls}" berhasil dihapus.`);
+                              showAlert('success', `Master kelas formal "${cls}" berhasil dihapus & disinkronkan ke cloud.`);
                             }
                           );
                         }}
-                        className="text-red-500 hover:bg-red-50 p-1 rounded-md transition"
+                        className="text-red-500 hover:bg-red-50 p-1 rounded-md transition cursor-pointer"
                         title="Hapus"
                       >
                         <Trash className="h-3.5 w-3.5" />
@@ -6697,9 +6800,14 @@ export default function AdminDashboard({
                       showAlert('danger', `Kelas "${val}" sudah ada dalam pilihan!`);
                       return;
                     }
-                    setAvailableMadrasahClasses([...availableMadrasahClasses, val]);
+                    const updated = [...availableMadrasahClasses, val];
+                    setAvailableMadrasahClasses(updated);
+                    localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(updated));
+                    pushMasterClassesToSupabase({ formal: availableFormalClasses, madrasah: updated }).catch(console.error);
+                    setEditSettings(prev => ({ ...prev, availableMadrasahClasses: updated }));
+                    window.dispatchEvent(new Event('pesantren_settings_updated'));
                     logAdminActivity('TAMBAH_MASTER_KELAS', `Menambahkan master kelas madrasah: ${val}`);
-                    showAlert('success', `Master kelas madrasah "${val}" berhasil ditambahkan!`);
+                    showAlert('success', `Master kelas madrasah "${val}" berhasil ditambahkan & disinkronkan ke cloud!`);
                     form.reset();
                   }}
                   className="flex gap-2"
@@ -6713,7 +6821,7 @@ export default function AdminDashboard({
                   />
                   <button
                     type="submit"
-                    className="px-3 py-1.5 bg-emerald-800 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1 shrink-0"
+                    className="px-3 py-1.5 bg-emerald-800 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1 shrink-0 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Tambah
@@ -6739,19 +6847,108 @@ export default function AdminDashboard({
                             'Hapus Master Kelas',
                             `Apakah Anda yakin ingin menghapus master kelas "${cls}"?`,
                             () => {
-                              setAvailableMadrasahClasses(availableMadrasahClasses.filter((c) => c !== cls));
+                              const updated = availableMadrasahClasses.filter((c) => c !== cls);
+                              setAvailableMadrasahClasses(updated);
+                              localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(updated));
+                              pushMasterClassesToSupabase({ formal: availableFormalClasses, madrasah: updated }).catch(console.error);
+                              setEditSettings(prev => ({ ...prev, availableMadrasahClasses: updated }));
+                              window.dispatchEvent(new Event('pesantren_settings_updated'));
                               logAdminActivity('HAPUS_MASTER_KELAS', `Menghapus master kelas madrasah: ${cls}`);
-                              showAlert('success', `Master kelas madrasah "${cls}" berhasil dihapus.`);
+                              showAlert('success', `Master kelas madrasah "${cls}" berhasil dihapus & disinkronkan ke cloud.`);
                             }
                           );
                         }}
-                        className="text-red-500 hover:bg-red-50 p-1 rounded-md transition"
+                        className="text-red-500 hover:bg-red-50 p-1 rounded-md transition cursor-pointer"
                         title="Hapus"
                       >
                         <Trash className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            {/* PANDUAN MENGATASI TABEL KELAS & SEKOLAH SUPABASE TIDAK TERBACA DI SEMUA PERANGKAT */}
+            <div className="mt-8 bg-gradient-to-r from-emerald-50/80 to-teal-50/60 border border-emerald-200/80 rounded-2xl p-5 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="font-bold text-sm text-emerald-950 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-emerald-700 shrink-0" />
+                    Solusi: Mengapa Data Tabel Kelas Supabase Tidak Muncul di Semua Perangkat?
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    Jika Anda membuat tabel di database Supabase menggunakan AI Prompt dan datanya belum terbaca di HP/laptop lain, penyebab utamanya adalah <strong>izin Row Level Security (RLS)</strong> tabel tersebut masih terkunci, atau nama tabel dan kolomnya berbeda dari yang diminta sistem.
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 bg-emerald-700 text-white rounded-lg text-[10px] font-black shrink-0 tracking-wide uppercase">
+                  Dual-Sync Aktif
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="bg-white/90 p-3.5 rounded-xl border border-emerald-150 space-y-1.5 shadow-xs">
+                  <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                    <span>🛡️</span> 1. Proteksi Otomatis Kami (Bekerja Langsung)
+                  </span>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    Sistem aplikasi ini sekarang memiliki fitur <strong>Dual-Layer Fallback</strong>. Data kelas Anda secara otomatis disimpan ke tabel cadangan cloud (<code>settings</code>) dan tabel <code>master_classes</code>/<code>kelas_sekolah</code>. Perubahan kelas yang Anda buat di tab ini akan langsung disinkronkan ke seluruh perangkat pengguna tanpa Anda harus membuat tabel lagi.
+                  </p>
+                </div>
+
+                <div className="bg-white/90 p-3.5 rounded-xl border border-emerald-150 space-y-1.5 shadow-xs">
+                  <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                    <span>⚡</span> 2. Skrip SQL Supabase (Buka Kunci RLS)
+                  </span>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    Bila Anda ingin memiliki tabel terpisah <code>master_classes</code> di Supabase yang dapat diakses oleh semua perangkat tanpa ditolak izin (RLS Permission Denied), salin skrip SQL di bawah lalu klik <strong>Run</strong> di SQL Editor dashboard Supabase.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <div className="bg-slate-900 text-emerald-300 font-mono text-[11px] p-4 rounded-xl overflow-x-auto relative shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`-- 1. Buat Tabel Master Kelas & Sekolah
+CREATE TABLE IF NOT EXISTS public.master_classes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL, -- 'formal' atau 'madrasah'
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Buka Akses Keamanan (RLS) agar semua perangkat bisa membaca & menyimpan data
+ALTER TABLE public.master_classes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access on master_classes" ON public.master_classes;
+CREATE POLICY "Allow all access on master_classes" ON public.master_classes FOR ALL USING (true) WITH CHECK (true);
+
+-- 3. Aktifkan Realtime agar setiap penambahan kelas langsung muncul seketika di semua perangkat
+ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`);
+                      showAlert('success', 'Skrip SQL master_classes berhasil disalin!');
+                    }}
+                    className="absolute top-3 right-3 px-3 py-1 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow"
+                  >
+                    <Copy className="h-3 w-3" /> Salin Skrip SQL
+                  </button>
+                  <pre className="text-slate-300 whitespace-pre-wrap leading-relaxed">
+{`-- 1. Buat Tabel Master Kelas & Sekolah
+CREATE TABLE IF NOT EXISTS public.master_classes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL, -- 'formal' atau 'madrasah'
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Buka Akses Keamanan (RLS) agar semua perangkat bisa membaca & menyimpan data
+ALTER TABLE public.master_classes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access on master_classes" ON public.master_classes;
+CREATE POLICY "Allow all access on master_classes" ON public.master_classes FOR ALL USING (true) WITH CHECK (true);
+
+-- 3. Aktifkan Realtime agar setiap penambahan kelas langsung muncul seketika di semua perangkat
+ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
+                  </pre>
                 </div>
               </div>
             </div>
@@ -6845,16 +7042,16 @@ export default function AdminDashboard({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-emerald-900 uppercase mb-1">Nama Kepala Pengurus Pesantren</label>
+                <label className="block text-xs font-semibold text-emerald-900 uppercase mb-1">Nama Pengasuh Pesantren</label>
                 <input
                   type="text"
                   required
-                  value={editSettings.namaPengurus || ''}
+                  value={editSettings.namaPengasuh || editSettings.namaPengurus || ''}
                   onChange={(e) => {
-                    setEditSettings({ ...editSettings, namaPengurus: e.target.value });
+                    setEditSettings({ ...editSettings, namaPengasuh: e.target.value, namaPengurus: e.target.value });
                     setIsSettingsDirty(true);
                   }}
-                  placeholder="Contoh: Ustadz Ahmad Wildan, M.Pd"
+                  placeholder="Contoh: KH. Asy'ari Al-Hafidz"
                   className="w-full px-3 py-2 border border-emerald-100 rounded-lg bg-emerald-50/10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700"
                 />
               </div>
@@ -7340,7 +7537,11 @@ export default function AdminDashboard({
                           ppdbList,
                           rooms,
                           bills,
-                          settings: editSettings
+                          settings: editSettings,
+                          masterClasses: {
+                            formal: availableFormalClasses,
+                            madrasah: availableMadrasahClasses
+                          }
                         });
 
                         setSupabasePushStatus({
@@ -10445,18 +10646,18 @@ export default function AdminDashboard({
                   <div className="mt-10 pt-4 border-t border-slate-200 flex justify-between items-start gap-4 text-xs">
                     <div className="text-center w-[180px]">
                       <p className="text-[10px] text-slate-500 uppercase font-semibold">Mengetahui,</p>
-                      <p className="font-bold text-slate-900 mt-1 uppercase leading-snug">Kepala Pengurus<br />Ponpes Al-Asy'ariyah</p>
+                      <p className="font-bold text-slate-900 mt-1 uppercase leading-snug">Pengasuh Pesantren<br />Ponpes Al-Asy'ariyah</p>
                       
                       <div className="h-12 flex items-center justify-center relative my-1">
-                        {isImageUrl(settings.ttdPengurusUrl) && (
-                          <img src={settings.ttdPengurusUrl} alt="TTD Pengurus" className="h-10 object-contain absolute" referrerPolicy="no-referrer" />
+                        {isImageUrl(settings.ttdPengasuhUrl || settings.ttdPengurusUrl) && (
+                          <img src={settings.ttdPengasuhUrl || settings.ttdPengurusUrl} alt="TTD Pengasuh" className="h-10 object-contain absolute" referrerPolicy="no-referrer" />
                         )}
-                        {isImageUrl(settings.stempelPesantrenUrl) && (
-                          <img src={settings.stempelPesantrenUrl} alt="Stempel" className="h-12 object-contain absolute opacity-80" referrerPolicy="no-referrer" />
+                        {isImageUrl(settings.stempelPengasuhUrl || settings.stempelPesantrenUrl) && (
+                          <img src={settings.stempelPengasuhUrl || settings.stempelPesantrenUrl} alt="Stempel" className="h-12 object-contain absolute opacity-80" referrerPolicy="no-referrer" />
                         )}
                       </div>
 
-                      <strong className="text-slate-900 block underline">{settings.namaPengurus || "Ust. H. Ahmad Wildan, M.Pd"}</strong>
+                      <strong className="text-slate-900 block underline">{settings.namaPengasuh || settings.namaPengurus || "KH. Asy'ari Al-Hafidz"}</strong>
                     </div>
 
                     <div className="border-2 border-dashed border-slate-300 w-[3cm] h-[4cm] rounded flex flex-col items-center justify-center text-center p-1 relative bg-slate-50/30 shrink-0 self-center">

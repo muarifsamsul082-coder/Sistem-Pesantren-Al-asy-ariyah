@@ -59,6 +59,42 @@ async function startServer() {
     return res.status(400).json({ error: "Invalid payload. 'url' and 'anonKey' must be strings." });
   });
 
+  // Settings & PPDB Sync API routes - ensures all devices see the exact same PPDB and portal settings instantly
+  const SETTINGS_STORAGE_PATH = path.join(process.cwd(), '.portal_settings.json');
+  app.get("/api/settings", (req, res) => {
+    try {
+      if (fs.existsSync(SETTINGS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(SETTINGS_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, settings: parsed });
+      }
+    } catch (e) {
+      console.error("Error reading portal settings file:", e);
+    }
+    return res.json({ success: false, settings: null });
+  });
+
+  app.post("/api/settings", (req, res) => {
+    try {
+      const incoming = req.body;
+      if (incoming && typeof incoming === 'object') {
+        let existing: any = {};
+        if (fs.existsSync(SETTINGS_STORAGE_PATH)) {
+          try {
+            existing = JSON.parse(fs.readFileSync(SETTINGS_STORAGE_PATH, 'utf-8'));
+          } catch (e) {}
+        }
+        const merged = { ...existing, ...incoming };
+        fs.writeFileSync(SETTINGS_STORAGE_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+        return res.json({ success: true, settings: merged });
+      }
+    } catch (e) {
+      console.error("Error saving portal settings file:", e);
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
   // API Route: AI Validation Assistant
   app.post("/api/ai/validate", async (req, res) => {
     try {

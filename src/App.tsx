@@ -80,6 +80,8 @@ import {
   syncRoomsWithSupabase,
   syncBillsWithSupabase,
   syncSettingsWithSupabase,
+  syncMasterClassesWithSupabase,
+  pushMasterClassesToSupabase,
   pushSettingsToSupabase,
   pushPpdbToSupabase,
   subscribeToSupabaseRealtime
@@ -334,18 +336,56 @@ export default function App() {
     let realtimeChannel: any = null;
     let intervalId: any = null;
 
+    const getLocal = <T,>(key: string, fallback: T): T => {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch {
+        return fallback;
+      }
+    };
+
+    // Dedicated server-level sync for settings and classes across all devices
+    const syncServerSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.success && json.settings) {
+            const remoteSettings = json.settings;
+            const currentLocal = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
+            const mergedSettings: PortalSettings = {
+              ...currentLocal,
+              ...remoteSettings,
+              ppdbOpen: typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : currentLocal.ppdbOpen,
+              ppdbStartDate: remoteSettings.ppdbStartDate !== undefined ? remoteSettings.ppdbStartDate : (currentLocal.ppdbStartDate || ''),
+              ppdbEndDate: remoteSettings.ppdbEndDate !== undefined ? remoteSettings.ppdbEndDate : (currentLocal.ppdbEndDate || ''),
+            };
+            const adjusted = autoAdjustPpdbSettings(mergedSettings);
+            setSettings(adjusted);
+            localStorage.setItem('pesantren_settings', JSON.stringify(adjusted));
+
+            if (Array.isArray(adjusted.availableFormalClasses) && adjusted.availableFormalClasses.length > 0) {
+              setAvailableFormalClasses(adjusted.availableFormalClasses);
+              localStorage.setItem('pesantren_available_formal_classes', JSON.stringify(adjusted.availableFormalClasses));
+            }
+            if (Array.isArray(adjusted.availableMadrasahClasses) && adjusted.availableMadrasahClasses.length > 0) {
+              setAvailableMadrasahClasses(adjusted.availableMadrasahClasses);
+              localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(adjusted.availableMadrasahClasses));
+            }
+          }
+        }
+      } catch (e) {
+        // network or server error handled gracefully
+      }
+    };
+
     const refreshCloudData = async () => {
+      // Always sync server settings first so all devices receive PPDB status updates
+      await syncServerSettings();
+
       if (!isSupabaseConfigured()) return;
       try {
-        // Read fresh local state from localStorage to avoid stale closures
-        const getLocal = <T,>(key: string, fallback: T): T => {
-          try {
-            const raw = localStorage.getItem(key);
-            return raw ? JSON.parse(raw) : fallback;
-          } catch {
-            return fallback;
-          }
-        };
 
         const currentLocalNews = getLocal<News[]>('pesantren_news', []);
         const remoteNews = await syncNewsWithSupabase(currentLocalNews);
@@ -400,6 +440,33 @@ export default function App() {
           const adjusted = autoAdjustPpdbSettings(mergedSettings);
           setSettings(adjusted);
           localStorage.setItem('pesantren_settings', JSON.stringify(adjusted));
+
+          if (Array.isArray(adjusted.availableFormalClasses) && adjusted.availableFormalClasses.length > 0) {
+            setAvailableFormalClasses(adjusted.availableFormalClasses);
+            localStorage.setItem('pesantren_available_formal_classes', JSON.stringify(adjusted.availableFormalClasses));
+          }
+          if (Array.isArray(adjusted.availableMadrasahClasses) && adjusted.availableMadrasahClasses.length > 0) {
+            setAvailableMadrasahClasses(adjusted.availableMadrasahClasses);
+            localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(adjusted.availableMadrasahClasses));
+          }
+        }
+
+        // Sinkronisasi data Master Kelas & Sekolah (Formal & Madrasah Diniyah)
+        const currentLocalFormal = getLocal<string[]>('pesantren_available_formal_classes', availableFormalClasses);
+        const currentLocalMadrasah = getLocal<string[]>('pesantren_available_madrasah_classes', availableMadrasahClasses);
+        const remoteClasses = await syncMasterClassesWithSupabase({
+          formal: currentLocalFormal,
+          madrasah: currentLocalMadrasah
+        });
+        if (remoteClasses) {
+          if (Array.isArray(remoteClasses.formal) && remoteClasses.formal.length > 0) {
+            setAvailableFormalClasses(remoteClasses.formal);
+            localStorage.setItem('pesantren_available_formal_classes', JSON.stringify(remoteClasses.formal));
+          }
+          if (Array.isArray(remoteClasses.madrasah) && remoteClasses.madrasah.length > 0) {
+            setAvailableMadrasahClasses(remoteClasses.madrasah);
+            localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(remoteClasses.madrasah));
+          }
         }
       } catch (err) {
         console.error("Supabase cloud sync error:", err);
@@ -410,39 +477,55 @@ export default function App() {
       // 1. Check server-side config if local not set
       await initSupabaseFromRemoteConfig();
 
-      // 2. Perform sync
-      if (isSupabaseConfigured()) {
-        await refreshCloudData();
+      // 2. Perform initial sync
+      await refreshCloudData();
 
-        // 3. Setup realtime WebSocket listener
+      // 3. Setup realtime WebSocket listener if Supabase is active
+      if (isSupabaseConfigured()) {
         if (realtimeChannel) realtimeChannel.unsubscribe();
         realtimeChannel = subscribeToSupabaseRealtime(() => {
           refreshCloudData();
         });
-
-        // 4. Polling interval fallback (every 8 seconds)
-        if (intervalId) clearInterval(intervalId);
-        intervalId = setInterval(() => {
-          refreshCloudData();
-        }, 8000);
       }
+
+      // 4. Polling interval fallback (every 5 seconds) to ensure multi-device sync
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        refreshCloudData();
+      }, 5000);
     };
 
     setupSupabaseAndSync();
 
     const handleStorageChange = () => {
       loadLocalDatabase();
-      if (isSupabaseConfigured()) refreshCloudData();
+      refreshCloudData();
+    };
+
+    const handleWindowFocus = () => {
+      refreshCloudData();
     };
 
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('pesantren_db_sync', handleStorageChange);
     window.addEventListener('pesantren_settings_updated', handleStorageChange);
+    window.addEventListener('focus', handleWindowFocus);
 
     // Restore login session if saved
     const storedSession = localStorage.getItem('pesantren_session');
     if (storedSession) {
       const parsedSess = JSON.parse(storedSession);
+      if (parsedSess.role === 'santri') {
+        const studentId = parsedSess.studentId;
+        const localStudents = getLocal<Student[]>('pesantren_students', []);
+        const currentStudent = localStudents.find(s => s.id === studentId);
+        if (currentStudent && currentStudent.status === 'Alumni') {
+          localStorage.removeItem('pesantren_session');
+          setSession(null);
+          setView('home');
+          return;
+        }
+      }
       setSession(parsedSess);
       setAdminTab('overview');
       setStaffTab('students');
@@ -460,6 +543,7 @@ export default function App() {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('pesantren_db_sync', handleStorageChange);
       window.removeEventListener('pesantren_settings_updated', handleStorageChange);
+      window.removeEventListener('focus', handleWindowFocus);
       if (realtimeChannel) realtimeChannel.unsubscribe();
       if (intervalId) clearInterval(intervalId);
     };
@@ -521,9 +605,7 @@ export default function App() {
     const adjusted = autoAdjustPpdbSettings(newSettings);
     setSettings(adjusted);
     localStorage.setItem('pesantren_settings', JSON.stringify(adjusted));
-    if (isSupabaseConfigured()) {
-      pushSettingsToSupabase(adjusted).catch(e => console.error("Push settings error:", e));
-    }
+    pushSettingsToSupabase(adjusted).catch(e => console.error("Push settings error:", e));
   };
 
 
@@ -578,10 +660,22 @@ export default function App() {
     }
   };
 
-  // Current logged in student obj for the student screen
+  // Current logged in student obj for the student screen (Alumni cannot login as active santri/wali)
   const currentStudent = session?.studentId 
-    ? students.find(s => s.id === session.studentId) 
+    ? students.find(s => s.id === session.studentId && s.status !== 'Alumni') 
     : null;
+
+  // Auto-logout if student transitioned to alumni while session is active
+  React.useEffect(() => {
+    if (session?.role === 'santri' && session.studentId) {
+      const std = students.find(s => s.id === session.studentId);
+      if (std && std.status === 'Alumni') {
+        handleLogout();
+        setToastMessage(`Akses login wali santri dinonaktifkan karena status santri telah menjadi ALUMNI.`);
+        setShowToast(true);
+      }
+    }
+  }, [students, session]);
 
   // Touch Gesture Handlers for Pull to Refresh
   const handleTouchStart = (e: React.TouchEvent) => {

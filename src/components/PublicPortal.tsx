@@ -148,32 +148,30 @@ export default function PublicPortal({
               </p>
             </div>
 
-            <div className="pt-4 border-t border-emerald-700/50 flex flex-wrap gap-2">
-              {ppdbStatus.isActive ? (
-                <motion.button 
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setView('ppdb')} 
-                  className="px-4 py-2 bg-amber-400 font-bold hover:bg-amber-300 text-emerald-950 rounded-lg text-xs tracking-wide shadow flex items-center gap-1 cursor-pointer"
-                >
-                  Daftar Santri Baru <ArrowRight className="h-3 w-3" />
-                </motion.button>
-              ) : (
-                <div className="px-3 py-1.5 bg-emerald-950/60 border border-emerald-700/60 text-emerald-200/90 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-                  <span>🚫</span> Pendaftaran Ditutup
-                </div>
-              )}
-              {session && (
-                <motion.button 
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setView(session.role === 'admin' ? 'admin-dashboard' : 'santri-dashboard')}
-                  className="px-4 py-2 bg-amber-500 font-bold text-emerald-950 rounded-lg text-xs hover:bg-amber-400 shadow flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  Kembali ke Dashboard Anda ➡️
-                </motion.button>
-              )}
-            </div>
+            {(ppdbStatus.isActive || session) && (
+              <div className="pt-4 border-t border-emerald-700/50 flex flex-wrap gap-2">
+                {ppdbStatus.isActive && (
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setView('ppdb')} 
+                    className="px-4 py-2 bg-amber-400 font-bold hover:bg-amber-300 text-emerald-950 rounded-lg text-xs tracking-wide shadow flex items-center gap-1 cursor-pointer"
+                  >
+                    Daftar Santri Baru <ArrowRight className="h-3 w-3" />
+                  </motion.button>
+                )}
+                {session && (
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setView(session.role === 'admin' ? 'admin-dashboard' : 'santri-dashboard')}
+                    className="px-4 py-2 bg-amber-500 font-bold text-emerald-950 rounded-lg text-xs hover:bg-amber-400 shadow flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    Kembali ke Dashboard Anda ➡️
+                  </motion.button>
+                )}
+              </div>
+            )}
           </motion.div>
         </section>
       )}

@@ -170,20 +170,24 @@ export default function Navbar({
 
   if (session) {
     if (session.role === 'admin') {
-      let adminName = settings?.namaPengurus || '';
+      const emailKey = (session.email || 'muarifsamsul082@gmail.com').toLowerCase();
+      let adminName = session.fullName || '';
+      if (!adminName) {
+        adminName = localStorage.getItem('admin_custom_name_' + emailKey) || '';
+      }
       if (!adminName) {
         try {
-          const storedSettings = localStorage.getItem('pesantren_settings');
-          if (storedSettings) {
-            const parsed = JSON.parse(storedSettings);
-            if (parsed.namaPengurus) adminName = parsed.namaPengurus;
-          }
+          const staffUsers = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
+          const found = staffUsers.find((u: any) => u && u.email && u.email.toLowerCase() === emailKey);
+          if (found && (found.fullName || found.name)) adminName = found.fullName || found.name;
         } catch (e) {}
       }
-      if (!adminName) {
-        adminName = localStorage.getItem('admin_custom_name_' + (session.email || 'admin')) || '';
+      if (!adminName && emailKey === 'muarifsamsul082@gmail.com') {
+        adminName = 'Muarif Samsul';
       }
-      if (!adminName) adminName = 'Ustadz Ahmad Wildan, M.Pd';
+      if (!adminName) {
+        adminName = 'Admin Utama';
+      }
       userName = adminName;
       userEmail = session.email || 'muarifsamsul082@gmail.com';
       userIdentifier = userEmail;
@@ -221,6 +225,12 @@ export default function Navbar({
       defaultPass = curStudent?.nis || '';
     }
   }
+
+  React.useEffect(() => {
+    if (isProfileModalOpen && userName) {
+      setCustomNameInput(userName);
+    }
+  }, [isProfileModalOpen, userName]);
 
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,22 +282,40 @@ export default function Navbar({
     const newName = customNameInput.trim();
 
     if (session?.role === 'admin') {
-      localStorage.setItem('admin_custom_name_' + (session.email || 'admin'), newName);
-      let updatedSettings: any = {};
+      const emailKey = (session.email || 'muarifsamsul082@gmail.com').toLowerCase();
+      localStorage.setItem('admin_custom_name_' + emailKey, newName);
+
+      // Update in staff users list
       try {
-        const stored = localStorage.getItem('pesantren_settings');
-        updatedSettings = stored ? JSON.parse(stored) : {};
-        updatedSettings.namaPengurus = newName;
-        localStorage.setItem('pesantren_settings', JSON.stringify(updatedSettings));
-        if (isSupabaseConfigured()) {
-          await pushSettingsToSupabase(updatedSettings);
+        const staffUsers = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
+        let changed = false;
+        const updatedStaff = staffUsers.map((u: any) => {
+          if (u && u.email && u.email.toLowerCase() === emailKey) {
+            changed = true;
+            return { ...u, fullName: newName, name: newName };
+          }
+          return u;
+        });
+        if (changed) {
+          localStorage.setItem('pesantren_staff_users', JSON.stringify(updatedStaff));
+          window.dispatchEvent(new Event('pesantren_staff_users_updated'));
         }
-      } catch (e) {
-        console.error(e);
-      }
-      window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: updatedSettings }));
+      } catch (e) {}
+
+      // Update current session object in storage
+      try {
+        const storedSess = localStorage.getItem('pesantren_session');
+        if (storedSess) {
+          const parsed = JSON.parse(storedSess);
+          parsed.fullName = newName;
+          parsed.roleName = newName;
+          localStorage.setItem('pesantren_session', JSON.stringify(parsed));
+        }
+      } catch (e) {}
+
+      window.dispatchEvent(new Event('pesantren_admin_name_updated'));
       window.dispatchEvent(new Event('pesantren_db_sync'));
-      setProfileSuccess('Nama profil Admin & sapaan dashboard berhasil disimpan!');
+      setProfileSuccess('Nama profil akun Admin berhasil disimpan!');
     } else if (session && ['keamanan', 'ketertiban', 'kesehatan'].includes(session.role)) {
       try {
         const cfgKey = `${session.role}_config`;
