@@ -418,6 +418,18 @@ CREATE TABLE IF NOT EXISTS master_classes (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 11. TABEL PENGGUNA PENGURUS & ADMIN
+CREATE TABLE IF NOT EXISTS staff_users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'pengurus',
+  is_confirmed BOOLEAN DEFAULT false,
+  registered_at TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Seed default master kelas jika tabel baru dibuat
 INSERT INTO master_classes (id, name, type) VALUES
   ('formal_1', 'VII SMP Formal', 'formal'),
@@ -565,6 +577,7 @@ ALTER TABLE settings REPLICA IDENTITY FULL;
 ALTER TABLE events REPLICA IDENTITY FULL;
 ALTER TABLE staff_configs REPLICA IDENTITY FULL;
 ALTER TABLE master_classes REPLICA IDENTITY FULL;
+ALTER TABLE staff_users REPLICA IDENTITY FULL;
 
 -- ==============================================================================
 -- HAK AKSES UNIVERSAL (ANON & AUTHENTICATED DAPAT MEMBACA & MENULIS DENGAN AMAN)
@@ -579,6 +592,7 @@ ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE master_classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_users ENABLE ROW LEVEL SECURITY;
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role, postgres;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role, postgres;
@@ -600,6 +614,7 @@ BEGIN
   DROP POLICY IF EXISTS "Allow all on events" ON events;
   DROP POLICY IF EXISTS "Allow all on staff_configs" ON staff_configs;
   DROP POLICY IF EXISTS "Allow all on master_classes" ON master_classes;
+  DROP POLICY IF EXISTS "Allow all on staff_users" ON staff_users;
   DROP POLICY IF EXISTS "Public Access" ON ppdb;
   DROP POLICY IF EXISTS "Public Access" ON students;
   DROP POLICY IF EXISTS "Public Access" ON bills;
@@ -610,6 +625,7 @@ BEGIN
   DROP POLICY IF EXISTS "Public Access" ON events;
   DROP POLICY IF EXISTS "Public Access" ON staff_configs;
   DROP POLICY IF EXISTS "Public Access" ON master_classes;
+  DROP POLICY IF EXISTS "Public Access" ON staff_users;
 END $$;
 
 CREATE POLICY "Allow all on news" ON news FOR ALL USING (true) WITH CHECK (true);
@@ -622,6 +638,7 @@ CREATE POLICY "Allow all on settings" ON settings FOR ALL USING (true) WITH CHEC
 CREATE POLICY "Allow all on events" ON events FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on staff_configs" ON staff_configs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on master_classes" ON master_classes FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on staff_users" ON staff_users FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
 -- REALTIME PUBLICATION (NOTIFIKASI OTOMATIS KE HP/LAPTOP LAIN SAAT ADA PENDAFTARAN)
@@ -629,12 +646,12 @@ CREATE POLICY "Allow all on master_classes" ON master_classes FOR ALL USING (tru
 DO $$
 BEGIN
   BEGIN
-    ALTER PUBLICATION supabase_realtime ADD TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes;
+    ALTER PUBLICATION supabase_realtime ADD TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes, staff_users;
   EXCEPTION
     WHEN duplicate_object THEN
       NULL;
     WHEN undefined_object THEN
-      CREATE PUBLICATION supabase_realtime FOR TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes;
+      CREATE PUBLICATION supabase_realtime FOR TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes, staff_users;
     WHEN OTHERS THEN
       NULL;
   END;

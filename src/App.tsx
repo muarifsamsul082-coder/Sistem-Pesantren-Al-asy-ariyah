@@ -345,7 +345,7 @@ export default function App() {
       }
     };
 
-    // Dedicated server-level sync for settings and classes across all devices
+    // Dedicated server-level sync for settings, PPDB, and students across all devices
     const syncServerSettings = async () => {
       try {
         const res = await fetch('/api/settings');
@@ -378,6 +378,57 @@ export default function App() {
       } catch (e) {
         // network or server error handled gracefully
       }
+
+      // Sync PPDB from server across devices
+      try {
+        const ppdbRes = await fetch('/api/ppdb');
+        if (ppdbRes.ok) {
+          const ppdbJson = await ppdbRes.json();
+          if (ppdbJson && ppdbJson.success && Array.isArray(ppdbJson.ppdb) && ppdbJson.ppdb.length > 0) {
+            const localPpdb = getLocal<PCSBRegistration[]>('pesantren_ppdb', []);
+            const map = new Map<string, PCSBRegistration>();
+            localPpdb.forEach(p => { if (p && p.id) map.set(p.id, p); });
+            ppdbJson.ppdb.forEach((p: PCSBRegistration) => { if (p && p.id) map.set(p.id, p); });
+            const merged = Array.from(map.values());
+            setPpdbList(merged);
+            localStorage.setItem('pesantren_ppdb', JSON.stringify(merged));
+          }
+        }
+      } catch (e) {}
+
+      // Sync Students from server across devices
+      try {
+        const stdRes = await fetch('/api/students');
+        if (stdRes.ok) {
+          const stdJson = await stdRes.json();
+          if (stdJson && stdJson.success && Array.isArray(stdJson.students) && stdJson.students.length > 0) {
+            const localStd = getLocal<Student[]>('pesantren_students', []);
+            const map = new Map<string, Student>();
+            localStd.forEach(s => { if (s && s.id) map.set(s.id, s); });
+            stdJson.students.forEach((s: Student) => { if (s && s.id) map.set(s.id, s); });
+            const merged = Array.from(map.values());
+            setStudents(merged);
+            localStorage.setItem('pesantren_students', JSON.stringify(merged));
+          }
+        }
+      } catch (e) {}
+
+      // Sync Staff Users from server across devices
+      try {
+        const staffRes = await fetch('/api/staff-users');
+        if (staffRes.ok) {
+          const staffJson = await staffRes.json();
+          if (staffJson && staffJson.success && Array.isArray(staffJson.staffUsers) && staffJson.staffUsers.length > 0) {
+            const localStaff = getLocal<any[]>('pesantren_staff_users', []);
+            const map = new Map<string, any>();
+            localStaff.forEach(u => { if (u && u.email) map.set(u.email.toLowerCase(), u); });
+            staffJson.staffUsers.forEach((u: any) => { if (u && u.email) map.set(u.email.toLowerCase(), u); });
+            const merged = Array.from(map.values());
+            localStorage.setItem('pesantren_staff_users', JSON.stringify(merged));
+            window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+          }
+        }
+      } catch (e) {}
     };
 
     const refreshCloudData = async () => {
@@ -650,6 +701,15 @@ export default function App() {
       console.error(e);
     }
     window.dispatchEvent(new Event('pesantren_db_sync'));
+
+    // Push to server for multi-device cross-browser access
+    try {
+      fetch('/api/ppdb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(regWithId)
+      }).catch(e => console.warn("Failed to push to /api/ppdb:", e));
+    } catch (e) {}
 
     if (!isSupabaseConfigured()) {
       await initSupabaseFromRemoteConfig();

@@ -194,11 +194,18 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
           localStorage.setItem('staff_custom_name_' + inputEmail, resolvedFullName);
         }
 
+        const roleTitleMap: Record<string, string> = {
+          admin: 'Administrator',
+          keamanan: 'Biro Keamanan',
+          ketertiban: 'Biro Ketertiban',
+          kesehatan: 'Biro Kesehatan'
+        };
+
         onLoginSuccess({
           role: matchedUser.role || 'admin',
           email: matchedUser.email,
           fullName: resolvedFullName,
-          roleName: resolvedFullName
+          roleName: roleTitleMap[matchedUser.role || 'admin'] || 'Pengurus'
         });
       } else {
         setError('Password yang Anda masukkan salah. Silakan periksa kembali.');
@@ -315,9 +322,15 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     // Save profile name specifically for this account email
     localStorage.setItem('admin_custom_name_' + emailClean, regFullName.trim());
     localStorage.setItem('staff_custom_name_' + emailClean, regFullName.trim());
-    if (regRole !== 'admin') {
-      localStorage.setItem(`${regRole}_config`, JSON.stringify({ name: regFullName.trim() }));
-    }
+
+    // Broadcast to server
+    try {
+      fetch('/api/staff-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      }).catch(e => console.warn('Failed to push new user:', e));
+    } catch (e) {}
 
     setSuccessMsg(`Pendaftaran atas nama "${regFullName.trim()}" berhasil! Akun Anda sedang menunggu persetujuan dari Admin Utama.`);
     setEmail(emailClean);

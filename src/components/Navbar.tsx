@@ -193,19 +193,32 @@ export default function Navbar({
       userIdentifier = userEmail;
       defaultPass = 'admin123';
     } else if (['keamanan', 'ketertiban', 'kesehatan'].includes(session.role)) {
-      let staffName = '';
+      const emailKey = (session.email || `${session.role}@alasyariyah.sch.id`).toLowerCase();
+      let staffName = session.fullName || '';
+      if (!staffName) {
+        staffName = localStorage.getItem('staff_custom_name_' + emailKey) || '';
+      }
+      if (!staffName) {
+        try {
+          const staffUsers = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
+          const found = staffUsers.find((u: any) => u && u.email && u.email.toLowerCase() === emailKey);
+          if (found && (found.fullName || found.name)) staffName = found.fullName || found.name;
+        } catch (e) {}
+      }
+      if (!staffName) {
+        try {
+          const storedConfig = localStorage.getItem(`${session.role}_config`);
+          if (storedConfig) {
+            const parsed = JSON.parse(storedConfig);
+            if (parsed.name) staffName = parsed.name;
+          }
+        } catch (e) {}
+      }
       const defaults: Record<string, string> = {
-        keamanan: 'Ustadz Junaidi Al-Anshori',
-        ketertiban: 'Ustadz Abdul Somad, S.Sy',
-        kesehatan: 'Ustadzah dr. Fatimah Az-Zahra'
+        keamanan: 'Petugas Keamanan',
+        ketertiban: 'Petugas Ketertiban',
+        kesehatan: 'Petugas Kesehatan'
       };
-      try {
-        const storedConfig = localStorage.getItem(`${session.role}_config`);
-        if (storedConfig) {
-          const parsed = JSON.parse(storedConfig);
-          if (parsed.name) staffName = parsed.name;
-        }
-      } catch (e) {}
       if (!staffName) staffName = defaults[session.role] || `Biro ${session.role}`;
       userName = staffName;
       userEmail = session.email || `${session.role}@alasyariyah.sch.id`;
@@ -317,6 +330,42 @@ export default function Navbar({
       window.dispatchEvent(new Event('pesantren_db_sync'));
       setProfileSuccess('Nama profil akun Admin berhasil disimpan!');
     } else if (session && ['keamanan', 'ketertiban', 'kesehatan'].includes(session.role)) {
+      const emailKey = (session.email || `${session.role}@alasyariyah.sch.id`).toLowerCase();
+      localStorage.setItem('staff_custom_name_' + emailKey, newName);
+
+      // Update in staff users list
+      try {
+        const staffUsers = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
+        let changed = false;
+        const updatedStaff = staffUsers.map((u: any) => {
+          if (u && u.email && u.email.toLowerCase() === emailKey) {
+            changed = true;
+            return { ...u, fullName: newName, name: newName };
+          }
+          return u;
+        });
+        if (changed) {
+          localStorage.setItem('pesantren_staff_users', JSON.stringify(updatedStaff));
+          window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+          // Broadcast to server
+          fetch('/api/staff-users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: emailKey, fullName: newName, name: newName })
+          }).catch(e => console.warn('Failed to push staff user:', e));
+        }
+      } catch (e) {}
+
+      // Update current session in storage
+      try {
+        const storedSess = localStorage.getItem('pesantren_session');
+        if (storedSess) {
+          const parsed = JSON.parse(storedSess);
+          parsed.fullName = newName;
+          localStorage.setItem('pesantren_session', JSON.stringify(parsed));
+        }
+      } catch (e) {}
+
       try {
         const cfgKey = `${session.role}_config`;
         const stored = localStorage.getItem(cfgKey);

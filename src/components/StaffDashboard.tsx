@@ -300,9 +300,13 @@ export default function StaffDashboard({
   React.useEffect(() => {
     const configKey = `${role}_config`;
     const saved = localStorage.getItem(configKey);
+    const userEmail = session?.email || '';
+    const customStaffName = userEmail ? localStorage.getItem(`staff_custom_name_${userEmail}`) : null;
+    const accountName = customStaffName || (session?.fullName && session.fullName !== 'Muhammad' ? session.fullName : '');
+
     const defaults = {
       keamanan: {
-        name: 'Ustadz Junaidi Al-Anshori',
+        name: accountName || 'Ustadz Junaidi Al-Anshori',
         signature: '✍️ Junaidi',
         seal: '🛡️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
         letterTemplate1: 'Sehubungan dengan pelanggaran tertulis pedoman kedisplinan pondok pesantren, diberikan sanksi resmi kepada santri berikut:',
@@ -310,7 +314,7 @@ export default function StaffDashboard({
         letterTemplate3: ''
       },
       ketertiban: {
-        name: 'Ustadz Abdul Somad, S.Sy',
+        name: accountName || 'Ustadz Abdul Somad, S.Sy',
         signature: '✒️ Abdul Somad',
         seal: '📜 STEMPEL KETERTIBAN',
         letterTemplate1: 'Diberikan izin kepada santri yang identitasnya tertera di bawah ini untuk meninggalkan area pondok pesantren sesuai rincian:',
@@ -318,7 +322,7 @@ export default function StaffDashboard({
         letterTemplate3: 'Demikian surat keterangan catatan kelakuan baik ini dibuat untuk dapat dipergunakan sebagaimana mestinya dengan penuh rasa tanggung jawab.'
       },
       kesehatan: {
-        name: 'Ustadzah dr. Fatimah Az-Zahra',
+        name: accountName || 'Ustadzah dr. Fatimah Az-Zahra',
         signature: '⚕️ Fatimah',
         seal: '🩺 POSKESTREN AL-ASY\'ARIYAH',
         letterTemplate1: 'Menerangkan dengan ini bahwa santri yang tercantum di bawah ini sedang dalam perawatan kami:',
@@ -329,21 +333,23 @@ export default function StaffDashboard({
 
     if (saved) {
       const parsed = JSON.parse(saved);
-      setDeptName(parsed.name || defaults[role].name);
+      // Prioritas nama: nama akun terdaftar > nama yang disimpan di config > default
+      const finalName = accountName || parsed.name || defaults[role].name;
+      setDeptName(finalName);
       setDeptSignature(parsed.signature || defaults[role].signature);
       setDeptSeal(parsed.seal || defaults[role].seal);
       setLetterTemplate1(parsed.letterTemplate1 || defaults[role].letterTemplate1);
       setLetterTemplate2(parsed.letterTemplate2 || defaults[role].letterTemplate2);
       setLetterTemplate3(parsed.letterTemplate3 || defaults[role].letterTemplate3);
     } else {
-      setDeptName(defaults[role].name);
+      setDeptName(accountName || defaults[role].name);
       setDeptSignature(defaults[role].signature);
       setDeptSeal(defaults[role].seal);
       setLetterTemplate1(defaults[role].letterTemplate1);
       setLetterTemplate2(defaults[role].letterTemplate2);
       setLetterTemplate3(defaults[role].letterTemplate3);
     }
-  }, [role]);
+  }, [role, session]);
 
   const persistStudents = (updated: Student[]) => {
     setStudents(updated);
@@ -1165,7 +1171,7 @@ export default function StaffDashboard({
                                 <span>{getStaffConfig('keamanan').signature || '✍️ M. Hasanuddin'}</span>
                               )}
                             </div>
-                            <p className="text-[11px] font-bold text-slate-900 underline leading-none text-right">{getStaffConfig('keamanan').name || 'Ustadz Muhammad Hasanuddin'}</p>
+                            <p className="text-[11px] font-bold text-slate-900 underline leading-none text-right">{deptName || getStaffConfig('keamanan').name || session?.fullName || 'Ustadz Pengurus Keamanan'}</p>
                           </div>
                         </div>
                       </>
@@ -2700,7 +2706,7 @@ export default function StaffDashboard({
                     </div>
                   </div>
 
-                  <p className="text-[11px] font-bold text-slate-900 underline leading-none">{config.name || 'Ustadz Muhammad Hasanuddin'}</p>
+                  <p className="text-[11px] font-bold text-slate-900 underline leading-none">{config.name || deptName || session?.fullName || 'Ustadz Pengurus Pesantren'}</p>
                 </div>
               </div>
               </div>

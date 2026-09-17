@@ -561,12 +561,13 @@ export default function AdminDashboard({
   }, [session, adminNameVersion]);
 
   const handleApprovePermit = (studentId: string, logId: string) => {
+    const signer = currentAdminName || settings.namaPengurus || 'Administrator Pesantren';
     setStudents(prev => {
       const updated = prev.map(s => {
         if (s.id === studentId) {
           const logs = (s.securityLogs || []).map(l => {
             if (l.id === logId) {
-              return { ...l, status: 'Aktif / Keluar' as const, signedBy: settings.namaPengurus || 'Ustadz Ahmad Wildan, M.Pd' };
+              return { ...l, status: 'Aktif / Keluar' as const, signedBy: signer };
             }
             return l;
           });
@@ -575,18 +576,32 @@ export default function AdminDashboard({
         return s;
       });
       localStorage.setItem('pesantren_students', JSON.stringify(updated));
+
+      // Push to Supabase & Server to prevent reverting ("mental") across all devices & wali accounts
+      pushAllStudentsToSupabase(updated).catch(e => console.warn('Supabase sync students error:', e));
+      try {
+        fetch('/api/students', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        }).catch(e => console.warn('Server sync students error:', e));
+      } catch (e) {}
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+      window.dispatchEvent(new Event('storage'));
+
       return updated;
     });
     logAdminActivity('Keamanan', `Menyetujui izin keluar untuk siswa ID ${studentId} (Log ID: ${logId})`);
   };
 
   const handleRejectPermit = (studentId: string, logId: string) => {
+    const signer = currentAdminName || settings.namaPengurus || 'Administrator Pesantren';
     setStudents(prev => {
       const updated = prev.map(s => {
         if (s.id === studentId) {
           const logs = (s.securityLogs || []).map(l => {
             if (l.id === logId) {
-              return { ...l, status: 'Ditolak' as const, signedBy: settings.namaPengurus || 'Ustadz Ahmad Wildan, M.Pd' };
+              return { ...l, status: 'Ditolak' as const, signedBy: signer };
             }
             return l;
           });
@@ -595,6 +610,19 @@ export default function AdminDashboard({
         return s;
       });
       localStorage.setItem('pesantren_students', JSON.stringify(updated));
+
+      // Push to Supabase & Server to prevent reverting ("mental") across all devices & wali accounts
+      pushAllStudentsToSupabase(updated).catch(e => console.warn('Supabase sync students error:', e));
+      try {
+        fetch('/api/students', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        }).catch(e => console.warn('Server sync students error:', e));
+      } catch (e) {}
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+      window.dispatchEvent(new Event('storage'));
+
       return updated;
     });
     logAdminActivity('Keamanan', `Menolak izin keluar untuk siswa ID ${studentId} (Log ID: ${logId})`);
@@ -2979,7 +3007,7 @@ export default function AdminDashboard({
                 ASSALAMU'ALAIKUM WR. WB. SELAMAT DATANG KEMBALI, <span className="text-amber-300 underline decoration-amber-400 decoration-2 font-black">{currentAdminName}</span>!
               </h2>
               <p className="text-emerald-100 text-xs mt-1 leading-relaxed font-medium">
-                Selamat menjalankan amanah dan mengawal khidmah administrasi selaku <strong className="text-amber-200 font-extrabold uppercase">Pengasuh Pesantren</strong>. Semoga seluruh ikhtiar Anda dalam memajukan pangkalan data Pondok Pesantren Al-Asy'ariyah senantiasa bernilai ibadah serta membawa keberkahan dunia akhirat.
+                Selamat menjalankan amanah dan mengawal khidmah administrasi selaku <strong className="text-amber-200 font-extrabold uppercase">{session?.role === 'admin' ? 'Administrator' : (session?.roleName || 'Admin')}</strong>. Semoga seluruh ikhtiar Anda dalam memajukan pangkalan data Pondok Pesantren Al-Asy'ariyah senantiasa bernilai ibadah serta membawa keberkahan dunia akhirat.
               </p>
             </div>
           </div>
@@ -6989,7 +7017,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                 ) : (
                   <>
                     <Save className="h-3.5 w-3.5" />
-                    <span>💾 Simpan Pengaturan Portal</span>
+                    <span>✓ Konfirmasi & Simpan Pengaturan Portal</span>
                   </>
                 )}
               </button>
@@ -7395,41 +7423,46 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    <span>💾 Simpan Pengaturan Portal</span>
+                    <span>✓ Konfirmasi & Simpan Pengaturan Portal</span>
                   </>
                 )}
               </button>
             </div>
           </form>
 
-          {/* KARTU INTEGRASI DATABASE CLOUD SUPABASE (Hanya muncul jika belum terkoneksi / terputus) */}
-          {!isSupabaseConfigured() && (
-            <div className="mt-8 bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 text-white p-6 rounded-2xl shadow-lg border border-emerald-800 space-y-4 text-left animate-fade-in">
-              <div className="flex items-center justify-between border-b border-emerald-800/80 pb-3 flex-wrap gap-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30 text-emerald-400">
-                    <Database className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h4 className="font-black text-sm uppercase tracking-wide text-white flex items-center gap-2 flex-wrap">
-                      Integrasi Cloud Database Supabase
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-amber-500/30 text-amber-300 border border-amber-400/40">
-                        🟡 Penyimpanan Lokal (Siap Hubung Supabase)
-                      </span>
-                    </h4>
-                    <p className="text-[11px] text-emerald-200/80 mt-0.5">
-                      Mendukung domain custom, Vercel, & Cloud Run. Data santri, tagihan, berita, dan pendaftaran disimpan permanen di Cloud Database.
-                    </p>
-                  </div>
+          {/* KARTU INTEGRASI DATABASE CLOUD SUPABASE (Dapat diakses sewaktu-waktu) */}
+          <div className="mt-8 bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 text-white p-6 rounded-2xl shadow-lg border border-emerald-800 space-y-4 text-left animate-fade-in">
+            <div className="flex items-center justify-between border-b border-emerald-800/80 pb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30 text-emerald-400">
+                  <Database className="h-5 w-5" />
                 </div>
+                <div>
+                  <h4 className="font-black text-sm uppercase tracking-wide text-white flex items-center gap-2 flex-wrap">
+                    Integrasi Cloud Database Supabase
+                    {isSupabaseConfigured() ? (
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-400/40">
+                        🟢 Terhubung ke Supabase Cloud
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-amber-500/30 text-amber-300 border border-amber-400/40">
+                        🟡 Mode Sinkronisasi Lokal & Server (Siap Supabase)
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-[11px] text-emerald-200/80 mt-0.5">
+                    Mendukung multi-device, HP/laptop lain, Vercel, & Cloud Run. Seluruh data PCSB, santri, tagihan, dan pengaturan tersinkronisasi otomatis.
+                  </p>
+                </div>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowSqlModal(true)}
-                  className="px-3.5 py-2 bg-emerald-700/80 hover:bg-emerald-600 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition border border-emerald-500/40 cursor-pointer"
-                >
-                  <Code className="h-3.5 w-3.5" /> Skrip SQL Supabase
-                </button>
+              <button
+                type="button"
+                onClick={() => setShowSqlModal(true)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs flex items-center gap-2 transition shadow-md border border-emerald-400 cursor-pointer"
+              >
+                <Code className="h-4 w-4" /> 📋 Salin Kode Tabel SQL Supabase (PCSB & Portal Lengkap)
+              </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -7662,7 +7695,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                 </ul>
               </div>
             </div>
-          )}
 
           {/* MODAL GENERATOR SKRIP SQL SUPABASE */}
           <AnimatePresence>
@@ -11753,14 +11785,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                   confirmDialog.onConfirm();
                   setConfirmDialog(null);
                 }}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-lg cursor-pointer flex-1 text-center"
+                className="px-4 py-2.5 bg-emerald-750 hover:bg-emerald-800 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer flex-1 text-center shadow-md transition border border-emerald-600 flex items-center justify-center gap-1.5"
               >
-                Ya, Lanjutkan
+                <span>✓</span>
+                <span>Konfirmasi & Lanjutkan</span>
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmDialog(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg cursor-pointer flex-1 text-center"
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer flex-1 text-center border border-slate-300 transition"
               >
                 Batal
               </button>

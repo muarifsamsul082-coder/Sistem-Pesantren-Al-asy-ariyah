@@ -61,6 +61,10 @@ async function startServer() {
 
   // Settings & PPDB Sync API routes - ensures all devices see the exact same PPDB and portal settings instantly
   const SETTINGS_STORAGE_PATH = path.join(process.cwd(), '.portal_settings.json');
+  const PPDB_STORAGE_PATH = path.join(process.cwd(), '.portal_ppdb.json');
+  const STUDENTS_STORAGE_PATH = path.join(process.cwd(), '.portal_students.json');
+  const STAFF_STORAGE_PATH = path.join(process.cwd(), '.portal_staff_users.json');
+
   app.get("/api/settings", (req, res) => {
     try {
       if (fs.existsSync(SETTINGS_STORAGE_PATH)) {
@@ -90,6 +94,148 @@ async function startServer() {
       }
     } catch (e) {
       console.error("Error saving portal settings file:", e);
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  // PPDB multi-device persistence
+  app.get("/api/ppdb", (req, res) => {
+    try {
+      if (fs.existsSync(PPDB_STORAGE_PATH)) {
+        const raw = fs.readFileSync(PPDB_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, ppdb: Array.isArray(parsed) ? parsed : [] });
+      }
+    } catch (e) {
+      console.error("Error reading ppdb file:", e);
+    }
+    return res.json({ success: true, ppdb: [] });
+  });
+
+  app.post("/api/ppdb", (req, res) => {
+    try {
+      const incoming = req.body;
+      let list: any[] = [];
+      if (fs.existsSync(PPDB_STORAGE_PATH)) {
+        try {
+          list = JSON.parse(fs.readFileSync(PPDB_STORAGE_PATH, 'utf-8'));
+          if (!Array.isArray(list)) list = [];
+        } catch (e) {}
+      }
+
+      if (Array.isArray(incoming)) {
+        // Merge without losing data
+        const map = new Map<string, any>();
+        list.forEach(item => { if (item && item.id) map.set(item.id, item); });
+        incoming.forEach(item => { if (item && item.id) map.set(item.id, item); });
+        const merged = Array.from(map.values());
+        fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+        return res.json({ success: true, count: merged.length });
+      } else if (incoming && incoming.id) {
+        const existingIdx = list.findIndex(p => p.id === incoming.id);
+        if (existingIdx >= 0) {
+          list[existingIdx] = incoming;
+        } else {
+          list = [incoming, ...list];
+        }
+        fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
+      console.error("Error saving ppdb:", e);
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  // Students multi-device persistence (e.g. perizinan keluar, poin pelanggaran)
+  app.get("/api/students", (req, res) => {
+    try {
+      if (fs.existsSync(STUDENTS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(STUDENTS_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, students: Array.isArray(parsed) ? parsed : [] });
+      }
+    } catch (e) {
+      console.error("Error reading students file:", e);
+    }
+    return res.json({ success: true, students: [] });
+  });
+
+  app.post("/api/students", (req, res) => {
+    try {
+      const incoming = req.body;
+      let list: any[] = [];
+      if (fs.existsSync(STUDENTS_STORAGE_PATH)) {
+        try {
+          list = JSON.parse(fs.readFileSync(STUDENTS_STORAGE_PATH, 'utf-8'));
+          if (!Array.isArray(list)) list = [];
+        } catch (e) {}
+      }
+
+      if (Array.isArray(incoming)) {
+        fs.writeFileSync(STUDENTS_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
+        return res.json({ success: true, count: incoming.length });
+      } else if (incoming && incoming.id) {
+        const existingIdx = list.findIndex(s => s.id === incoming.id);
+        if (existingIdx >= 0) {
+          list[existingIdx] = incoming;
+        } else {
+          list.push(incoming);
+        }
+        fs.writeFileSync(STUDENTS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
+      console.error("Error saving students:", e);
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  // Staff Users multi-device persistence
+  app.get("/api/staff-users", (req, res) => {
+    try {
+      if (fs.existsSync(STAFF_STORAGE_PATH)) {
+        const raw = fs.readFileSync(STAFF_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, staffUsers: Array.isArray(parsed) ? parsed : [] });
+      }
+    } catch (e) {}
+    return res.json({ success: true, staffUsers: [] });
+  });
+
+  app.post("/api/staff-users", (req, res) => {
+    try {
+      const incoming = req.body;
+      let list: any[] = [];
+      if (fs.existsSync(STAFF_STORAGE_PATH)) {
+        try {
+          list = JSON.parse(fs.readFileSync(STAFF_STORAGE_PATH, 'utf-8'));
+          if (!Array.isArray(list)) list = [];
+        } catch (e) {}
+      }
+
+      if (Array.isArray(incoming)) {
+        const map = new Map<string, any>();
+        list.forEach(u => { if (u && u.email) map.set(u.email.toLowerCase(), u); });
+        incoming.forEach(u => { if (u && u.email) map.set(u.email.toLowerCase(), u); });
+        const merged = Array.from(map.values());
+        fs.writeFileSync(STAFF_STORAGE_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+        return res.json({ success: true, count: merged.length });
+      } else if (incoming && incoming.email) {
+        const emailKey = incoming.email.toLowerCase();
+        const existingIdx = list.findIndex(u => u && u.email && u.email.toLowerCase() === emailKey);
+        if (existingIdx >= 0) {
+          list[existingIdx] = { ...list[existingIdx], ...incoming };
+        } else {
+          list.push(incoming);
+        }
+        fs.writeFileSync(STAFF_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
       return res.status(500).json({ success: false, error: String(e) });
     }
     return res.status(400).json({ success: false, error: "Invalid payload" });
