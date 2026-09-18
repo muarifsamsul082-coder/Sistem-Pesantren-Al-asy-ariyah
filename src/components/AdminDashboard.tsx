@@ -288,6 +288,8 @@ export default function AdminDashboard({
   // Supabase Database Config State
   const [supabaseUrlInput, setSupabaseUrlInput] = React.useState<string>(() => getSupabaseConfig().url);
   const [supabaseKeyInput, setSupabaseKeyInput] = React.useState<string>(() => getSupabaseConfig().anonKey);
+  const [isCloudConnected, setIsCloudConnected] = React.useState<boolean>(() => isSupabaseConfigured());
+  const [showManualDbConfig, setShowManualDbConfig] = React.useState<boolean>(false);
   const [supabaseTestStatus, setSupabaseTestStatus] = React.useState<{ loading: boolean; message: string | null; success: boolean | null }>({
     loading: false,
     message: null,
@@ -306,6 +308,20 @@ export default function AdminDashboard({
   const [showSqlModal, setShowSqlModal] = React.useState(false);
   const [copiedSql, setCopiedSql] = React.useState(false);
   const [isSyncingClasses, setIsSyncingClasses] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleDbStateCheck = () => {
+      setIsCloudConnected(isSupabaseConfigured());
+    };
+    window.addEventListener('storage', handleDbStateCheck);
+    window.addEventListener('pesantren_db_sync', handleDbStateCheck);
+    window.addEventListener('pesantren_settings_updated', handleDbStateCheck);
+    return () => {
+      window.removeEventListener('storage', handleDbStateCheck);
+      window.removeEventListener('pesantren_db_sync', handleDbStateCheck);
+      window.removeEventListener('pesantren_settings_updated', handleDbStateCheck);
+    };
+  }, []);
 
   const [newsSubTab, setNewsSubTab] = React.useState<'news' | 'agenda'>('news');
   const [events, setEvents] = React.useState<AcademicEvent[]>(() => {
@@ -6993,6 +7009,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
               Pengaturan Konten Portal Online
             </span>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSqlModal(true)}
+                className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-850 border border-emerald-300 font-bold rounded-xl text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                title="Salin skrip DDL SQL lengkap Supabase untuk seluruh tabel"
+              >
+                <Code className="h-3.5 w-3.5 text-emerald-700" />
+                <span>Salin Skrip SQL Supabase</span>
+              </button>
               {isSettingsDirty && (
                 <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-200">
                   ⚠️ Belum disimpan
@@ -7430,39 +7455,89 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
             </div>
           </form>
 
-          {/* KARTU INTEGRASI DATABASE CLOUD SUPABASE (Dapat diakses sewaktu-waktu) */}
-          <div className="mt-8 bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 text-white p-6 rounded-2xl shadow-lg border border-emerald-800 space-y-4 text-left animate-fade-in">
-            <div className="flex items-center justify-between border-b border-emerald-800/80 pb-3 flex-wrap gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30 text-emerald-400">
-                  <Database className="h-5 w-5" />
-                </div>
+          {/* KARTU INTEGRASI DATABASE CLOUD SUPABASE (Dihilangkan jika sudah terhubung, dapat dibuka kembali jika ingin diubah) */}
+          {isCloudConnected && !showManualDbConfig ? (
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl text-xs text-emerald-950 shadow-xs animate-fade-in">
+              <div className="flex items-center gap-3">
+                <span className="flex h-3 w-3 relative shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-600"></span>
+                </span>
                 <div>
-                  <h4 className="font-black text-sm uppercase tracking-wide text-white flex items-center gap-2 flex-wrap">
-                    Integrasi Cloud Database Supabase
-                    {isSupabaseConfigured() ? (
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-400/40">
-                        🟢 Terhubung ke Supabase Cloud
-                      </span>
-                    ) : (
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-amber-500/30 text-amber-300 border border-amber-400/40">
-                        🟡 Mode Sinkronisasi Lokal & Server (Siap Supabase)
-                      </span>
-                    )}
-                  </h4>
-                  <p className="text-[11px] text-emerald-200/80 mt-0.5">
-                    Mendukung multi-device, HP/laptop lain, Vercel, & Cloud Run. Seluruh data PCSB, santri, tagihan, dan pengaturan tersinkronisasi otomatis.
+                  <p className="font-extrabold text-xs text-emerald-950 flex items-center gap-1.5 flex-wrap">
+                    <span>Database Cloud Supabase Terhubung</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      Realtime Aktif
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-emerald-800/80 mt-0.5 font-mono">
+                    Endpoint: {normalizeSupabaseUrl(supabaseUrlInput || getSupabaseConfig().url)}
                   </p>
                 </div>
               </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSqlModal(true)}
+                  className="px-3.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-850 border border-emerald-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                  title="Salin skrip DDL SQL lengkap Supabase"
+                >
+                  <Code className="h-3.5 w-3.5 text-emerald-700" /> Salin Kode SQL Supabase
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowManualDbConfig(true)}
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Buka panel untuk mengubah URL atau Anon Key Supabase"
+                >
+                  <Database className="h-3.5 w-3.5 text-slate-600" /> Buka Konfigurasi Database
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-8 bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 text-white p-6 rounded-2xl shadow-lg border border-emerald-800 space-y-4 text-left animate-fade-in">
+              <div className="flex items-center justify-between border-b border-emerald-800/80 pb-3 flex-wrap gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30 text-emerald-400">
+                    <Database className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-sm uppercase tracking-wide text-white flex items-center gap-2 flex-wrap">
+                      Integrasi Cloud Database Supabase
+                      {isSupabaseConfigured() ? (
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-400/40">
+                          🟢 Terhubung ke Supabase Cloud
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-amber-500/30 text-amber-300 border border-amber-400/40">
+                          🟡 Belum Terhubung (Lokal & Server Mode)
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-[11px] text-emerald-200/80 mt-0.5">
+                      Mendukung multi-device, HP/laptop lain, Vercel, & Cloud Run. Seluruh data PCSB, santri, tagihan, dan pengaturan tersinkronisasi otomatis.
+                    </p>
+                  </div>
+                </div>
 
-              <button
-                type="button"
-                onClick={() => setShowSqlModal(true)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs flex items-center gap-2 transition shadow-md border border-emerald-400 cursor-pointer"
-              >
-                <Code className="h-4 w-4" /> 📋 Salin Kode Tabel SQL Supabase (PCSB & Portal Lengkap)
-              </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSqlModal(true)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs flex items-center gap-2 transition shadow-md border border-emerald-400 cursor-pointer"
+                  >
+                    <Code className="h-4 w-4" /> 📋 Salin Kode Tabel SQL Supabase
+                  </button>
+                  {isCloudConnected && (
+                    <button
+                      type="button"
+                      onClick={() => setShowManualDbConfig(false)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition cursor-pointer border border-slate-700"
+                    >
+                      Sembunyikan Form
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -7508,13 +7583,19 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const normalized = normalizeSupabaseUrl(supabaseUrlInput);
                       if (normalized && normalized !== supabaseUrlInput) {
                         setSupabaseUrlInput(normalized);
                       }
-                      saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
-                      showAlert('success', 'Konfigurasi Supabase berhasil disimpan secara lokal!');
+                      await saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
+                      const configured = isSupabaseConfigured();
+                      setIsCloudConnected(configured);
+                      if (configured) {
+                        setShowManualDbConfig(false);
+                      }
+                      showAlert('success', 'Konfigurasi Supabase berhasil disimpan! Tampilan konfigurasi kini disembunyikan.');
+                      window.dispatchEvent(new Event('pesantren_db_sync'));
                     }}
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow cursor-pointer"
                   >
@@ -7530,13 +7611,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                         if (normalized && normalized !== supabaseUrlInput) {
                           setSupabaseUrlInput(normalized);
                         }
-                        saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
+                        await saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
                         const res = await testSupabaseConnection();
                         setSupabaseTestStatus({ 
                           loading: false, 
                           message: String(res?.message || 'Pengujian selesai'), 
                           success: Boolean(res?.success) 
                         });
+                        setIsCloudConnected(isSupabaseConfigured());
                       } catch (err: any) {
                         setSupabaseTestStatus({
                           loading: false,
@@ -7561,7 +7643,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                         if (normalized && normalized !== supabaseUrlInput) {
                           setSupabaseUrlInput(normalized);
                         }
-                        saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
+                        await saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
                         
                         const res = await pushAllLocalDataToSupabase({
                           news,
@@ -7587,6 +7669,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                         } else {
                           showAlert('danger', res.message);
                         }
+                        setIsCloudConnected(isSupabaseConfigured());
                       } catch (err: any) {
                         const errMsg = `Gagal sinkronisasi data: ${err?.message || err}`;
                         setSupabasePushStatus({ loading: false, message: errMsg, success: false });
@@ -7609,7 +7692,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                         if (normalized && normalized !== supabaseUrlInput) {
                           setSupabaseUrlInput(normalized);
                         }
-                        saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
+                        await saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
 
                         const [remoteNews, remoteAnn, remoteStudents, remotePpdb, remoteRooms, remoteBills, remoteSettings] = await Promise.all([
                           syncNewsWithSupabase(news),
@@ -7640,6 +7723,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                         const msg = `Berhasil mengunduh & menyinkronkan ${totalRemote} data dari Supabase Cloud!`;
                         setSupabasePullStatus({ loading: false, message: msg, success: true });
                         showAlert('success', msg);
+                        setIsCloudConnected(isSupabaseConfigured());
                       } catch (err: any) {
                         const errMsg = `Gagal menarik data dari Supabase: ${err?.message || err}`;
                         setSupabasePullStatus({ loading: false, message: errMsg, success: false });
@@ -7652,6 +7736,26 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                     {supabasePullStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                     ⬇️ Tarik Data Terbaru dari Cloud
                   </button>
+
+                  {isCloudConnected && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (window.confirm('Yakin ingin memutuskan koneksi Supabase di perangkat ini?')) {
+                          await saveSupabaseCredentialsLocally('', '');
+                          setSupabaseUrlInput('');
+                          setSupabaseKeyInput('');
+                          setIsCloudConnected(false);
+                          setShowManualDbConfig(true);
+                          showAlert('success', 'Koneksi Supabase telah diputuskan.');
+                          window.dispatchEvent(new Event('pesantren_db_sync'));
+                        }
+                      }}
+                      className="px-3 py-2 bg-red-950/80 hover:bg-red-900 text-red-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition border border-red-800 cursor-pointer"
+                    >
+                      <Trash className="h-3.5 w-3.5" /> Putuskan Koneksi
+                    </button>
+                  )}
                 </div>
 
                 {supabaseTestStatus.message && (
@@ -7695,6 +7799,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                 </ul>
               </div>
             </div>
+          )}
 
           {/* MODAL GENERATOR SKRIP SQL SUPABASE */}
           <AnimatePresence>
@@ -7732,7 +7837,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
 
                   <div className="flex justify-between items-center pt-4 border-t border-slate-800 mt-3">
                     <p className="text-[11px] text-slate-400">
-                      Termasuk pembuatan tabel news, announcements, ppdb, students, rooms, bills, & settings beserta Row Level Security.
+                      Mencakup 12 tabel lengkap (PPDB, Santri, Kamar, Tagihan, Berita, Pengumuman, Agenda, Settings, Biro, Kelas, Staff, Surat Keluar) dengan Realtime Publication & RLS Universal.
                     </p>
                     <div className="flex gap-2">
                       <button

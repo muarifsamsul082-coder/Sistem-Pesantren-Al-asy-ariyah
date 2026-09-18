@@ -189,12 +189,12 @@ export const testSupabaseConnection = async (): Promise<{ success: boolean; mess
 
 // SQL Schema script for user to run in Supabase SQL Editor
 export const SUPABASE_SQL_SCHEMA = `-- ==============================================================================
--- SKRIP DATABASE SUPABASE RESMI & SINKRONISASI MULTI-PERANGKAT (RELASIONAL)
--- PONDOK PESANTREN AL-ASY'ARIYAH
+-- SKRIP DATABASE SUPABASE RESMI & SINKRONISASI REALTIME LINTAS PERANGKAT
+-- PONDOK PESANTREN AL-ASY'ARIYAH (LENGKAP SEMUA ELEMEN & MENU SISTEM)
 -- Jalankan skrip ini di: Supabase Dashboard -> SQL Editor -> New Query -> Run
 -- ==============================================================================
 
--- 1. TABEL BERITA & KABAR PESANTREN
+-- 1. TABEL BERITA, KABAR & ARTIKEL PESANTREN
 CREATE TABLE IF NOT EXISTS news (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS news (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. TABEL PENGUMUMAN RESMI
+-- 2. TABEL PENGUMUMAN RESMI PESANTREN (UNTUK SANTRI, WALI & PENGURUS)
 CREATE TABLE IF NOT EXISTS announcements (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -220,7 +220,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. TABEL ASRAMA / KAMAR SANTRI
+-- 3. TABEL ASRAMA & KAMAR SANTRI
 CREATE TABLE IF NOT EXISTS rooms (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -234,51 +234,65 @@ CREATE TABLE IF NOT EXISTS rooms (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. TABEL PENDAFTARAN SANTRI BARU (PCSB / PPDB)
+-- 4. TABEL PENDAFTARAN SANTRI BARU (PCSB / PPDB ONLINE LENGKAP)
 CREATE TABLE IF NOT EXISTS ppdb (
   id TEXT PRIMARY KEY,
   full_name TEXT NOT NULL,
   gender TEXT,
   birth_place TEXT,
   birth_date TEXT,
+  nik TEXT,
+  nisn TEXT,
+  kk TEXT,
+  address TEXT,
   parent_name TEXT,
   parent_phone TEXT,
-  address TEXT,
+  father_name TEXT,
+  father_phone TEXT,
+  mother_name TEXT,
+  mother_phone TEXT,
+  guardian_phone TEXT,
   previous_school TEXT DEFAULT '-',
+  target_program TEXT,
+  academic_year TEXT,
   registration_date TEXT,
   status TEXT DEFAULT 'Pending',
+  payment_status TEXT DEFAULT 'unpaid',
+  payment_type TEXT DEFAULT 'Cicilan Bulanan',
+  payment_proof TEXT,
+  verified_documents JSONB DEFAULT '[]'::jsonb,
+  is_locked BOOLEAN DEFAULT false,
   notes TEXT,
-  kk TEXT,
-  nik TEXT,
-  father_name TEXT,
-  mother_name TEXT,
   blood_type TEXT,
   health_history TEXT,
-  payment_type TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. TABEL DATA INDUK SANTRI & LOG BUKU CATATAN (TERHUBUNG KE KAMAR & TAGIHAN)
+-- 5. TABEL DATA INDUK SANTRI & BUKU CATATAN KESISWAAN
 CREATE TABLE IF NOT EXISTS students (
   id TEXT PRIMARY KEY,
   nis TEXT NOT NULL UNIQUE,
   full_name TEXT NOT NULL,
   gender TEXT,
+  class TEXT DEFAULT 'VII SMP Formal / 1A MTs',
   class_pagi TEXT DEFAULT '1A MTs Diniyah',
   class_sore TEXT DEFAULT 'VII SMP Formal',
   class_name TEXT,
   class_madrasah TEXT,
   class_formal TEXT,
   akun_madrasah TEXT,
+  room_id TEXT,
+  kamar TEXT,
+  phone TEXT,
+  address TEXT,
+  status TEXT DEFAULT 'Aktif',
+  photo_url TEXT,
   parent_name TEXT,
   parent_phone TEXT,
   guardian_name TEXT,
+  guardian_phone TEXT,
   email TEXT,
-  address TEXT,
-  status TEXT DEFAULT 'Aktif',
-  kamar TEXT,
-  photo_url TEXT,
   birth_place TEXT,
   birth_date TEXT,
   kk TEXT,
@@ -289,9 +303,11 @@ CREATE TABLE IF NOT EXISTS students (
   health_history TEXT,
   current_hafalan TEXT DEFAULT '0 Juz',
   tahfidz_logs JSONB DEFAULT '[]'::jsonb,
+  memorization_logs JSONB DEFAULT '[]'::jsonb,
   security_logs JSONB DEFAULT '[]'::jsonb,
   discipline_logs JSONB DEFAULT '[]'::jsonb,
   health_logs JSONB DEFAULT '[]'::jsonb,
+  academic_reports JSONB DEFAULT '[]'::jsonb,
   alumni_id TEXT,
   tahun_keluar TEXT,
   alumni_reason TEXT,
@@ -299,7 +315,7 @@ CREATE TABLE IF NOT EXISTS students (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. TABEL TAGIHAN & PEMBAYARAN KEUANGAN SANTRI (RELASIONAL KE SANTRI)
+-- 6. TABEL TAGIHAN & PEMBAYARAN SYAHRIYAH / SPP (KEUANGAN)
 CREATE TABLE IF NOT EXISTS bills (
   id TEXT PRIMARY KEY,
   student_id TEXT NOT NULL,
@@ -321,7 +337,7 @@ CREATE TABLE IF NOT EXISTS bills (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. TABEL PENGATURAN PORTAL, STEMPEL, TTD & KOP RESMI
+-- 7. TABEL PENGATURAN PORTAL, KOP, TTD, STEMPEL & TARIF PESANTREN
 CREATE TABLE IF NOT EXISTS settings (
   id TEXT PRIMARY KEY DEFAULT 'default_settings',
   school_name TEXT,
@@ -345,7 +361,7 @@ CREATE TABLE IF NOT EXISTS settings (
   ttd_ketua_pcsb_url TEXT,
   stempel_pcsb_url TEXT,
   nama_bendahara TEXT,
-  ttd_bendahara_url TEXT,
+  ttdBendaharaUrl TEXT,
   stempel_bendahara_url TEXT,
   nama_keamanan TEXT,
   ttd_keamanan_url TEXT,
@@ -369,11 +385,11 @@ CREATE TABLE IF NOT EXISTS settings (
   pesantren_bank_account_number TEXT,
   pesantren_bank_account_name TEXT,
   pcsb_fee_pendaftaran NUMERIC DEFAULT 150000,
-  pcsb_fee_sarpras NUMERIC DEFAULT 1500000,
-  pcsb_fee_seragam NUMERIC DEFAULT 750000,
-  pcsb_fee_kitab NUMERIC DEFAULT 450000,
-  pcsb_fee_kesehatan NUMERIC DEFAULT 350000,
-  pcsb_fee_syahriyah NUMERIC DEFAULT 200000,
+  pcsb_fee_sarpras NUMERIC DEFAULT 1000000,
+  pcsb_fee_seragam NUMERIC DEFAULT 650000,
+  pcsb_fee_kitab NUMERIC DEFAULT 350000,
+  pcsb_fee_kesehatan NUMERIC DEFAULT 100000,
+  pcsb_fee_syahriyah NUMERIC DEFAULT 350000,
   pcsb_enable_pendaftaran BOOLEAN DEFAULT true,
   pcsb_enable_sarpras BOOLEAN DEFAULT true,
   pcsb_enable_seragam BOOLEAN DEFAULT true,
@@ -398,10 +414,10 @@ CREATE TABLE IF NOT EXISTS events (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. TABEL KONFIGURASI BIDANG PENGURUS
+-- 9. TABEL KONFIGURASI BIDANG BIRO PENGURUS (TTD & STEMPEL BIRO)
 CREATE TABLE IF NOT EXISTS staff_configs (
   id TEXT PRIMARY KEY,
-  role TEXT NOT NULL,
+  role TEXT NOT NULL UNIQUE,
   name TEXT,
   signature TEXT,
   seal TEXT,
@@ -418,7 +434,7 @@ CREATE TABLE IF NOT EXISTS master_classes (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 11. TABEL PENGGUNA PENGURUS & ADMIN
+-- 11. TABEL AKUN PENGGUNA PENGURUS & ADMINISTRATOR
 CREATE TABLE IF NOT EXISTS staff_users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
@@ -430,64 +446,74 @@ CREATE TABLE IF NOT EXISTS staff_users (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Seed default master kelas jika tabel baru dibuat
-INSERT INTO master_classes (id, name, type) VALUES
-  ('formal_1', 'VII SMP Formal', 'formal'),
-  ('formal_2', 'VIII SMP Formal', 'formal'),
-  ('formal_3', 'IX SMP Formal', 'formal'),
-  ('formal_4', 'X MA Formal', 'formal'),
-  ('formal_5', 'XI MA Formal', 'formal'),
-  ('formal_6', 'XII MA Formal', 'formal'),
-  ('formal_7', '-', 'formal'),
-  ('madrasah_1', '1A MTs Diniyah', 'madrasah'),
-  ('madrasah_2', '1B MTs Diniyah', 'madrasah'),
-  ('madrasah_3', '2A MTs Diniyah', 'madrasah'),
-  ('madrasah_4', '2B MTs Diniyah', 'madrasah'),
-  ('madrasah_5', '3A MTs Diniyah', 'madrasah'),
-  ('madrasah_6', '1A MA Diniyah', 'madrasah'),
-  ('madrasah_7', '2A MA Diniyah', 'madrasah'),
-  ('madrasah_8', '3A MA Diniyah', 'madrasah')
-ON CONFLICT (id) DO NOTHING;
+-- 12. TABEL BUKU AGENDA SURAT KELUAR & ARSIP PERIZINAN DINAS
+CREATE TABLE IF NOT EXISTS outbox_logs (
+  id TEXT PRIMARY KEY,
+  letter_number TEXT,
+  letter_type TEXT,
+  recipient TEXT,
+  subject TEXT,
+  issue_date TEXT,
+  signed_by TEXT,
+  status TEXT DEFAULT 'Terbit',
+  document_payload JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 -- ==============================================================================
--- PENYESUAIAN STRUKTUR KOLOM & RELAKSASI NOT NULL (MENCEGAH ERROR INSERT)
+-- PEMBAHARUAN KOLOM OTOMATIS (MENCEGAH ERROR JIKA TABEL SUDAH ADA SEBELUMNYA)
 -- ==============================================================================
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS available_formal_classes JSONB DEFAULT '["VII SMP Formal", "VIII SMP Formal", "IX SMP Formal", "X MA Formal", "XI MA Formal", "XII MA Formal", "-"]'::jsonb;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS available_madrasah_classes JSONB DEFAULT '["1A MTs Diniyah", "1B MTs Diniyah", "2A MTs Diniyah", "2B MTs Diniyah", "3A MTs Diniyah", "1A MA Diniyah", "2A MA Diniyah", "3A MA Diniyah"]'::jsonb;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS kk TEXT;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS nik TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS nik TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS nisn TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS kk TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS father_name TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS father_phone TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS mother_name TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS mother_phone TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS guardian_phone TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS target_program TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS academic_year TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid';
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'Cicilan Bulanan';
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS payment_proof TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS verified_documents JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT false;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS blood_type TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS health_history TEXT;
+
+ALTER TABLE students ADD COLUMN IF NOT EXISTS class TEXT DEFAULT 'VII SMP Formal / 1A MTs';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS class_pagi TEXT DEFAULT '1A MTs Diniyah';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS class_sore TEXT DEFAULT 'VII SMP Formal';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS class_name TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS class_madrasah TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS class_formal TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS akun_madrasah TEXT;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS guardian_name TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS room_id TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS kamar TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS guardian_name TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS guardian_phone TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_place TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS kk TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS nik TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS father_name TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_name TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS blood_type TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS health_history TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS current_hafalan TEXT DEFAULT '0 Juz';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS tahfidz_logs JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS memorization_logs JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS security_logs JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS discipline_logs JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS health_logs JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS academic_reports JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS alumni_id TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS tahun_keluar TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS alumni_reason TEXT;
-
-ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS notes TEXT;
-ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS kk TEXT;
-ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS nik TEXT;
-ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS father_name TEXT;
-ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS mother_name TEXT;
-ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS blood_type TEXT;
-ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS health_history TEXT;
-ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS payment_type TEXT;
 
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS nis TEXT;
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS category TEXT;
@@ -499,7 +525,22 @@ ALTER TABLE bills ADD COLUMN IF NOT EXISTS sender_account_number TEXT;
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS verification_status TEXT;
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS verification_logs JSONB DEFAULT '[]'::jsonb;
 
--- Lepaskan batasan NOT NULL pada kolom sekunder agar input dari website lancar
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS available_formal_classes JSONB DEFAULT '["VII SMP Formal", "VIII SMP Formal", "IX SMP Formal", "X MA Formal", "XI MA Formal", "XII MA Formal", "-"]'::jsonb;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS available_madrasah_classes JSONB DEFAULT '["1A MTs Diniyah", "1B MTs Diniyah", "2A MTs Diniyah", "2B MTs Diniyah", "3A MTs Diniyah", "1A MA Diniyah", "2A MA Diniyah", "3A MA Diniyah"]'::jsonb;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_fee_pendaftaran NUMERIC DEFAULT 150000;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_fee_sarpras NUMERIC DEFAULT 1000000;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_fee_seragam NUMERIC DEFAULT 650000;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_fee_kitab NUMERIC DEFAULT 350000;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_fee_kesehatan NUMERIC DEFAULT 100000;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_fee_syahriyah NUMERIC DEFAULT 350000;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_enable_pendaftaran BOOLEAN DEFAULT true;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_enable_sarpras BOOLEAN DEFAULT true;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_enable_seragam BOOLEAN DEFAULT true;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_enable_kitab BOOLEAN DEFAULT true;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_enable_kesehatan BOOLEAN DEFAULT true;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS pcsb_enable_syahriyah BOOLEAN DEFAULT true;
+
+-- Relaksasi batasan NOT NULL agar proses simpan dari berbagai perangkat tidak terhambat
 DO $$
 BEGIN
   BEGIN ALTER TABLE ppdb ALTER COLUMN parent_name DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END;
@@ -527,31 +568,94 @@ BEGIN
   BEGIN ALTER TABLE rooms ALTER COLUMN gender DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END;
 END $$;
 
+ALTER TABLE outbox_logs ADD COLUMN IF NOT EXISTS student_id TEXT;
+ALTER TABLE outbox_logs ADD COLUMN IF NOT EXISTS nis TEXT;
+ALTER TABLE ppdb ADD COLUMN IF NOT EXISTS student_id TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS ppdb_id TEXT;
+
 -- ==============================================================================
--- RELASI FOREIGN KEY ANTAR TABEL (INTEGRITAS DATA KEUANGAN & SANTRI)
+-- RELASI FOREIGN KEYS ANTAR TABEL (INTEGRITAS DATA & HUBUNGAN RELASIONAL)
 -- ==============================================================================
 DO $$
 BEGIN
-  -- Hubungkan tabel bills dengan tabel students via student_id
+  -- 1. Tagihan Keuangan terhubung ke Data Induk Santri (Hapus santri otomatis hapus tagihan terkait)
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints 
     WHERE constraint_name = 'fk_bills_student' AND table_name = 'bills'
   ) THEN
-    -- Relasi: Hapus/Update cascade tagihan jika ID santri diupdate
     BEGIN
       ALTER TABLE bills 
         ADD CONSTRAINT fk_bills_student 
         FOREIGN KEY (student_id) REFERENCES students(id) 
         ON DELETE CASCADE 
         ON UPDATE CASCADE;
-    EXCEPTION WHEN OTHERS THEN 
-      NULL; -- Jangan gagalkan migrasi jika terdapat data dummy non-matching
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END IF;
+
+  -- 2. Data Induk Santri terhubung ke Asrama / Kamar
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'fk_students_room' AND table_name = 'students'
+  ) THEN
+    BEGIN
+      ALTER TABLE students 
+        ADD CONSTRAINT fk_students_room 
+        FOREIGN KEY (room_id) REFERENCES rooms(id) 
+        ON DELETE SET NULL 
+        ON UPDATE CASCADE;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END IF;
+
+  -- 3. Kamar terhubung ke Ketua Kamar (Santri)
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'fk_rooms_ketua' AND table_name = 'rooms'
+  ) THEN
+    BEGIN
+      ALTER TABLE rooms 
+        ADD CONSTRAINT fk_rooms_ketua 
+        FOREIGN KEY (ketua_kamar_id) REFERENCES students(id) 
+        ON DELETE SET NULL 
+        ON UPDATE CASCADE;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END IF;
+
+  -- 4. Pendaftaran Online PCSB/PPDB terhubung ke Data Induk Santri
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'fk_ppdb_student' AND table_name = 'ppdb'
+  ) THEN
+    BEGIN
+      ALTER TABLE ppdb 
+        ADD CONSTRAINT fk_ppdb_student 
+        FOREIGN KEY (student_id) REFERENCES students(id) 
+        ON DELETE SET NULL 
+        ON UPDATE CASCADE;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END IF;
+
+  -- 5. Buku Surat Keluar & Izin Santri terhubung ke Data Induk Santri
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'fk_outbox_student' AND table_name = 'outbox_logs'
+  ) THEN
+    BEGIN
+      ALTER TABLE outbox_logs 
+        ADD CONSTRAINT fk_outbox_student 
+        FOREIGN KEY (student_id) REFERENCES students(id) 
+        ON DELETE SET NULL 
+        ON UPDATE CASCADE;
+    EXCEPTION WHEN OTHERS THEN NULL;
     END;
   END IF;
 END $$;
 
 -- ==============================================================================
--- INDEXING UNTUK KECEPATAN QUERY MULTI-USER
+-- INDEXING DATA UNTUK PERFORMA QUERY CEPAT
 -- ==============================================================================
 CREATE INDEX IF NOT EXISTS idx_students_nis ON students (nis);
 CREATE INDEX IF NOT EXISTS idx_students_gender ON students (gender);
@@ -563,9 +667,47 @@ CREATE INDEX IF NOT EXISTS idx_bills_status ON bills (status);
 CREATE INDEX IF NOT EXISTS idx_bills_nis ON bills (nis);
 CREATE INDEX IF NOT EXISTS idx_news_created_at ON news (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_rooms_name ON rooms (name);
+CREATE INDEX IF NOT EXISTS idx_staff_users_email ON staff_users (email);
 
 -- ==============================================================================
--- REPLICA IDENTITY FULL (REALTIME MENYIARKAN DATA UTUH KE SEMUA PERANGKAT)
+-- SEED DATA DEFAULT AWAL
+-- ==============================================================================
+INSERT INTO settings (id, school_name, nama_yayasan, tagline, accent_color, ppdb_open)
+VALUES (
+  'default_settings', 
+  'Pondok Pesantren Al-Asy''ariyah', 
+  'Yayasan Pendidikan Islam Al-Asy''ariyah', 
+  'Mencetak Generasi Berakhlak Qur''ani, Mandiri, dan Berpengetahuan Luas', 
+  '#059669', 
+  true
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO master_classes (id, name, type) VALUES
+  ('formal_1', 'VII SMP Formal', 'formal'),
+  ('formal_2', 'VIII SMP Formal', 'formal'),
+  ('formal_3', 'IX SMP Formal', 'formal'),
+  ('formal_4', 'X MA Formal', 'formal'),
+  ('formal_5', 'XI MA Formal', 'formal'),
+  ('formal_6', 'XII MA Formal', 'formal'),
+  ('formal_7', '-', 'formal'),
+  ('madrasah_1', '1A MTs Diniyah', 'madrasah'),
+  ('madrasah_2', '1B MTs Diniyah', 'madrasah'),
+  ('madrasah_3', '2A MTs Diniyah', 'madrasah'),
+  ('madrasah_4', '2B MTs Diniyah', 'madrasah'),
+  ('madrasah_5', '3A MTs Diniyah', 'madrasah'),
+  ('madrasah_6', '1A MA Diniyah', 'madrasah'),
+  ('madrasah_7', '2A MA Diniyah', 'madrasah'),
+  ('madrasah_8', '3A MA Diniyah', 'madrasah')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO staff_configs (id, role, name) VALUES
+  ('staff_config_keamanan', 'keamanan', 'Biro Keamanan & Ketertiban Santri'),
+  ('staff_config_ketertiban', 'ketertiban', 'Biro Kedisiplinan & Mahkamah Santri'),
+  ('staff_config_kesehatan', 'kesehatan', 'Biro Poskestren & Kesehatan Santri')
+ON CONFLICT (id) DO NOTHING;
+
+-- ==============================================================================
+-- REPLICA IDENTITY FULL (SUPAYA REALTIME MENGIRIM DATA BARIS UTUH KE SEMUA HP/PC)
 -- ==============================================================================
 ALTER TABLE news REPLICA IDENTITY FULL;
 ALTER TABLE announcements REPLICA IDENTITY FULL;
@@ -578,9 +720,10 @@ ALTER TABLE events REPLICA IDENTITY FULL;
 ALTER TABLE staff_configs REPLICA IDENTITY FULL;
 ALTER TABLE master_classes REPLICA IDENTITY FULL;
 ALTER TABLE staff_users REPLICA IDENTITY FULL;
+ALTER TABLE outbox_logs REPLICA IDENTITY FULL;
 
 -- ==============================================================================
--- HAK AKSES UNIVERSAL (ANON & AUTHENTICATED DAPAT MEMBACA & MENULIS DENGAN AMAN)
+-- HAK AKSES UNIVERSAL (DAPAT DIAKSES & DITULIS OLEH SEMUA PERANGKAT SECARA AMAN)
 -- ==============================================================================
 ALTER TABLE news ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
@@ -593,6 +736,7 @@ ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE master_classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE outbox_logs ENABLE ROW LEVEL SECURITY;
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role, postgres;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role, postgres;
@@ -603,7 +747,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authen
 
 DO $$ 
 BEGIN
-  -- Hapus policy lama agar tidak terjadi konflik
+  -- Bersihkan policy lama agar tidak terjadi duplikasi/konflik
   DROP POLICY IF EXISTS "Allow all on news" ON news;
   DROP POLICY IF EXISTS "Allow all on announcements" ON announcements;
   DROP POLICY IF EXISTS "Allow all on ppdb" ON ppdb;
@@ -615,6 +759,7 @@ BEGIN
   DROP POLICY IF EXISTS "Allow all on staff_configs" ON staff_configs;
   DROP POLICY IF EXISTS "Allow all on master_classes" ON master_classes;
   DROP POLICY IF EXISTS "Allow all on staff_users" ON staff_users;
+  DROP POLICY IF EXISTS "Allow all on outbox_logs" ON outbox_logs;
   DROP POLICY IF EXISTS "Public Access" ON ppdb;
   DROP POLICY IF EXISTS "Public Access" ON students;
   DROP POLICY IF EXISTS "Public Access" ON bills;
@@ -626,6 +771,7 @@ BEGIN
   DROP POLICY IF EXISTS "Public Access" ON staff_configs;
   DROP POLICY IF EXISTS "Public Access" ON master_classes;
   DROP POLICY IF EXISTS "Public Access" ON staff_users;
+  DROP POLICY IF EXISTS "Public Access" ON outbox_logs;
 END $$;
 
 CREATE POLICY "Allow all on news" ON news FOR ALL USING (true) WITH CHECK (true);
@@ -639,19 +785,20 @@ CREATE POLICY "Allow all on events" ON events FOR ALL USING (true) WITH CHECK (t
 CREATE POLICY "Allow all on staff_configs" ON staff_configs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on master_classes" ON master_classes FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on staff_users" ON staff_users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on outbox_logs" ON outbox_logs FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
--- REALTIME PUBLICATION (NOTIFIKASI OTOMATIS KE HP/LAPTOP LAIN SAAT ADA PENDAFTARAN)
+-- PUBLIKASI REALTIME (DATA LANGSUNG TERLIHAT & UPDATE DI SEMUA PERANGKAT LAIN)
 -- ==============================================================================
 DO $$
 BEGIN
   BEGIN
-    ALTER PUBLICATION supabase_realtime ADD TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes, staff_users;
+    ALTER PUBLICATION supabase_realtime ADD TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes, staff_users, outbox_logs;
   EXCEPTION
     WHEN duplicate_object THEN
       NULL;
     WHEN undefined_object THEN
-      CREATE PUBLICATION supabase_realtime FOR TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes, staff_users;
+      CREATE PUBLICATION supabase_realtime FOR TABLE news, announcements, ppdb, students, rooms, bills, settings, events, staff_configs, master_classes, staff_users, outbox_logs;
     WHEN OTHERS THEN
       NULL;
   END;
