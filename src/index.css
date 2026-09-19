@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+/* Custom utility colors for emerald shades to ensure text and background visibility */
+.bg-emerald-750 {
+  background-color: #047857 !important;
+}
+.bg-emerald-850 {
+  background-color: #065f46 !important;
+}
+.text-emerald-750 {
+  color: #047857 !important;
+}
+.text-emerald-850 {
+  color: #065f46 !important;
+}
+.from-emerald-850 {
+  --tw-gradient-from: #065f46 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(6 95 70 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.to-emerald-850 {
+  --tw-gradient-to: #065f46 var(--tw-gradient-to-position) !important;
+}
+
 /* Dark mode basic style mapping */
 .dark body, .dark #root {
   background-color: #0f172a !important;

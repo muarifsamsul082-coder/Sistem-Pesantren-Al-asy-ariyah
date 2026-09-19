@@ -80,6 +80,8 @@ import {
   syncRoomsWithSupabase,
   syncBillsWithSupabase,
   syncSettingsWithSupabase,
+  syncStaffUsersWithSupabase,
+  pushAllStaffUsersToSupabase,
   syncMasterClassesWithSupabase,
   pushMasterClassesToSupabase,
   pushSettingsToSupabase,
@@ -484,9 +486,11 @@ export default function App() {
         const remoteSettings = await syncSettingsWithSupabase(currentLocalSettings);
         if (remoteSettings) {
           const mergedSettings: PortalSettings = {
+            ...currentLocalSettings,
             ...remoteSettings,
-            ppdbStartDate: remoteSettings.ppdbStartDate || currentLocalSettings.ppdbStartDate || '',
-            ppdbEndDate: remoteSettings.ppdbEndDate || currentLocalSettings.ppdbEndDate || '',
+            ppdbOpen: typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : currentLocalSettings.ppdbOpen,
+            ppdbStartDate: remoteSettings.ppdbStartDate !== undefined ? remoteSettings.ppdbStartDate : (currentLocalSettings.ppdbStartDate || ''),
+            ppdbEndDate: remoteSettings.ppdbEndDate !== undefined ? remoteSettings.ppdbEndDate : (currentLocalSettings.ppdbEndDate || ''),
           };
           const adjusted = autoAdjustPpdbSettings(mergedSettings);
           setSettings(adjusted);
@@ -500,6 +504,14 @@ export default function App() {
             setAvailableMadrasahClasses(adjusted.availableMadrasahClasses);
             localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(adjusted.availableMadrasahClasses));
           }
+        }
+
+        // Sinkronisasi data Akun Pengurus & Hak Akses (staff_users)
+        const currentLocalStaff = getLocal<any[]>('pesantren_staff_users', []);
+        const remoteStaff = await syncStaffUsersWithSupabase(currentLocalStaff);
+        if (Array.isArray(remoteStaff) && remoteStaff.length > 0) {
+          localStorage.setItem('pesantren_staff_users', JSON.stringify(remoteStaff));
+          window.dispatchEvent(new Event('pesantren_staff_users_updated'));
         }
 
         // Sinkronisasi data Master Kelas & Sekolah (Formal & Madrasah Diniyah)

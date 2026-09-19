@@ -173,6 +173,11 @@ export default function SantriDashboard({
       } catch (err) {
         console.error(err);
       }
+      fetch('/api/bills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      }).catch(() => {});
       window.dispatchEvent(new Event('pesantren_db_sync'));
       if (isSupabaseConfigured()) {
         pushBillToSupabase(updatedBill).catch(e => console.error("Cloud push bill payment error:", e));
@@ -184,7 +189,77 @@ export default function SantriDashboard({
     setTimeout(() => {
       setSuccess(false);
       setSelectedBill(null);
-    }, 2500);
+    }, 2000);
+  };
+
+  // Instant online payment simulation (Lunas langsung dan terbitkan kwitansi)
+  const handleInstantOnlinePay = () => {
+    if (!selectedBill) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const updatedBill: Bill = {
+      ...selectedBill,
+      status: 'Lunas',
+      paidDate: todayStr,
+      paymentMethod: bank || 'Pembayaran Online (VA / QRIS)',
+      senderBank: senderBank || 'Online Gateway Bank',
+      paymentProofUrl: proofUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=200'
+    };
+
+    setBills(prevBills => {
+      const updated = prevBills.map(b => b.id === selectedBill.id ? updatedBill : b);
+      markLocalDataChanged('bills');
+      try {
+        localStorage.setItem('pesantren_bills', JSON.stringify(updated));
+      } catch (err) {
+        console.error(err);
+      }
+      fetch('/api/bills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      }).catch(() => {});
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+      if (isSupabaseConfigured()) {
+        pushBillToSupabase(updatedBill).catch(e => console.error("Cloud push bill payment error:", e));
+      }
+      return updated;
+    });
+
+    if (setStudents) {
+      setStudents(prevStudents => {
+        const updated = prevStudents.map(s => {
+          if (s.id === student.id) {
+            const hist = s.paymentHistory || [];
+            const newHist = {
+              id: 'pay-' + Date.now(),
+              date: todayStr,
+              amount: selectedBill.amount,
+              description: `Pembayaran Online ${selectedBill.title}`,
+              paymentMethod: bank || 'Online VA / QRIS',
+              verifiedBy: 'Sistem Pembayaran Online'
+            };
+            return {
+              ...s,
+              paymentHistory: [newHist, ...hist]
+            };
+          }
+          return s;
+        });
+        try {
+          localStorage.setItem('pesantren_students', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+    }
+
+    setSuccess(true);
+    setTimeout(() => {
+      setSuccess(false);
+      const bToReceipt = updatedBill;
+      setSelectedBill(null);
+      setReceiptBill(bToReceipt);
+    }, 1500);
   };
 
   // Filter announcements matching role
@@ -371,118 +446,166 @@ export default function SantriDashboard({
                 </div>
               )}
 
-              {/* Payment Simulator overlay */}
+              {/* Payment Modal Dialog (Pop up di tengah layar) */}
               {selectedBill && (
-                <div className="bg-amber-50/20 p-5 rounded-2xl border border-amber-200/50 space-y-4 animate-fade-in mt-6 text-left">
-                  <div className="flex items-center justify-between border-b border-amber-200/50 pb-2">
-                    <h4 className="font-bold text-emerald-950 text-xs flex items-center gap-1.5">
-                      <Sparkles className="h-4 w-4 text-amber-500" />
-                      Kirim Bukti Transfer: {selectedBill.title}
-                    </h4>
-                    <button 
-                      type="button"
-                      onClick={() => setSelectedBill(null)}
-                      className="text-gray-400 hover:text-black font-bold text-xs cursor-pointer"
-                    >
-                      Batal
-                    </button>
-                  </div>
-
-                  {success ? (
-                    <div className="p-4 bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-xl flex items-center gap-2 font-bold text-xs">
-                      <Check className="h-5 w-5 text-emerald-600" />
-                      Bukti transfer dikirimkan ke database pesantren! Silakan tunggu konfirmasi bendahara.
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto font-sans">
+                  <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-6 max-w-lg w-full border border-emerald-100 text-left space-y-4 animate-fade-in my-auto max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">
+                          💳
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-emerald-950 text-sm">
+                            Bayar Online: {selectedBill.title}
+                          </h4>
+                          <span className="text-[10px] text-slate-500 font-medium">Batas Pembayaran: {selectedBill.dueDate}</span>
+                        </div>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedBill(null)}
+                        className="text-slate-400 hover:text-slate-800 p-1.5 rounded-full hover:bg-slate-100 transition cursor-pointer"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
                     </div>
-                  ) : (
-                    <form onSubmit={handlePaySimulate} className="space-y-4 text-xs">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                        <div className="md:col-span-2 p-3.5 bg-emerald-50/60 border border-emerald-100 text-emerald-950 rounded-xl">
-                          <p className="font-bold text-xs text-emerald-900 mb-1">Sistem Verifikasi AI Al-Asy'ariyah</p>
-                          <p className="text-[11px] leading-normal text-gray-600">
-                            Asisten AI kami secara otomatis mengevaluasi kesesuaian nilai transfer dengan nominal tagihan (Rp {selectedBill.amount.toLocaleString('id-ID')}) serta mencocokkan nomor rekening tujuan transfer yang Anda gunakan.
-                          </p>
-                        </div>
 
-                        <div className="md:col-span-2">
-                          <label className="text-[10px] text-gray-500 font-bold block mb-1">Bank / VA Tujuan Transfer</label>
-                          <select
-                            value={bank}
-                            onChange={(e) => setBank(e.target.value)}
-                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold focus:ring-1 focus:ring-emerald-700 focus:outline-none"
-                          >
-                            {settings.rekeningList && settings.rekeningList.length > 0 ? (
-                              settings.rekeningList.map((rek: any) => (
-                                <option key={rek.id} value={`Transfer ${rek.bankName}`}>
-                                  {rek.bankName} - {rek.accountNumber} a.n. {rek.accountName} {rek.isMain ? '(Kanal Utama)' : ''}
-                                </option>
-                              ))
-                            ) : (
-                              <>
-                                <option value={`Transfer ${settings.pesantrenBankName || 'BSI'}`}>
-                                  {settings.pesantrenBankName || 'Bank Syariah Indonesia (BSI)'} - {settings.pesantrenBankAccountNumber || '718290182'} a.n. {settings.pesantrenBankAccountName || 'PONPES AL-ASYARIYAH'} (OFFICIAL PESANTREN)
-                                </option>
-                                <option value="Transfer BRI (Virtual Account)">Transfer BRI (Virtual Account) - 88201982736</option>
-                                <option value="Transfer BNI (Virtual Account)">Transfer BNI (Virtual Account) - 98201982747</option>
-                              </>
-                            )}
-                            <option value="Tunai ke Bendahara Pesantren">Bayar Tunai ke Bendahara Pesantren</option>
-                          </select>
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <label className="text-[10px] text-gray-500 font-bold block mb-1">Unggah Foto Bukti Transfer</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                               type="file"
-                               accept="image/*"
-                               id="payment-proof-upload"
-                               onChange={(e) => {
-                                 const file = e.target.files?.[0];
-                                 if (file) {
-                                   const reader = new FileReader();
-                                   reader.onloadend = () => {
-                                     if (typeof reader.result === 'string') {
-                                       setProofUrl(reader.result);
-                                     }
-                                   };
-                                   reader.readAsDataURL(file);
-                                 }
-                               }}
-                               className="hidden"
-                            />
-                            <label
-                               htmlFor="payment-proof-upload"
-                               className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-95 w-full text-center"
-                            >
-                               <UploadCloud className="h-4 w-4" /> {proofUrl ? 'Foto Terpilih ✓' : 'Pilih Foto Resi / Bukti'}
-                            </label>
+                    {success ? (
+                      <div className="p-5 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-xl space-y-2 text-center">
+                        <div className="text-3xl">🎉</div>
+                        <h5 className="font-extrabold text-sm text-emerald-900">Pembayaran Berhasil Diproses!</h5>
+                        <p className="text-xs text-emerald-700 leading-relaxed font-semibold">
+                          Transaksi pembayaran Anda telah dicatat ke sistem keuangan pesantren dan disinkronkan ke cloud.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 text-xs">
+                        {/* Summary Tagihan */}
+                        <div className="p-3.5 bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-xl flex items-center justify-between shadow-sm">
+                          <div>
+                            <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-200 block">Total Pembayaran</span>
+                            <span className="text-lg font-black font-mono">Rp {selectedBill.amount.toLocaleString('id-ID')}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[9px] bg-amber-400 text-emerald-950 font-black px-2 py-0.5 rounded-full uppercase">
+                              {student.fullName}
+                            </span>
+                            <span className="text-[9px] text-emerald-200 block mt-0.5 font-mono">NIS: {student.nis}</span>
                           </div>
                         </div>
 
-                        <div className="md:col-span-2">
-                          <label className="text-[10px] text-gray-500 font-bold block mb-1">Nama Bank Pengirim (Anda) - Opsional</label>
-                          <input
-                            type="text"
-                            placeholder="Contoh: Bank Syariah Indonesia, Mandiri, BCA, OVO, ShopeePay"
-                            value={senderBank}
-                            onChange={(e) => setSenderBank(e.target.value)}
-                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold focus:ring-1 focus:ring-emerald-700 focus:outline-none"
-                          />
+                        {/* Opsi 1: Bayar Instan Otomatis */}
+                        <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2 text-left">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-emerald-900 flex items-center gap-1.5">
+                              <span>⚡</span> Kanal 1: Bayar Online Instan (Gateway)
+                            </span>
+                            <span className="text-[9px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">
+                              Lunas Otomatis
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-snug">
+                            Sistem akan langsung memvalidasi pembayaran tagihan secara real-time, menerbitkan kwitansi resmi, dan memperbarui buku kas.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleInstantOnlinePay}
+                            className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-black rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+                          >
+                            <span>✓</span>
+                            <span>Proses Bayar Online Sekarang (Rp {selectedBill.amount.toLocaleString('id-ID')})</span>
+                          </button>
                         </div>
-                      </div>
 
-                      <div className="p-3 bg-white rounded-lg border border-amber-150 text-amber-900 leading-relaxed text-[11px] text-left">
-                        💡 Klik tombol kirim. Tagihan bertanda <strong>"Diproses Admin"</strong> dan bendahara madrasah akan dapat memverifikasinya.
-                      </div>
+                        {/* Divider */}
+                        <div className="relative flex py-1 items-center">
+                          <div className="flex-grow border-t border-slate-200"></div>
+                          <span className="flex-shrink mx-3 text-slate-400 text-[10px] uppercase font-bold tracking-wider">Atau Unggah Bukti Manual</span>
+                          <div className="flex-grow border-t border-slate-200"></div>
+                        </div>
 
-                      <button
-                        type="submit"
-                        className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-950 text-white font-bold rounded-lg transition"
-                      >
-                        Kirim Bukti Pembayaran Sekarang
-                      </button>
-                    </form>
-                  )}
+                        {/* Opsi 2: Transfer Bank & Kirim Bukti Manual */}
+                        <form onSubmit={handlePaySimulate} className="space-y-3 text-left">
+                          <div>
+                            <label className="text-[10px] text-slate-600 font-bold block mb-1">Pilih Rekening Tujuan Transfer</label>
+                            <select
+                              value={bank}
+                              onChange={(e) => setBank(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-700 focus:outline-none"
+                            >
+                              {settings.rekeningList && settings.rekeningList.length > 0 ? (
+                                settings.rekeningList.map((rek: any) => (
+                                  <option key={rek.id} value={`Transfer ${rek.bankName}`}>
+                                    {rek.bankName} - {rek.accountNumber} a.n. {rek.accountName} {rek.isMain ? '(Kanal Utama)' : ''}
+                                  </option>
+                                ))
+                              ) : (
+                                <>
+                                  <option value={`Transfer ${settings.pesantrenBankName || 'BSI'}`}>
+                                    {settings.pesantrenBankName || 'Bank Syariah Indonesia (BSI)'} - {settings.pesantrenBankAccountNumber || '718290182'} a.n. {settings.pesantrenBankAccountName || 'PONPES AL-ASYARIYAH'}
+                                  </option>
+                                  <option value="Transfer BRI (Virtual Account)">Transfer BRI (Virtual Account) - 88201982736</option>
+                                  <option value="Transfer BNI (Virtual Account)">Transfer BNI (Virtual Account) - 98201982747</option>
+                                </>
+                              )}
+                              <option value="Tunai ke Bendahara Pesantren">Bayar Tunai ke Bendahara Pesantren</option>
+                            </select>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                              <label className="text-[10px] text-slate-600 font-bold block mb-1">Unggah Struk / Bukti Transfer</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                   type="file"
+                                   accept="image/*"
+                                   id="payment-proof-upload"
+                                   onChange={(e) => {
+                                     const file = e.target.files?.[0];
+                                     if (file) {
+                                       const reader = new FileReader();
+                                       reader.onloadend = () => {
+                                         if (typeof reader.result === 'string') {
+                                           setProofUrl(reader.result);
+                                         }
+                                       };
+                                       reader.readAsDataURL(file);
+                                     }
+                                   }}
+                                   className="hidden"
+                                />
+                                <label
+                                   htmlFor="payment-proof-upload"
+                                   className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 px-3 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-95 w-full text-center"
+                                >
+                                   <UploadCloud className="h-4 w-4 text-emerald-700" /> {proofUrl ? 'Foto Terpilih ✓' : 'Pilih Foto Resi'}
+                                </label>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] text-slate-600 font-bold block mb-1">Bank Pengirim (Opsional)</label>
+                              <input
+                                type="text"
+                                placeholder="Contoh: BCA / Mandiri / BSI"
+                                value={senderBank}
+                                onChange={(e) => setSenderBank(e.target.value)}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-700 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            className="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+                          >
+                            Kirim Bukti Pembayaran ke Bendahara
+                          </button>
+                        </form>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1055,33 +1178,33 @@ export default function SantriDashboard({
                       <p className="text-[7.5px] text-slate-800 font-extrabold uppercase tracking-wider leading-tight mt-0.5">Pengasuh Pondok Pesantren,</p>
                       
                       {/* Overlapping signature and stamp area */}
-                      <div className="h-10 w-28 relative flex items-center justify-center select-none my-0.5">
-                        {/* Signature */}
-                        <div className="z-10 absolute inset-0 flex items-center justify-end">
+                      <div className="relative min-h-[42px] flex flex-col items-center justify-end select-none my-0.5 w-32">
+                        {/* Signature: Berada DI ATAS nama pengasuh */}
+                        <div className="z-10 mb-0.5 flex items-center justify-center">
                           {isImageUrl(settings.ttdPengasuhUrl) ? (
-                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-10 max-w-[80px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-9 max-w-[85px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
-                            <span className="text-[8px] font-mono text-blue-900 italic font-extrabold">
-                              {settings.ttdPengasuhUrl || "✒️ KH. Asy'ari"}
+                            <span className="text-[7.5px] font-mono text-blue-900 italic font-extrabold">
+                              {"✒️ " + (settings.namaPengasuh || "KH. Ahmad Wildan")}
                             </span>
                           )}
                         </div>
 
-                        {/* Stamp */}
+                        {/* Stamp: Berada di SEBELAH KIRI nama pengasuh */}
                         {settings.stempelPengasuhUrl && (
-                          <div className="z-20 absolute left-4 top-0 pointer-events-none opacity-85">
+                          <div className="z-20 absolute -left-3 -bottom-0.5 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelPengasuhUrl) ? (
-                              <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-10 w-10 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                              <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-10 w-10 object-contain rotate-[-10deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="border border-double border-red-600/60 text-red-700/90 rounded-full h-8 w-8 flex items-center justify-center text-[5px] font-extrabold uppercase rotate-[-12deg] leading-none text-center bg-white/75">
+                              <div className="border border-double border-red-600/60 text-red-700/90 rounded-full h-8 w-8 flex items-center justify-center text-[5px] font-extrabold uppercase rotate-[-10deg] leading-none text-center bg-white/75">
                                 {settings.stempelPengasuhUrl}
                               </div>
                             )}
                           </div>
                         )}
-                      </div>
 
-                      <p className="text-[8px] font-bold text-gray-900 underline leading-none uppercase">{settings.namaPengasuh || "KH. Asy'ari Al-Hafidz"}</p>
+                        <p className="text-[8px] font-bold text-gray-900 underline leading-none uppercase truncate">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</p>
+                      </div>
                     </div>
                   </div>
                 </div>

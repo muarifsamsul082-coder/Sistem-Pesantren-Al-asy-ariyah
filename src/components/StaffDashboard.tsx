@@ -351,6 +351,34 @@ export default function StaffDashboard({
     }
   }, [role, session]);
 
+  // Listener sinkronisasi nama pengurus secara real-time
+  React.useEffect(() => {
+    const handleNameSync = () => {
+      const userEmail = (session?.email || `${role}@alasyariyah.sch.id`).toLowerCase();
+      const customStaffName = localStorage.getItem('staff_custom_name_' + userEmail);
+      if (customStaffName) {
+        setDeptName(customStaffName);
+        return;
+      }
+      try {
+        const staffList = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
+        const found = staffList.find((u: any) => (u.email && u.email.toLowerCase() === userEmail) || u.role === role);
+        if (found && (found.fullName || found.name)) {
+          setDeptName(found.fullName || found.name);
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('pesantren_staff_users_updated', handleNameSync);
+    window.addEventListener('staff_configs_updated', handleNameSync);
+    window.addEventListener('pesantren_admin_name_updated', handleNameSync);
+    return () => {
+      window.removeEventListener('pesantren_staff_users_updated', handleNameSync);
+      window.removeEventListener('staff_configs_updated', handleNameSync);
+      window.removeEventListener('pesantren_admin_name_updated', handleNameSync);
+    };
+  }, [role, session]);
+
   const persistStudents = (updated: Student[]) => {
     setStudents(updated);
     markLocalDataChanged('students');
@@ -379,13 +407,49 @@ export default function StaffDashboard({
     };
     localStorage.setItem(configKey, JSON.stringify(dataObj));
     
+    // Sinkronkan nama pengurus ke daftar akun pengurus terdaftar & menu persetujuan
+    const userEmail = (session?.email || `${role}@alasyariyah.sch.id`).toLowerCase();
+    localStorage.setItem('staff_custom_name_' + userEmail, deptName);
+    try {
+      const staffUsers = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
+      let changed = false;
+      const updatedStaff = staffUsers.map((u: any) => {
+        if (u && (u.email?.toLowerCase() === userEmail || u.role === role)) {
+          changed = true;
+          return { ...u, fullName: deptName, name: deptName };
+        }
+        return u;
+      });
+      if (changed) {
+        localStorage.setItem('pesantren_staff_users', JSON.stringify(updatedStaff));
+        window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+        fetch('/api/staff-users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: userEmail, fullName: deptName, name: deptName, role })
+        }).catch(() => {});
+      }
+    } catch (e) {}
+
+    // Update session jika ada
+    try {
+      const storedSess = localStorage.getItem('pesantren_session');
+      if (storedSess) {
+        const parsed = JSON.parse(storedSess);
+        parsed.fullName = deptName;
+        localStorage.setItem('pesantren_session', JSON.stringify(parsed));
+      }
+    } catch (e) {}
+
     // Dispatch custom event to notify admin and cloud sync
+    window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+    window.dispatchEvent(new Event('pesantren_admin_name_updated'));
     window.dispatchEvent(new Event('staff_configs_updated'));
     window.dispatchEvent(new Event('pesantren_db_sync'));
     if (isSupabaseConfigured()) {
       pushStaffConfigToSupabase(role, { name: deptName, signature: deptSignature, seal: deptSeal }).catch(e => console.error(e));
     }
-    alert('Profil, tanda tangan, dan draf template surat berhasil diperbarui!');
+    alert('Profil dan draf template surat berhasil diperbarui serta disinkronkan ke seluruh sistem!');
   };
 
   // Helper to dynamically get any department configuration

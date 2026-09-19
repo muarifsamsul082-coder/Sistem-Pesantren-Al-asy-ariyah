@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { News, Announcement, PCSBRegistration, Student, Bill, PortalSettings, Room, AcademicEvent } from '../types';
+import { News, Announcement, PCSBRegistration, Student, Bill, PortalSettings, Room, AcademicEvent, StaffUserItem } from '../types';
 
 export const normalizeSupabaseUrl = (urlString: string): string => {
   if (!urlString || typeof urlString !== 'string') return '';
@@ -804,6 +804,309 @@ BEGIN
   END;
 END $$;
 `;
+
+// Peta skema per-tabel untuk pembuatan skrip SQL otomatis hanya jika tabel belum ada di Supabase
+export const APP_TABLES_SCHEMA_MAP: Record<string, { menuLabel: string; sql: string }> = {
+  news: {
+    menuLabel: 'Berita & Informasi',
+    sql: `-- Tabel Berita & Informasi
+CREATE TABLE IF NOT EXISTS public.news (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT DEFAULT 'Informasi',
+  date TEXT,
+  author TEXT DEFAULT 'Admin Pesantren',
+  excerpt TEXT,
+  content TEXT,
+  image_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.news ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on news" ON public.news;
+CREATE POLICY "Allow all on news" ON public.news FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.news; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  announcements: {
+    menuLabel: 'Pengumuman Pesantren',
+    sql: `-- Tabel Pengumuman Resmi
+CREATE TABLE IF NOT EXISTS public.announcements (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  priority TEXT DEFAULT 'medium',
+  target_role TEXT DEFAULT 'all',
+  date TEXT,
+  content TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on announcements" ON public.announcements;
+CREATE POLICY "Allow all on announcements" ON public.announcements FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.announcements; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  rooms: {
+    menuLabel: 'Kamar & Asrama Santri',
+    sql: `-- Tabel Kamar & Asrama
+CREATE TABLE IF NOT EXISTS public.rooms (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  gender TEXT,
+  formal_school TEXT,
+  diniyah_school TEXT,
+  capacity INTEGER DEFAULT 10,
+  ketua_kamar_id TEXT,
+  ketua_kamar_name TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on rooms" ON public.rooms;
+CREATE POLICY "Allow all on rooms" ON public.rooms FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.rooms; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  ppdb: {
+    menuLabel: 'Penerimaan Calon Santri Baru (PCSB)',
+    sql: `-- Tabel Pendaftaran Santri Baru (PPDB / PCSB)
+CREATE TABLE IF NOT EXISTS public.ppdb (
+  id TEXT PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  gender TEXT,
+  birth_place TEXT,
+  birth_date TEXT,
+  nik TEXT,
+  nisn TEXT,
+  kk TEXT,
+  address TEXT,
+  parent_name TEXT,
+  parent_phone TEXT,
+  father_name TEXT,
+  father_phone TEXT,
+  mother_name TEXT,
+  mother_phone TEXT,
+  status TEXT DEFAULT 'pending',
+  academic_track TEXT DEFAULT 'reguler',
+  program TEXT,
+  payment_status TEXT DEFAULT 'unpaid',
+  payment_proof TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.ppdb ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on ppdb" ON public.ppdb;
+CREATE POLICY "Allow all on ppdb" ON public.ppdb FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.ppdb; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  students: {
+    menuLabel: 'Database Santri & Induk',
+    sql: `-- Tabel Database Induk Santri
+CREATE TABLE IF NOT EXISTS public.students (
+  id TEXT PRIMARY KEY,
+  nis TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  gender TEXT,
+  class_name TEXT,
+  class_formal TEXT,
+  class_madrasah TEXT,
+  parent_name TEXT,
+  phone TEXT,
+  address TEXT,
+  status TEXT DEFAULT 'Aktif',
+  room_id TEXT,
+  room_name TEXT,
+  security_logs JSONB DEFAULT '[]'::jsonb,
+  discipline_logs JSONB DEFAULT '[]'::jsonb,
+  health_logs JSONB DEFAULT '[]'::jsonb,
+  academic_reports JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on students" ON public.students;
+CREATE POLICY "Allow all on students" ON public.students FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.students; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  bills: {
+    menuLabel: 'Tagihan & Keuangan Santri',
+    sql: `-- Tabel Tagihan & Keuangan
+CREATE TABLE IF NOT EXISTS public.bills (
+  id TEXT PRIMARY KEY,
+  student_id TEXT,
+  student_name TEXT,
+  nis TEXT,
+  title TEXT NOT NULL,
+  amount NUMERIC DEFAULT 0,
+  due_date TEXT,
+  status TEXT DEFAULT 'unpaid',
+  payment_method TEXT,
+  payment_proof_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.bills ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on bills" ON public.bills;
+CREATE POLICY "Allow all on bills" ON public.bills FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.bills; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  settings: {
+    menuLabel: 'Pengaturan Portal & Lembaga',
+    sql: `-- Tabel Pengaturan Portal & Profil Pesantren
+CREATE TABLE IF NOT EXISTS public.settings (
+  id TEXT PRIMARY KEY,
+  school_name TEXT,
+  nama_yayasan TEXT,
+  address TEXT,
+  phone TEXT,
+  email TEXT,
+  tagline TEXT,
+  logo_url TEXT,
+  nama_pengurus TEXT,
+  nama_pengasuh TEXT,
+  ttd_pengasuh_url TEXT,
+  stempel_pengasuh_url TEXT,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on settings" ON public.settings;
+CREATE POLICY "Allow all on settings" ON public.settings FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.settings; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  events: {
+    menuLabel: 'Kalender & Agenda Acara',
+    sql: `-- Tabel Agenda Kegiatan & Kalender
+CREATE TABLE IF NOT EXISTS public.events (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  date TEXT,
+  time TEXT,
+  location TEXT,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on events" ON public.events;
+CREATE POLICY "Allow all on events" ON public.events FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.events; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  master_classes: {
+    menuLabel: 'Input Kelas & Sekolah',
+    sql: `-- Tabel Master Data Kelas & Sekolah
+CREATE TABLE IF NOT EXISTS public.master_classes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL, -- 'formal' atau 'madrasah'
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.master_classes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access on master_classes" ON public.master_classes;
+CREATE POLICY "Allow all access on master_classes" ON public.master_classes FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  staff_users: {
+    menuLabel: 'Akun Pengurus & Hak Akses',
+    sql: `-- Tabel Akun Pengurus & Administrator
+CREATE TABLE IF NOT EXISTS public.staff_users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'pengurus',
+  is_confirmed BOOLEAN DEFAULT false,
+  registered_at TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.staff_users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on staff_users" ON public.staff_users;
+CREATE POLICY "Allow all on staff_users" ON public.staff_users FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.staff_users; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  staff_configs: {
+    menuLabel: 'Konfigurasi Bidang Pengurus',
+    sql: `-- Tabel Konfigurasi Bidang Pengurus
+CREATE TABLE IF NOT EXISTS public.staff_configs (
+  id TEXT PRIMARY KEY,
+  role TEXT NOT NULL UNIQUE,
+  name TEXT,
+  signature TEXT,
+  seal TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.staff_configs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on staff_configs" ON public.staff_configs;
+CREATE POLICY "Allow all on staff_configs" ON public.staff_configs FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.staff_configs; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  },
+  outbox_logs: {
+    menuLabel: 'Log Pengiriman WhatsApp & Outbox',
+    sql: `-- Tabel Log Pesan Terkirim WhatsApp
+CREATE TABLE IF NOT EXISTS public.outbox_logs (
+  id TEXT PRIMARY KEY,
+  recipient_name TEXT,
+  recipient_phone TEXT,
+  message TEXT,
+  type TEXT,
+  status TEXT DEFAULT 'Sent',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.outbox_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on outbox_logs" ON public.outbox_logs;
+CREATE POLICY "Allow all on outbox_logs" ON public.outbox_logs FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.outbox_logs; EXCEPTION WHEN OTHERS THEN NULL; END $$;`
+  }
+};
+
+export interface TableSyncStatus {
+  missingTables: string[];
+  missingMenuLabels: string[];
+  generatedSql: string;
+}
+
+// Fungsi otomatisasi pengecekan tabel Supabase & pembuatan skrip SQL dinamis
+export const checkMissingSupabaseTables = async (): Promise<TableSyncStatus> => {
+  if (!isSupabaseConfigured()) {
+    return { missingTables: [], missingMenuLabels: [], generatedSql: '' };
+  }
+  const client = getSupabaseClient();
+  if (!client) {
+    return { missingTables: [], missingMenuLabels: [], generatedSql: '' };
+  }
+
+  const missingTables: string[] = [];
+  const missingMenuLabels: string[] = [];
+  const sqlList: string[] = [];
+
+  for (const [tableName, meta] of Object.entries(APP_TABLES_SCHEMA_MAP)) {
+    try {
+      const { error } = await client.from(tableName).select('id').limit(1);
+      if (error) {
+        const msg = String(error.message || error.details || error.hint || '');
+        if (msg.includes('relation') || msg.includes('does not exist') || error.code === '42P01') {
+          missingTables.push(tableName);
+          missingMenuLabels.push(meta.menuLabel);
+          sqlList.push(meta.sql);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const generatedSql = sqlList.length > 0 
+    ? `-- ==============================================================================
+-- SKRIP SQL OTOMATIS: TABEL APLIKASI YANG BELUM ADA DI DATABASE SUPABASE
+-- Dibuat otomatis untuk melengkapi menu: ${missingMenuLabels.join(', ')}
+-- Skrip ini otomatis TERHAPUS / HILANG setelah tabel dibuat & terhubung ke Supabase.
+-- Salin dan jalankan skrip ini di: Supabase Dashboard -> SQL Editor -> Run
+-- ==============================================================================
+
+${sqlList.join('\n\n')}` 
+    : '';
+
+  return { missingTables, missingMenuLabels, generatedSql };
+};
 
 let activeRealtimeChannel: any = null;
 
@@ -1868,6 +2171,100 @@ export async function pushStaffConfigToSupabase(role: string, config: { name: st
     });
   } catch (err) {
     console.error('Failed to save staff config to Supabase:', err);
+  }
+}
+
+// ------------------------------------------------------------------------------
+// STAFF USERS SYNC & PUSH (AKUN PENGURUS & MENU PERSETUJUAN)
+// ------------------------------------------------------------------------------
+export async function syncStaffUsersWithSupabase(localStaff: StaffUserItem[]): Promise<StaffUserItem[]> {
+  const client = getSupabaseClient();
+  if (!client) return localStaff;
+
+  try {
+    const { data, error } = await client.from('staff_users').select('*');
+    if (error) {
+      console.warn('Error fetching staff_users from Supabase:', error);
+      return localStaff;
+    }
+    if (data && Array.isArray(data)) {
+      const map = new Map<string, StaffUserItem>();
+      localStaff.forEach(u => {
+        if (u && u.id) map.set(u.id, u);
+      });
+      data.forEach((item: any) => {
+        const mapped: StaffUserItem = {
+          id: item.id,
+          fullName: item.full_name || '',
+          email: item.email || '',
+          role: item.role || 'pengurus',
+          isConfirmed: Boolean(item.is_confirmed),
+          registeredAt: item.registered_at || undefined,
+        };
+        const existing = map.get(item.id);
+        if (existing) {
+          map.set(item.id, {
+            ...existing,
+            ...mapped,
+            fullName: mapped.fullName || existing.fullName,
+            password: existing.password
+          });
+        } else {
+          map.set(item.id, mapped);
+        }
+      });
+      return Array.from(map.values());
+    }
+  } catch (err) {
+    console.error('Error syncing staff users with Supabase:', err);
+  }
+  return localStaff;
+}
+
+export async function pushStaffUserToSupabase(user: StaffUserItem): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) return;
+  try {
+    await client.from('staff_users').upsert({
+      id: user.id,
+      full_name: user.fullName,
+      email: user.email,
+      role: user.role,
+      is_confirmed: Boolean(user.isConfirmed),
+      registered_at: user.registeredAt || new Date().toISOString().split('T')[0],
+      updated_at: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Failed to save staff user to Supabase:', err);
+  }
+}
+
+export async function pushAllStaffUsersToSupabase(users: StaffUserItem[]): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client || users.length === 0) return;
+  try {
+    const payload = users.map(u => ({
+      id: u.id,
+      full_name: u.fullName,
+      email: u.email,
+      role: u.role,
+      is_confirmed: Boolean(u.isConfirmed),
+      registered_at: u.registeredAt || new Date().toISOString().split('T')[0],
+      updated_at: new Date().toISOString()
+    }));
+    await client.from('staff_users').upsert(payload);
+  } catch (err) {
+    console.error('Failed to push all staff users to Supabase:', err);
+  }
+}
+
+export async function deleteStaffUserFromSupabase(id: string): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) return;
+  try {
+    await client.from('staff_users').delete().eq('id', id);
+  } catch (err) {
+    console.error('Failed to delete staff user from Supabase:', err);
   }
 }
 

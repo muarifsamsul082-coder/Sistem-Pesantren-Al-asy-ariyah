@@ -45,7 +45,9 @@ import {
   syncBillsWithSupabase,
   syncSettingsWithSupabase,
   syncMasterClassesWithSupabase,
-  pushMasterClassesToSupabase
+  pushMasterClassesToSupabase,
+  checkMissingSupabaseTables,
+  type TableSyncStatus
 } from '../lib/supabase';
 import { isPpdbCurrentlyActive, autoAdjustPpdbSettings, getTodayDateString } from '../lib/dateUtils';
 
@@ -308,10 +310,38 @@ export default function AdminDashboard({
   const [showSqlModal, setShowSqlModal] = React.useState(false);
   const [copiedSql, setCopiedSql] = React.useState(false);
   const [isSyncingClasses, setIsSyncingClasses] = React.useState(false);
+  const [missingTablesInfo, setMissingTablesInfo] = React.useState<TableSyncStatus | null>(null);
+  const [isCheckingTables, setIsCheckingTables] = React.useState(false);
+
+  const runTableCheck = React.useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      setMissingTablesInfo(null);
+      return;
+    }
+    setIsCheckingTables(true);
+    try {
+      const res = await checkMissingSupabaseTables();
+      if (res && res.missingTables && res.missingTables.length > 0) {
+        setMissingTablesInfo(res);
+      } else {
+        setMissingTablesInfo(null);
+        setShowSqlModal(false);
+      }
+    } catch (e) {
+      console.error('Pengecekan sinkronisasi tabel Supabase gagal:', e);
+    } finally {
+      setIsCheckingTables(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    runTableCheck();
+  }, [runTableCheck]);
 
   React.useEffect(() => {
     const handleDbStateCheck = () => {
       setIsCloudConnected(isSupabaseConfigured());
+      runTableCheck();
     };
     window.addEventListener('storage', handleDbStateCheck);
     window.addEventListener('pesantren_db_sync', handleDbStateCheck);
@@ -321,7 +351,7 @@ export default function AdminDashboard({
       window.removeEventListener('pesantren_db_sync', handleDbStateCheck);
       window.removeEventListener('pesantren_settings_updated', handleDbStateCheck);
     };
-  }, []);
+  }, [runTableCheck]);
 
   const [newsSubTab, setNewsSubTab] = React.useState<'news' | 'agenda'>('news');
   const [events, setEvents] = React.useState<AcademicEvent[]>(() => {
@@ -1138,8 +1168,15 @@ export default function AdminDashboard({
       
       // 3. Dispatch window event for other listeners
       window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: finalSettings }));
+      window.dispatchEvent(new Event('pesantren_db_sync'));
       
       // 4. Sync to Server (/api/settings) and Supabase Cloud Database unconditionally
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalSettings)
+      }).catch(e => console.warn('Failed to push settings to /api/settings:', e));
+
       try {
         await pushSettingsToSupabase(finalSettings);
       } catch (supaErr) {
@@ -1156,6 +1193,49 @@ export default function AdminDashboard({
     setTimeout(() => {
       setSaveStatus('idle');
     }, 3000);
+  };
+
+  // Immediate toggle for PPDB Online status across all devices
+  const handleTogglePpdbOnline = async (isChecked: boolean) => {
+    let nextSettings = {
+      ...editSettings,
+      ppdbOpen: isChecked
+    };
+
+    // If opening, ensure ppdbEndDate isn't an expired date that immediately closes it on other devices
+    if (isChecked && nextSettings.ppdbEndDate) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (nextSettings.ppdbEndDate < todayStr) {
+        nextSettings.ppdbEndDate = '';
+      }
+    }
+
+    setEditSettings(nextSettings);
+    setSettings(nextSettings);
+    setIsSettingsDirty(false);
+
+    try {
+      localStorage.setItem('pesantren_settings', JSON.stringify(nextSettings));
+      window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: nextSettings }));
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextSettings)
+      }).catch(e => console.warn('Failed to push settings to /api/settings:', e));
+
+      if (isSupabaseConfigured()) {
+        await pushSettingsToSupabase(nextSettings);
+      }
+
+      showAlert('success', isChecked 
+        ? 'Status Pendaftaran Online (PPDB) berhasil DIBUKA untuk seluruh perangkat!' 
+        : 'Status Pendaftaran Online (PPDB) berhasil DITUTUP untuk seluruh perangkat.');
+    } catch (err: any) {
+      console.error("Gagal sinkronisasi toggle PPDB:", err);
+      showAlert('danger', 'Gagal memperbarui status pendaftaran online ke cloud.');
+    }
   };
 
   // Notifications or toast in component
@@ -1370,30 +1450,31 @@ export default function AdminDashboard({
           </div>
 
           <!-- TTD Box -->
-          <div class="w-[200px] text-left relative select-none mr-4 pl-4">
-            <p class="text-[10px] text-gray-400 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
-            <p class="text-[11px] text-slate-950 font-black uppercase tracking-wider leading-tight mt-1">Pengasuh Pesantren</p>
+          <div class="w-[220px] text-center relative select-none mr-4 pl-4">
+            <p class="text-[10px] text-gray-500 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
+            <p class="text-[11px] text-slate-950 font-black uppercase tracking-wider leading-tight mt-1 mb-1">Pengasuh Pesantren</p>
 
-            <div class="h-16 w-full relative flex items-center justify-start my-1">
-              <!-- Wet Signature -->
-              <div class="z-10 absolute inset-0 flex items-center justify-start">
+            <div class="relative min-h-[64px] flex flex-col items-center justify-end my-1">
+              <!-- Wet Signature: Berada DI ATAS nama pengasuh -->
+              <div class="z-10 mb-1 flex items-center justify-center">
                 ${settings.ttdPengasuhUrl 
-                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-16 max-w-[120px] object-contain mix-blend-multiply" />`
+                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-16 max-w-[130px] object-contain mix-blend-multiply" />`
                   : `<span class="text-xs font-mono text-emerald-850 italic font-extrabold tracking-wide">✍️ ${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
                 }
               </div>
 
-              <!-- Overlapping Stamp -->
+              <!-- Overlapping Stamp: Berada di SEBELAH KIRI nama pengasuh -->
               ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute left-[30px] top-[-10px] pointer-events-none opacity-85">
-                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-24 w-24 object-contain rotate-[12deg] mix-blend-multiply" />
+                ? `<div class="z-20 absolute -left-7 -bottom-1 pointer-events-none opacity-85">
+                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-20 w-20 object-contain rotate-[-10deg] mix-blend-multiply" />
                    </div>`
                 : ''
               }
-            </div>
 
-            <div>
-              <strong class="text-xs font-black text-gray-900 underline leading-none block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
+              <!-- Nama Pengasuh: Berada DI BAWAH tanda tangan -->
+              <div>
+                <strong class="text-xs font-black text-gray-950 underline leading-none uppercase block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
+              </div>
             </div>
           </div>
         </div>
@@ -1592,30 +1673,31 @@ export default function AdminDashboard({
           </div>
 
           <!-- Signatures -->
-          <div class="w-[200px] text-left relative select-none mr-4 pl-4">
-            <p class="text-[10px] text-gray-400 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
-            <p class="text-xs text-amber-950 font-black uppercase tracking-wider leading-tight mt-1">Pengasuh Pesantren</p>
+          <div class="w-[220px] text-center relative select-none mr-4 pl-4">
+            <p class="text-[10px] text-gray-500 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
+            <p class="text-xs text-amber-950 font-black uppercase tracking-wider leading-tight mt-1 mb-1">Pengasuh Pesantren</p>
 
-            <div class="h-16 w-full relative flex items-center justify-start my-1">
-              <!-- Wet signature -->
-              <div class="z-10 absolute inset-0 flex items-center justify-start">
+            <div class="relative min-h-[64px] flex flex-col items-center justify-end my-1">
+              <!-- Wet signature: Berada DI ATAS nama pengasuh -->
+              <div class="z-10 mb-1 flex items-center justify-center">
                 ${settings.ttdPengasuhUrl 
-                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-16 max-w-[120px] object-contain mix-blend-multiply" />`
+                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-16 max-w-[130px] object-contain mix-blend-multiply" />`
                   : `<span class="text-xs font-mono text-emerald-850 italic font-extrabold tracking-wide">✍️ ${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
                 }
               </div>
 
-              <!-- Overlapping Stamp -->
+              <!-- Overlapping Stamp: Berada di SEBELAH KIRI nama pengasuh -->
               ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute left-[30px] top-[-10px] pointer-events-none opacity-85">
-                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-24 w-24 object-contain rotate-[12deg] mix-blend-multiply" />
+                ? `<div class="z-20 absolute -left-7 -bottom-1 pointer-events-none opacity-85">
+                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-20 w-20 object-contain rotate-[-10deg] mix-blend-multiply" />
                    </div>`
                 : ''
               }
-            </div>
 
-            <div>
-              <p class="text-xs font-black text-gray-900 underline leading-none truncate block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</p>
+              <!-- Nama Pengasuh: Berada DI BAWAH tanda tangan -->
+              <div>
+                <p class="text-xs font-black text-gray-900 underline leading-none uppercase truncate block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1712,21 +1794,61 @@ export default function AdminDashboard({
     return () => window.removeEventListener('pesantren_staff_users_updated', handleSync);
   }, []);
 
-  // Sync staffUsers names automatically with Portal Settings
+  // Sync staffUsers names automatically with Portal Settings and custom profile names
+  const getResolvedStaffName = React.useCallback((u: { email?: string; fullName?: string; name?: string; role?: string }) => {
+    const emailKey = (u.email || '').toLowerCase();
+    if (emailKey) {
+      const custom = localStorage.getItem('staff_custom_name_' + emailKey);
+      if (custom) return custom;
+    }
+    return u.fullName || u.name || 'Pengurus Pesantren';
+  }, []);
+
+  const handleUpdateStaffName = (staffId: string, newName: string) => {
+    if (!newName.trim()) return;
+    const target = staffUsers.find(u => u.id === staffId);
+    if (!target) return;
+    const emailKey = (target.email || '').toLowerCase();
+    localStorage.setItem('staff_custom_name_' + emailKey, newName.trim());
+    if (target.role) {
+      const configKey = `${target.role}_config`;
+      try {
+        const existing = JSON.parse(localStorage.getItem(configKey) || '{}');
+        localStorage.setItem(configKey, JSON.stringify({ ...existing, name: newName.trim() }));
+      } catch (e) {}
+    }
+    const updated = staffUsers.map(u => u.id === staffId ? { ...u, fullName: newName.trim(), name: newName.trim() } : u);
+    setStaffUsers(updated);
+    localStorage.setItem('pesantren_staff_users', JSON.stringify(updated));
+    window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+    window.dispatchEvent(new Event('staff_configs_updated'));
+    window.dispatchEvent(new Event('pesantren_admin_name_updated'));
+    fetch('/api/staff-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: staffId, email: emailKey, fullName: newName.trim(), name: newName.trim(), role: target.role })
+    }).catch(() => {});
+    showAlert('success', `Nama pengurus berhasil diperbarui menjadi "${newName.trim()}" dan disinkronkan ke seluruh sistem!`);
+  };
+
   React.useEffect(() => {
     if (settings) {
       setStaffUsers(prev => {
         let changed = false;
         const updated = prev.map(u => {
-          let targetName = u.fullName;
-          if (u.role === 'admin' && settings.namaPengurus && u.fullName !== settings.namaPengurus) {
-            targetName = settings.namaPengurus;
-          } else if (u.role === 'keamanan' && settings.namaKeamanan && u.fullName !== settings.namaKeamanan) {
-            targetName = settings.namaKeamanan;
-          } else if (u.role === 'ketertiban' && settings.namaKetertiban && u.fullName !== settings.namaKetertiban) {
-            targetName = settings.namaKetertiban;
-          } else if (u.role === 'kesehatan' && settings.namaKesehatan && u.fullName !== settings.namaKesehatan) {
-            targetName = settings.namaKesehatan;
+          const emailKey = (u.email || '').toLowerCase();
+          const custom = emailKey ? localStorage.getItem('staff_custom_name_' + emailKey) : null;
+          let targetName = custom || u.fullName;
+          if (!custom) {
+            if (u.role === 'admin' && settings.namaPengurus && u.fullName !== settings.namaPengurus) {
+              targetName = settings.namaPengurus;
+            } else if (u.role === 'keamanan' && settings.namaKeamanan && u.fullName !== settings.namaKeamanan) {
+              targetName = settings.namaKeamanan;
+            } else if (u.role === 'ketertiban' && settings.namaKetertiban && u.fullName !== settings.namaKetertiban) {
+              targetName = settings.namaKetertiban;
+            } else if (u.role === 'kesehatan' && settings.namaKesehatan && u.fullName !== settings.namaKesehatan) {
+              targetName = settings.namaKesehatan;
+            }
           }
           if (targetName !== u.fullName) {
             changed = true;
@@ -4199,9 +4321,9 @@ export default function AdminDashboard({
                     <div>
                       <span className="text-[10px] text-gray-400 font-bold block uppercase">Status Kehadiran & Berkas</span>
                       <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold mt-1.5 ${
-                        reg.status === 'Diterima' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        reg.status === 'Diterima' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-200'
                       }`}>
-                        {reg.status === 'Diterima' ? 'Hadir & Terverifikasi' : 'Terdaftar (Belum Hadir)'}
+                        {reg.status === 'Diterima' ? '✓ DITERIMA (Hadir & Terverifikasi)' : 'Terdaftar (Belum Hadir)'}
                       </span>
                       {reg.notes && <span className="text-gray-500 block text-[10px] mt-1 italic">"{reg.notes}"</span>}
                     </div>
@@ -4217,14 +4339,18 @@ export default function AdminDashboard({
                       <Printer className="h-3.5 w-3.5" /> <span>Cetak Slip</span>
                     </button>
                     
-                    {reg.status !== 'Diterima' && (
+                    {reg.status !== 'Diterima' ? (
                       <button
                         type="button"
                         onClick={() => handlePpdbStatus(reg.id, 'Diterima')}
-                        className="px-3 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl transition flex items-center justify-center gap-1 text-[11px] cursor-pointer w-full text-center"
+                        className="px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl transition flex items-center justify-center gap-1 text-[11px] cursor-pointer w-full text-center shadow-xs"
                       >
                         ✔ Hadir & Verifikasi Data
                       </button>
+                    ) : (
+                      <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-center text-[10px] font-black">
+                        ✓ Berkas Diterima
+                      </div>
                     )}
 
                     <button
@@ -6912,90 +7038,6 @@ export default function AdminDashboard({
                 </div>
               </div>
             </div>
-
-            {/* PANDUAN MENGATASI TABEL KELAS & SEKOLAH SUPABASE TIDAK TERBACA DI SEMUA PERANGKAT */}
-            <div className="mt-8 bg-gradient-to-r from-emerald-50/80 to-teal-50/60 border border-emerald-200/80 rounded-2xl p-5 space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h4 className="font-bold text-sm text-emerald-950 flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-emerald-700 shrink-0" />
-                    Solusi: Mengapa Data Tabel Kelas Supabase Tidak Muncul di Semua Perangkat?
-                  </h4>
-                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                    Jika Anda membuat tabel di database Supabase menggunakan AI Prompt dan datanya belum terbaca di HP/laptop lain, penyebab utamanya adalah <strong>izin Row Level Security (RLS)</strong> tabel tersebut masih terkunci, atau nama tabel dan kolomnya berbeda dari yang diminta sistem.
-                  </p>
-                </div>
-                <span className="px-2.5 py-1 bg-emerald-700 text-white rounded-lg text-[10px] font-black shrink-0 tracking-wide uppercase">
-                  Dual-Sync Aktif
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div className="bg-white/90 p-3.5 rounded-xl border border-emerald-150 space-y-1.5 shadow-xs">
-                  <span className="font-bold text-emerald-900 flex items-center gap-1.5">
-                    <span>🛡️</span> 1. Proteksi Otomatis Kami (Bekerja Langsung)
-                  </span>
-                  <p className="text-slate-600 text-[11px] leading-relaxed">
-                    Sistem aplikasi ini sekarang memiliki fitur <strong>Dual-Layer Fallback</strong>. Data kelas Anda secara otomatis disimpan ke tabel cadangan cloud (<code>settings</code>) dan tabel <code>master_classes</code>/<code>kelas_sekolah</code>. Perubahan kelas yang Anda buat di tab ini akan langsung disinkronkan ke seluruh perangkat pengguna tanpa Anda harus membuat tabel lagi.
-                  </p>
-                </div>
-
-                <div className="bg-white/90 p-3.5 rounded-xl border border-emerald-150 space-y-1.5 shadow-xs">
-                  <span className="font-bold text-emerald-900 flex items-center gap-1.5">
-                    <span>⚡</span> 2. Skrip SQL Supabase (Buka Kunci RLS)
-                  </span>
-                  <p className="text-slate-600 text-[11px] leading-relaxed">
-                    Bila Anda ingin memiliki tabel terpisah <code>master_classes</code> di Supabase yang dapat diakses oleh semua perangkat tanpa ditolak izin (RLS Permission Denied), salin skrip SQL di bawah lalu klik <strong>Run</strong> di SQL Editor dashboard Supabase.
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <div className="bg-slate-900 text-emerald-300 font-mono text-[11px] p-4 rounded-xl overflow-x-auto relative shadow-inner">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(`-- 1. Buat Tabel Master Kelas & Sekolah
-CREATE TABLE IF NOT EXISTS public.master_classes (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL, -- 'formal' atau 'madrasah'
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 2. Buka Akses Keamanan (RLS) agar semua perangkat bisa membaca & menyimpan data
-ALTER TABLE public.master_classes ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow all access on master_classes" ON public.master_classes;
-CREATE POLICY "Allow all access on master_classes" ON public.master_classes FOR ALL USING (true) WITH CHECK (true);
-
--- 3. Aktifkan Realtime agar setiap penambahan kelas langsung muncul seketika di semua perangkat
-ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`);
-                      showAlert('success', 'Skrip SQL master_classes berhasil disalin!');
-                    }}
-                    className="absolute top-3 right-3 px-3 py-1 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow"
-                  >
-                    <Copy className="h-3 w-3" /> Salin Skrip SQL
-                  </button>
-                  <pre className="text-slate-300 whitespace-pre-wrap leading-relaxed">
-{`-- 1. Buat Tabel Master Kelas & Sekolah
-CREATE TABLE IF NOT EXISTS public.master_classes (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL, -- 'formal' atau 'madrasah'
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 2. Buka Akses Keamanan (RLS) agar semua perangkat bisa membaca & menyimpan data
-ALTER TABLE public.master_classes ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow all access on master_classes" ON public.master_classes;
-CREATE POLICY "Allow all access on master_classes" ON public.master_classes FOR ALL USING (true) WITH CHECK (true);
-
--- 3. Aktifkan Realtime agar setiap penambahan kelas langsung muncul seketika di semua perangkat
-ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
-                  </pre>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -7009,15 +7051,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
               Pengaturan Konten Portal Online
             </span>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowSqlModal(true)}
-                className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-850 border border-emerald-300 font-bold rounded-xl text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                title="Salin skrip DDL SQL lengkap Supabase untuk seluruh tabel"
-              >
-                <Code className="h-3.5 w-3.5 text-emerald-700" />
-                <span>Salin Skrip SQL Supabase</span>
-              </button>
               {isSettingsDirty && (
                 <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-200">
                   ⚠️ Belum disimpan
@@ -7027,7 +7060,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                 type="button"
                 onClick={handleSavePortalSettings}
                 disabled={saveStatus === 'saving'}
-                className="px-4 py-2 bg-emerald-850 hover:bg-emerald-900 active:scale-95 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {saveStatus === 'saving' ? (
                   <>
@@ -7219,6 +7252,239 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                 </div>
               </div>
 
+              {/* Data Nama Pengasuh Pesantren */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-emerald-900 uppercase mb-1">
+                  Nama Lengkap Pengasuh Pondok Pesantren
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: KH. Ahmad Wildan Asy'ari"
+                  value={editSettings.namaPengasuh || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaPengasuh: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-emerald-50/10 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                />
+              </div>
+
+              {/* Input Foto Tanda Tangan Pengasuh */}
+              <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/80">
+                <div className="mb-2">
+                  <label className="block text-xs font-bold text-emerald-900 uppercase">
+                    ✍️ Foto Tanda Tangan Pengasuh
+                  </label>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                  <label className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer transition active:scale-95 gap-1.5 shadow-sm">
+                    <UploadCloud className="h-4 w-4" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            showAlert('danger', 'Ukuran file tanda tangan maksimal 5MB.');
+                            return;
+                          }
+                          try {
+                            const compressed = await compressImage(file, 300, 160, 0.85);
+                            if (!compressed) throw new Error('Gagal memproses gambar tanda tangan');
+                            setEditSettings({ ...editSettings, ttdPengasuhUrl: compressed, ttdPengurusUrl: compressed });
+                            setIsSettingsDirty(true);
+                            showAlert('success', 'Foto tanda tangan berhasil dimuat! Klik "Simpan Pengaturan Portal" untuk menyimpan.');
+                          } catch (err: any) {
+                            showAlert('danger', `Gagal mengunggah tanda tangan: ${err?.message || 'Format tidak didukung'}`);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+
+                  <div className="flex-1 w-full">
+                    <input
+                      type="text"
+                      placeholder="Atau tempel URL gambar TTD (https://...)"
+                      value={editSettings.ttdPengasuhUrl?.startsWith('data:') ? '' : (editSettings.ttdPengasuhUrl || '')}
+                      onChange={(e) => {
+                        setEditSettings({ ...editSettings, ttdPengasuhUrl: e.target.value.trim(), ttdPengurusUrl: e.target.value.trim() });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="w-full px-3 py-2 text-xs border border-emerald-200 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 font-mono"
+                    />
+                  </div>
+
+                  {editSettings.ttdPengasuhUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdPengasuhUrl: '', ttdPengurusUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold shrink-0 transition"
+                      title="Hapus tanda tangan"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+
+                {/* Pratinjau TTD */}
+                {editSettings.ttdPengasuhUrl && (
+                  <div className="mt-3 flex items-center gap-3 pt-2 border-t border-emerald-100/60">
+                    <span className="text-[11px] font-bold text-emerald-900">Pratinjau TTD:</span>
+                    <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-xs max-w-xs">
+                      <img
+                        src={editSettings.ttdPengasuhUrl}
+                        alt="Pratinjau Tanda Tangan"
+                        className="h-12 object-contain mix-blend-multiply"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input Foto Stempel Pengasuh / Pesantren */}
+              <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/80">
+                <div className="mb-2">
+                  <label className="block text-xs font-bold text-emerald-900 uppercase">
+                    💮 Foto Stempel Resmi Pengasuh
+                  </label>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                  <label className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer transition active:scale-95 gap-1.5 shadow-sm">
+                    <UploadCloud className="h-4 w-4" /> Unggah Stempel
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            showAlert('danger', 'Ukuran file stempel maksimal 5MB.');
+                            return;
+                          }
+                          try {
+                            const compressed = await compressImage(file, 260, 260, 0.85);
+                            if (!compressed) throw new Error('Gagal memproses gambar stempel');
+                            setEditSettings({ ...editSettings, stempelPengasuhUrl: compressed, stempelPesantrenUrl: compressed });
+                            setIsSettingsDirty(true);
+                            showAlert('success', 'Foto stempel berhasil dimuat! Klik "Simpan Pengaturan Portal" untuk menyimpan.');
+                          } catch (err: any) {
+                            showAlert('danger', `Gagal mengunggah stempel: ${err?.message || 'Format tidak didukung'}`);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+
+                  <div className="flex-1 w-full">
+                    <input
+                      type="text"
+                      placeholder="Atau tempel URL gambar stempel (https://...)"
+                      value={editSettings.stempelPengasuhUrl?.startsWith('data:') ? '' : (editSettings.stempelPengasuhUrl || '')}
+                      onChange={(e) => {
+                        setEditSettings({ ...editSettings, stempelPengasuhUrl: e.target.value.trim(), stempelPesantrenUrl: e.target.value.trim() });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="w-full px-3 py-2 text-xs border border-emerald-200 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 font-mono"
+                    />
+                  </div>
+
+                  {editSettings.stempelPengasuhUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, stempelPengasuhUrl: '', stempelPesantrenUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold shrink-0 transition"
+                      title="Hapus stempel"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+
+                {/* Pratinjau Stempel */}
+                {editSettings.stempelPengasuhUrl && (
+                  <div className="mt-3 flex items-center gap-3 pt-2 border-t border-emerald-100/60">
+                    <span className="text-[11px] font-bold text-emerald-900">Pratinjau Stempel:</span>
+                    <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-xs">
+                      <img
+                        src={editSettings.stempelPengasuhUrl}
+                        alt="Pratinjau Stempel"
+                        className="h-14 w-14 object-contain rotate-[-6deg] mix-blend-multiply"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Pratinjau Terpadu Format Surat Formal Dokumen */}
+              <div className="md:col-span-2 bg-white border border-emerald-200 rounded-xl p-4 text-center">
+                <span className="text-[10px] font-extrabold text-emerald-900 uppercase tracking-wider block mb-2">
+                  Pratinjau Format Surat Resmi Dokumen Pesantren:
+                </span>
+                <div className="inline-block text-center relative py-2 px-6 bg-slate-50/80 border border-slate-200 rounded-lg min-w-[260px]">
+                  <p className="text-[10px] text-slate-500 font-semibold mb-0.5">
+                    {getCityFromAddress(editSettings.address || settings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="text-[11px] font-black text-slate-900 uppercase mb-1">
+                    Pengasuh Pondok Pesantren
+                  </p>
+
+                  <div className="relative min-h-[64px] flex flex-col items-center justify-end my-1">
+                    {/* Tanda tangan di atas nama pengasuh */}
+                    <div className="z-10 mb-1 flex items-center justify-center">
+                      {editSettings.ttdPengasuhUrl ? (
+                        <img
+                          src={editSettings.ttdPengasuhUrl}
+                          alt="TTD Pengasuh"
+                          className="h-14 max-w-[130px] object-contain mix-blend-multiply"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span className="text-xs font-mono text-emerald-800 italic font-extrabold">
+                          ✍️ {editSettings.namaPengasuh || "KH. Ahmad Wildan"}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Stempel di sebelah kiri nama pengasuh */}
+                    {editSettings.stempelPengasuhUrl && (
+                      <div className="z-20 absolute -left-7 -bottom-1 pointer-events-none opacity-85">
+                        <img
+                          src={editSettings.stempelPengasuhUrl}
+                          alt="Stempel Pengasuh"
+                          className="h-20 w-20 object-contain rotate-[-10deg] mix-blend-multiply"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    )}
+
+                    {/* Nama Pengasuh di bawah tanda tangan */}
+                    <div>
+                      <strong className="text-xs font-black text-gray-950 underline leading-none uppercase block">
+                        {editSettings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-2 italic">
+                  * Stempel berada di sebelah kiri nama pengasuh, tanda tangan berada di atas nama pengasuh, proporsional seperti surat formal resmi.
+                </p>
+              </div>
+
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-emerald-900 uppercase mb-1">Tentang Pesantren (Sekilas Info)</label>
                 <textarea
@@ -7305,14 +7571,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                     type="checkbox"
                     id="ppdbOpenCheckbox"
                     checked={!!editSettings.ppdbOpen}
-                    onChange={(e) => {
-                      const isChecked = e.target.checked;
-                      setEditSettings(prev => ({
-                        ...prev,
-                        ppdbOpen: isChecked
-                      }));
-                      setIsSettingsDirty(true);
-                    }}
+                    onChange={(e) => handleTogglePpdbOnline(e.target.checked)}
                     className="h-4 w-4 text-emerald-700 bg-white border-emerald-300 rounded focus:ring-emerald-700 shrink-0 cursor-pointer"
                   />
                   <label htmlFor="ppdbOpenCheckbox" className="font-bold text-emerald-950 text-xs cursor-pointer select-none">
@@ -7433,7 +7692,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                 type="button"
                 onClick={handleSavePortalSettings}
                 disabled={saveStatus === 'saving'}
-                className="px-6 py-3 bg-emerald-850 hover:bg-emerald-900 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
+                className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
               >
                 {saveStatus === 'saving' ? (
                   <>
@@ -7455,46 +7714,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
             </div>
           </form>
 
-          {/* KARTU INTEGRASI DATABASE CLOUD SUPABASE (Dihilangkan jika sudah terhubung, dapat dibuka kembali jika ingin diubah) */}
-          {isCloudConnected && !showManualDbConfig ? (
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl text-xs text-emerald-950 shadow-xs animate-fade-in">
-              <div className="flex items-center gap-3">
-                <span className="flex h-3 w-3 relative shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-600"></span>
-                </span>
-                <div>
-                  <p className="font-extrabold text-xs text-emerald-950 flex items-center gap-1.5 flex-wrap">
-                    <span>Database Cloud Supabase Terhubung</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      Realtime Aktif
-                    </span>
-                  </p>
-                  <p className="text-[11px] text-emerald-800/80 mt-0.5 font-mono">
-                    Endpoint: {normalizeSupabaseUrl(supabaseUrlInput || getSupabaseConfig().url)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowSqlModal(true)}
-                  className="px-3.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-850 border border-emerald-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer"
-                  title="Salin skrip DDL SQL lengkap Supabase"
-                >
-                  <Code className="h-3.5 w-3.5 text-emerald-700" /> Salin Kode SQL Supabase
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowManualDbConfig(true)}
-                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
-                  title="Buka panel untuk mengubah URL atau Anon Key Supabase"
-                >
-                  <Database className="h-3.5 w-3.5 text-slate-600" /> Buka Konfigurasi Database
-                </button>
-              </div>
-            </div>
-          ) : (
+          {/* KARTU INTEGRASI DATABASE CLOUD SUPABASE (Hanya tampil jika sistem BELUM terhubung dengan Supabase) */}
+          {!isCloudConnected && (
             <div className="mt-8 bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 text-white p-6 rounded-2xl shadow-lg border border-emerald-800 space-y-4 text-left animate-fade-in">
               <div className="flex items-center justify-between border-b border-emerald-800/80 pb-3 flex-wrap gap-2">
                 <div className="flex items-center gap-2.5">
@@ -7520,24 +7741,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowSqlModal(true)}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs flex items-center gap-2 transition shadow-md border border-emerald-400 cursor-pointer"
-                  >
-                    <Code className="h-4 w-4" /> 📋 Salin Kode Tabel SQL Supabase
-                  </button>
-                  {isCloudConnected && (
+                {missingTablesInfo && missingTablesInfo.missingTables.length > 0 && (
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setShowManualDbConfig(false)}
-                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition cursor-pointer border border-slate-700"
+                      onClick={() => setShowSqlModal(true)}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-md border border-amber-400 cursor-pointer animate-pulse"
                     >
-                      Sembunyikan Form
+                      <Code className="h-4 w-4" /> ⚡ Skrip SQL Otomatis ({missingTablesInfo.missingTables.length} Tabel Belum Ada di Supabase)
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -7801,56 +8015,63 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
             </div>
           )}
 
-          {/* MODAL GENERATOR SKRIP SQL SUPABASE */}
+          {/* MODAL GENERATOR SKRIP SQL SUPABASE (Hanya tampil jika ada tabel aplikasi yang belum sinkron dengan Supabase, otomatis terhapus saat terhubung) */}
           <AnimatePresence>
-            {showSqlModal && (
+            {showSqlModal && missingTablesInfo && missingTablesInfo.missingTables.length > 0 && (
               <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-slate-900 text-white rounded-2xl p-6 max-w-3xl w-full max-h-[85vh] flex flex-col border border-emerald-700/60 shadow-2xl"
+                  className="bg-slate-900 text-white rounded-2xl p-6 max-w-3xl w-full max-h-[85vh] flex flex-col border border-amber-600/70 shadow-2xl"
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
                     <div className="flex items-center gap-2">
-                      <Code className="h-5 w-5 text-emerald-400" />
+                      <Code className="h-5 w-5 text-amber-400" />
                       <div>
                         <h3 className="font-extrabold text-base text-white uppercase tracking-wide">
-                          Skrip DDL SQL Tabel Supabase
+                          Skrip SQL Otomatis Tabel Supabase
                         </h3>
-                        <p className="text-[11px] text-slate-400">
-                          Salin dan jalankan skrip SQL ini di menu <strong>SQL Editor</strong> pada Dashboard Supabase Anda.
+                        <p className="text-[11px] text-slate-300">
+                          Terdapat <strong>{missingTablesInfo.missingTables.length} tabel aplikasi</strong> yang belum ada di Supabase ({missingTablesInfo.missingTables.join(', ')}). Skrip ini otomatis terhapus ketika tabel telah dibuat dan terhubung.
                         </p>
                       </div>
                     </div>
                     <button
                       onClick={() => setShowSqlModal(false)}
-                      className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
+                      className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
                     >
                       <X className="h-5 w-5" />
                     </button>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs text-emerald-300 selection:bg-emerald-800 selection:text-white leading-relaxed">
-                    <pre className="whitespace-pre-wrap">{SUPABASE_SQL_SCHEMA}</pre>
+                  <div className="flex-1 overflow-y-auto bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs text-amber-300 selection:bg-amber-900 selection:text-white leading-relaxed">
+                    <pre className="whitespace-pre-wrap">{missingTablesInfo.generatedSql}</pre>
                   </div>
 
-                  <div className="flex justify-between items-center pt-4 border-t border-slate-800 mt-3">
-                    <p className="text-[11px] text-slate-400">
-                      Mencakup 12 tabel lengkap (PPDB, Santri, Kamar, Tagihan, Berita, Pengumuman, Agenda, Settings, Biro, Kelas, Staff, Surat Keluar) dengan Realtime Publication & RLS Universal.
-                    </p>
+                  <div className="flex justify-between items-center pt-4 border-t border-slate-800 mt-3 flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={runTableCheck}
+                      disabled={isCheckingTables}
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                      title="Klik untuk mendeteksi apakah tabel sudah dibuat di Supabase"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${isCheckingTables ? 'animate-spin' : ''}`} />
+                      <span>{isCheckingTables ? 'Memeriksa...' : 'Periksa Status Tabel'}</span>
+                    </button>
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => {
-                          navigator.clipboard.writeText(SUPABASE_SQL_SCHEMA);
+                          navigator.clipboard.writeText(missingTablesInfo.generatedSql);
                           setCopiedSql(true);
                           setTimeout(() => setCopiedSql(false), 3000);
                         }}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
                       >
-                        {copiedSql ? <CheckCircle2 className="h-4 w-4 text-white" /> : <Copy className="h-4 w-4" />}
-                        {copiedSql ? 'Tersalin ke Clipboard!' : 'Salin Skrip SQL'}
+                        {copiedSql ? <CheckCircle2 className="h-4 w-4 text-slate-950" /> : <Copy className="h-4 w-4" />}
+                        {copiedSql ? 'Tersalin ke Clipboard!' : 'Salin Skrip SQL Otomatis'}
                       </button>
                       <button
                         type="button"
@@ -7865,237 +8086,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
               </div>
             )}
           </AnimatePresence>
-
-          {/* Staff-level Config monitoring card */}
-          <div className="mt-8 bg-slate-50 border border-slate-200 p-6 rounded-2xl space-y-4 text-left">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🛡️</span>
-                <div>
-                  <h4 className="font-extrabold text-sm text-slate-1000 uppercase tracking-wider">
-                    Pengaturan Tanda Tangan & Stempel Bidang Pengurus
-                  </h4>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    Data berikut dikonfigurasi langsung oleh Administrator Utama dan akan disinkronkan serta ditampilkan di dalam slip resmi santri masing-masing biro.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.setItem('keamanan_config', JSON.stringify(staffConfigs.keamanan));
-                  localStorage.setItem('ketertiban_config', JSON.stringify(staffConfigs.ketertiban));
-                  localStorage.setItem('kesehatan_config', JSON.stringify(staffConfigs.kesehatan));
-                  showAlert('success', 'Konfigurasi Bidang Pengurus berhasil disimpan oleh Administrator!');
-                  window.dispatchEvent(new Event('staff_configs_updated'));
-                }}
-                className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-lg text-xs shadow transition cursor-pointer"
-              >
-                💾 Simpan Konfigurasi Bidang
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              {/* 1. Keamanan */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800">1. Bagian Keamanan</span>
-                  <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-150 px-1.5 rounded uppercase font-black">Aktif</span>
-                </div>
-                <div className="space-y-2 text-[11px]">
-                  <div>
-                    <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Nama Pengurus</label>
-                    <input
-                      type="text"
-                      value={staffConfigs.keamanan.name || ''}
-                      onChange={(e) => setStaffConfigs(prev => ({
-                        ...prev,
-                        keamanan: { ...prev.keamanan, name: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Nama TTD</label>
-                    <input
-                      type="text"
-                      value={staffConfigs.keamanan.signature || ''}
-                      onChange={(e) => setStaffConfigs(prev => ({
-                        ...prev,
-                        keamanan: { ...prev.keamanan, signature: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Stempel/Cap</label>
-                    <input
-                      type="text"
-                      value={staffConfigs.keamanan.seal || ''}
-                      onChange={(e) => setStaffConfigs(prev => ({
-                        ...prev,
-                        keamanan: { ...prev.keamanan, seal: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Ketertiban */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800">2. Bagian Ketertiban</span>
-                  <span className="text-[9px] bg-indigo-50 text-indigo-800 border border-indigo-150 px-1.5 rounded uppercase font-black">Aktif</span>
-                </div>
-                <div className="space-y-2 text-[11px]">
-                  <div>
-                    <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Nama Pengurus</label>
-                    <input
-                      type="text"
-                      value={staffConfigs.ketertiban.name || ''}
-                      onChange={(e) => setStaffConfigs(prev => ({
-                        ...prev,
-                        ketertiban: { ...prev.ketertiban, name: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Nama TTD</label>
-                    <input
-                      type="text"
-                      value={staffConfigs.ketertiban.signature || ''}
-                      onChange={(e) => setStaffConfigs(prev => ({
-                        ...prev,
-                        ketertiban: { ...prev.ketertiban, signature: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Stempel/Cap</label>
-                    <input
-                      type="text"
-                      value={staffConfigs.ketertiban.seal || ''}
-                      onChange={(e) => setStaffConfigs(prev => ({
-                        ...prev,
-                        ketertiban: { ...prev.ketertiban, seal: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Kesehatan */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800">3. Bagian Kesehatan</span>
-                  <span className="text-[9px] bg-rose-50 text-rose-800 border border-rose-150 px-1.5 rounded uppercase font-black">Aktif</span>
-                </div>
-                <div className="space-y-2 text-[11px]">
-                  <div>
-                    <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Nama Pengurus</label>
-                    <input
-                      type="text"
-                      value={staffConfigs.kesehatan.name || ''}
-                      onChange={(e) => setStaffConfigs(prev => ({
-                        ...prev,
-                        kesehatan: { ...prev.kesehatan, name: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Nama TTD</label>
-                    <input
-                      type="text"
-                      value={staffConfigs.kesehatan.signature || ''}
-                      onChange={(e) => setStaffConfigs(prev => ({
-                        ...prev,
-                        kesehatan: { ...prev.kesehatan, signature: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Stempel/Cap</label>
-                    <input
-                      type="text"
-                      value={staffConfigs.kesehatan.seal || ''}
-                      onChange={(e) => setStaffConfigs(prev => ({
-                        ...prev,
-                        kesehatan: { ...prev.kesehatan, seal: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Registrasi & Manajemen Akun Pengurus Baru */}
-          <div className="mt-8 bg-white border border-emerald-100 p-6 rounded-2xl space-y-6 text-left">
-            <div className="flex items-center gap-2 border-b border-emerald-50 pb-3">
-              <span className="text-xl">🛡️</span>
-              <div>
-                <h4 className="font-extrabold text-sm text-emerald-950 uppercase tracking-wider">
-                  Registrasi & Manajemen Akun Pengurus Baru
-                </h4>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  Daftarkan alamat email pengurus untuk akun yang dituju. Tautan konfirmasi registrasi akan dikirim ke alamat email tersebut secara formal untuk diaktivasi.
-                </p>
-              </div>
-            </div>
-
-            {/* Email Simulation Display */}
-            {simulatedEmailDetails && (
-              <div className="bg-slate-900 text-slate-100 p-5 rounded-xl font-sans border-l-4 border-amber-500 relative animate-fade-in text-xs max-w-2xl mx-auto">
-                <button 
-                  type="button"
-                  onClick={() => setSimulatedEmailDetails(null)}
-                  className="absolute top-3 right-3 text-slate-400 hover:text-white text-sm cursor-pointer"
-                  title="Tutup Simulasi Email"
-                >
-                  ✕
-                </button>
-                <div className="flex items-center gap-2 text-amber-450 font-bold mb-3">
-                  <span>✉️ SIMULASI KOTAK MASUK EMAIL PENGURUS: {simulatedEmailDetails.to}</span>
-                </div>
-                <div className="space-y-2 border-b border-slate-700 pb-3 mb-3 text-[11px]">
-                  <p><strong className="text-slate-400">Dari:</strong> Al-Asy'ariyah Portal System &lt;noreply@alasyariyah.sch.id&gt;</p>
-                  <p><strong className="text-slate-400">Kepada:</strong> {simulatedEmailDetails.name} &lt;{simulatedEmailDetails.to}&gt;</p>
-                  <p><strong className="text-slate-400">Subjek:</strong> Konfirmasi Aktivasi Akun Pengurus Bidang {simulatedEmailDetails.role.toUpperCase()}</p>
-                </div>
-                <div className="bg-slate-800 p-4 rounded-lg space-y-4 leading-relaxed text-slate-300 text-left">
-                  <p>Assalamu'alaikum Wr. Wb. Bapak/Ibu <strong>{simulatedEmailDetails.name}</strong>,</p>
-                  <p>
-                    Anda telah didaftarkan oleh Administrator Utama sebagai Pengurus Bidang <strong className="text-emerald-400 font-bold">{simulatedEmailDetails.role.toUpperCase()}</strong> di sistem Portal Online Pondok Pesantren Al-Asy'ariyah.
-                  </p>
-                  <p>
-                    Sebelum menggunakannya, Anda wajib melakukan verifikasi kepemilikan email aktif dan mengonfirmasi pembuatan password dengan mengeklik tautan konfirmasi aman di bawah ini:
-                  </p>
-                  <div className="my-5 text-center">
-                    <button
-                      type="button"
-                      onClick={() => handleConfirmStaffEmail(simulatedEmailDetails.to)}
-                      className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-lg shadow-md uppercase tracking-wider cursor-pointer transform active:scale-95 transition-all text-[11px]"
-                    >
-                      ✓ AKTIFKAN & KONFIRMASI AKUN PENGURUS
-                    </button>
-                  </div>
-                  <div className="pt-2 text-[10px] text-slate-500 border-t border-slate-700 leading-normal">
-                    <p>Jika tombol di atas tidak berfungsi, Anda dapat menyalin tautan konfirmasi langsung berikut ke browser Anda:</p>
-                    <code className="block bg-slate-950 p-1.5 rounded mt-1 text-amber-400/95 select-all font-mono break-all">{simulatedEmailDetails.link}</code>
-                  </div>
-                  <p className="mt-4 font-bold text-slate-200">Wassalamu'alaikum Wr. Wb.<br/>-- Admin Pondok Pesantren Al-Asy'ariyah --</p>
-                </div>
-              </div>
-            )}
-
-          </div>
         </div>
       )}
 
@@ -10807,20 +10797,30 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                       )}
                     </div>
 
-                    <div className="text-center w-[180px]">
+                    <div className="text-center w-[220px] relative">
                       <p className="text-[10px] text-slate-500 font-semibold">{getCityFromAddress(settings.address)}, {getIndonesianToday()}</p>
                       <p className="font-bold text-slate-950 mt-1 uppercase leading-snug">Pengasuh Pesantren<br />Al-Asy'ariyah</p>
                       
-                      <div className="h-12 flex items-center justify-center relative my-1">
-                        {isImageUrl(settings.ttdPengasuhUrl) && (
-                          <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-10 object-contain absolute" referrerPolicy="no-referrer" />
-                        )}
-                        {isImageUrl(settings.stempelPengasuhUrl) && (
-                          <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-12 object-contain absolute opacity-80" referrerPolicy="no-referrer" />
-                        )}
-                      </div>
+                      <div className="relative min-h-[64px] flex flex-col items-center justify-end my-1">
+                        {/* Tanda tangan di atas nama pengasuh */}
+                        <div className="z-10 mb-1 flex items-center justify-center">
+                          {isImageUrl(settings.ttdPengasuhUrl) ? (
+                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-14 max-w-[130px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                          ) : (
+                            <span className="text-xs font-mono text-emerald-800 italic font-extrabold">✍️ {settings.namaPengasuh || "KH. Ahmad Wildan"}</span>
+                          )}
+                        </div>
 
-                      <strong className="text-slate-950 block underline">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
+                        {/* Stempel di sebelah kiri nama pengasuh */}
+                        {isImageUrl(settings.stempelPengasuhUrl) && (
+                          <div className="z-20 absolute -left-7 -bottom-1 pointer-events-none opacity-85">
+                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 object-contain rotate-[-10deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          </div>
+                        )}
+
+                        {/* Nama Pengasuh di bawah tanda tangan */}
+                        <strong className="text-slate-950 block underline text-xs leading-none uppercase">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
+                      </div>
                     </div>
                   </div>
 
@@ -11043,32 +11043,32 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.master_classes;`}
                       )}
                     </div>
 
-                    <div className="w-[130px] sm:w-[180px] text-center relative select-none mr-2">
+                    <div className="w-[140px] sm:w-[190px] text-center relative select-none mr-2">
                       <p className="text-[7px] sm:text-[10px] text-gray-400 font-medium">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
                       <p className="text-[8px] sm:text-xs text-amber-950 font-black uppercase tracking-wider leading-tight mt-0.5 sm:mt-1">Pengasuh Pesantren</p>
 
-                      <div className="h-10 sm:h-14 w-full relative flex items-center justify-center my-0.5">
-                        {/* Wet signature */}
-                        <div className="z-10 absolute inset-0 flex items-center justify-center">
+                      <div className="relative min-h-[44px] sm:min-h-[58px] flex flex-col items-center justify-end my-0.5">
+                        {/* Wet signature: Berada DI ATAS nama pengasuh */}
+                        <div className="z-10 mb-0.5 flex items-center justify-center">
                           {settings.ttdPengasuhUrl ? (
-                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-10 sm:max-h-14 max-w-[90px] sm:max-w-[120px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-9 sm:max-h-12 max-w-[90px] sm:max-w-[120px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
                             <span className="text-[8px] sm:text-xs font-mono text-emerald-800 italic font-extrabold tracking-wide">
-                              {settings.ttdPengasuhUrl || "✒️ KH. Asy'ari"}
+                              {"✒️ " + (settings.namaPengasuh || "KH. Ahmad Wildan")}
                             </span>
                           )}
                         </div>
 
-                        {/* Overlapping Stamp */}
+                        {/* Overlapping Stamp: Berada di SEBELAH KIRI nama pengasuh */}
                         {settings.stempelPengasuhUrl && (
-                          <div className="z-20 absolute left-[10px] sm:left-[20px] top-[-5px] pointer-events-none opacity-85">
-                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-10 w-10 sm:h-14 sm:w-14 object-contain rotate-[12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          <div className="z-20 absolute -left-4 sm:-left-6 -bottom-1 pointer-events-none opacity-85">
+                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-10 w-10 sm:h-14 sm:w-14 object-contain rotate-[-10deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                           </div>
                         )}
-                      </div>
 
-                      <div>
-                        <p className="text-[8.5px] sm:text-xs font-black text-gray-900 underline leading-none truncate">{settings.namaPengasuh || "KH. Asy'ari Al-Hafidz"}</p>
+                        <div>
+                          <p className="text-[8.5px] sm:text-xs font-black text-gray-900 underline leading-none truncate">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</p>
+                        </div>
                       </div>
                     </div>
                   </div>

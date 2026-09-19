@@ -351,4 +351,14 @@ export function compressImage(file: File, maxWidth = 300, maxHeight = 400, quali
   });
 }
 
+export interface StaffUserItem {
+  id: string;
+  fullName: string;
+  email: string;
+  role: 'admin' | 'keamanan' | 'ketertiban' | 'kesehatan' | string;
+  isConfirmed: boolean;
+  registeredAt?: string;
+  password?: string;
+}
+
 
