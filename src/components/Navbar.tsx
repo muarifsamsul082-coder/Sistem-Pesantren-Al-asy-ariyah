@@ -147,133 +147,6 @@ export default function Navbar({
     return localStorage.getItem(`pesantren_avatar_${session.email || session.role || 'default'}`) || '';
   });
 
-  // TTD & Stempel Pengasuh for Admin Profile Portal
-  const [ttdPengasuhPreview, setTtdPengasuhPreview] = React.useState<string>(() => {
-    try {
-      const raw = localStorage.getItem('pesantren_settings');
-      if (raw) return JSON.parse(raw).ttdPengasuhUrl || '';
-    } catch (e) {}
-    return settings?.ttdPengasuhUrl || '';
-  });
-  const [stempelPengasuhPreview, setStempelPengasuhPreview] = React.useState<string>(() => {
-    try {
-      const raw = localStorage.getItem('pesantren_settings');
-      if (raw) return JSON.parse(raw).stempelPengasuhUrl || '';
-    } catch (e) {}
-    return settings?.stempelPengasuhUrl || '';
-  });
-
-  React.useEffect(() => {
-    if (settings) {
-      if (settings.ttdPengasuhUrl) setTtdPengasuhPreview(settings.ttdPengasuhUrl);
-      if (settings.stempelPengasuhUrl) setStempelPengasuhPreview(settings.stempelPengasuhUrl);
-    }
-  }, [settings]);
-
-  const handleTtdPengasuhUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setTtdPengasuhPreview(base64);
-        try {
-          const curSettings = JSON.parse(localStorage.getItem('pesantren_settings') || '{}');
-          const updatedSettings = {
-            ...curSettings,
-            ttdPengasuhUrl: base64,
-            ttdPengurusUrl: base64,
-          };
-          localStorage.setItem('pesantren_settings', JSON.stringify(updatedSettings));
-          window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: updatedSettings }));
-          fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedSettings)
-          }).catch(() => {});
-          if (isSupabaseConfigured()) {
-            pushSettingsToSupabase(updatedSettings).catch(() => {});
-          }
-          setProfileSuccess('Foto Tanda Tangan Pengasuh berhasil disimpan & disinkronkan!');
-        } catch (err) {
-          console.error(err);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleStempelPengasuhUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setStempelPengasuhPreview(base64);
-        try {
-          const curSettings = JSON.parse(localStorage.getItem('pesantren_settings') || '{}');
-          const updatedSettings = {
-            ...curSettings,
-            stempelPengasuhUrl: base64,
-            stempelPesantrenUrl: base64,
-          };
-          localStorage.setItem('pesantren_settings', JSON.stringify(updatedSettings));
-          window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: updatedSettings }));
-          fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedSettings)
-          }).catch(() => {});
-          if (isSupabaseConfigured()) {
-            pushSettingsToSupabase(updatedSettings).catch(() => {});
-          }
-          setProfileSuccess('Foto Stempel Pengasuh berhasil disimpan & disinkronkan!');
-        } catch (err) {
-          console.error(err);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleResetTtdPengasuh = () => {
-    setTtdPengasuhPreview('');
-    try {
-      const curSettings = JSON.parse(localStorage.getItem('pesantren_settings') || '{}');
-      const updatedSettings = {
-        ...curSettings,
-        ttdPengasuhUrl: '',
-        ttdPengurusUrl: '',
-      };
-      localStorage.setItem('pesantren_settings', JSON.stringify(updatedSettings));
-      window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: updatedSettings }));
-      fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedSettings)
-      }).catch(() => {});
-    } catch (e) {}
-  };
-
-  const handleResetStempelPengasuh = () => {
-    setStempelPengasuhPreview('');
-    try {
-      const curSettings = JSON.parse(localStorage.getItem('pesantren_settings') || '{}');
-      const updatedSettings = {
-        ...curSettings,
-        stempelPengasuhUrl: '',
-        stempelPesantrenUrl: '',
-      };
-      localStorage.setItem('pesantren_settings', JSON.stringify(updatedSettings));
-      window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: updatedSettings }));
-      fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedSettings)
-      }).catch(() => {});
-    } catch (e) {}
-  };
-
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -575,37 +448,59 @@ export default function Navbar({
   const menuItems = [
     { id: 'home', label: 'Beranda' },
     { id: 'profile', label: 'Profil' },
+    { id: 'gallery', label: 'Galeri Foto' },
     { id: 'news', label: 'Berita' },
     { id: 'announcements', label: 'Pengumuman' },
     ...(ppdbStatus.isActive ? [{ id: 'ppdb', label: 'Pendaftaran PCSB', highlight: true }] : []),
   ];
 
   const handleNavClick = (viewId: string) => {
-    setView(viewId);
+    if (['home', 'profile', 'gallery', 'news', 'announcements'].includes(viewId)) {
+      setView('home');
+      setTimeout(() => {
+        if (viewId === 'home') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          const el = document.getElementById(viewId);
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 80);
+    } else {
+      setView(viewId);
+    }
     setIsNavOpen(false);
     setIsAccountOpen(false);
   };
 
-  // Close menu and change tab on dashboard (clean navigation on all device sizes)
+  // Close menu and change tab on dashboard
+  // On desktop (screen >= 1024px), KEEP menu visible continuously until user clicks X button!
+  const isDesktop = () => typeof window !== 'undefined' && window.innerWidth >= 1024;
+
   const handleAdminTabClick = (tab: any) => {
     if (setAdminTab) setAdminTab(tab);
     setView('admin-dashboard');
     setIsNavOpen(false);
-    setIsAccountOpen(false);
+    if (!isDesktop()) {
+      setIsAccountOpen(false);
+    }
   };
 
   const handleStaffTabClick = (tab: any) => {
     if (setStaffTab) setStaffTab(tab);
     setView('staff-dashboard');
     setIsNavOpen(false);
-    setIsAccountOpen(false);
+    if (!isDesktop()) {
+      setIsAccountOpen(false);
+    }
   };
 
   const handleSantriTabClick = (tab: any) => {
     if (setSantriTab) setSantriTab(tab);
     setView('santri-dashboard');
     setIsNavOpen(false);
-    setIsAccountOpen(false);
+    if (!isDesktop()) {
+      setIsAccountOpen(false);
+    }
   };
 
   const triggerStudentCard = () => {
@@ -1156,7 +1051,7 @@ export default function Navbar({
                       staffTab === 'profile' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
-                    Kewenangan & Tanda Tangan
+                    Pengaturan Profil & Draf Surat
                   </button>
                 </div>
               )}
@@ -1286,148 +1181,6 @@ export default function Navbar({
                   </div>
                 </div>
               </div>
-
-              {/* SECTION: Input Foto Tanda Tangan & Foto Stempel Pengasuh */}
-              {session?.role === 'admin' && (
-                <div className="space-y-3 pt-3.5 border-t border-slate-150 text-left">
-                  <div className="flex items-center justify-between">
-                    <h5 className="text-[11px] uppercase font-black text-emerald-950 tracking-wider flex items-center gap-1.5">
-                      <span>✒️</span> Tanda Tangan & Stempel Resmi Pengasuh
-                    </h5>
-                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full uppercase">
-                      Format Surat Formal
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-tight">
-                    File ini otomatis diletakkan pada lembar dokumen resmi yang mencantumkan nama pengasuh: <strong>stempel di sebelah kiri</strong> dan <strong>tanda tangan di atas nama pengasuh</strong> dengan ukuran proporsional surat resmi.
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    {/* TTD Pengasuh */}
-                    <div className="p-3 bg-emerald-50/50 border border-emerald-200/80 rounded-xl flex flex-col justify-between space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold uppercase text-emerald-900">1. Foto TTD Pengasuh</span>
-                        {ttdPengasuhPreview && (
-                          <button
-                            type="button"
-                            onClick={handleResetTtdPengasuh}
-                            className="text-[9px] text-rose-600 hover:text-rose-800 font-bold underline cursor-pointer"
-                          >
-                            Hapus
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="h-14 bg-white border border-dashed border-emerald-300 rounded-lg flex items-center justify-center p-1 overflow-hidden relative">
-                        {ttdPengasuhPreview ? (
-                          <img
-                            src={ttdPengasuhPreview}
-                            alt="Preview TTD"
-                            className="h-full object-contain mix-blend-multiply"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <span className="text-[10px] text-slate-400 italic">Belum ada foto TTD</span>
-                        )}
-                      </div>
-
-                      <div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          id="admin-ttd-upload"
-                          onChange={handleTtdPengasuhUpload}
-                          className="hidden"
-                        />
-                        <label
-                          htmlFor="admin-ttd-upload"
-                          className="w-full py-1.5 px-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold cursor-pointer shadow-xs transition flex items-center justify-center gap-1"
-                        >
-                          <span>📁 Unggah Foto TTD</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Stempel Pengasuh */}
-                    <div className="p-3 bg-teal-50/50 border border-teal-200/80 rounded-xl flex flex-col justify-between space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold uppercase text-teal-900">2. Foto Stempel Resmi</span>
-                        {stempelPengasuhPreview && (
-                          <button
-                            type="button"
-                            onClick={handleResetStempelPengasuh}
-                            className="text-[9px] text-rose-600 hover:text-rose-800 font-bold underline cursor-pointer"
-                          >
-                            Hapus
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="h-14 bg-white border border-dashed border-teal-300 rounded-lg flex items-center justify-center p-1 overflow-hidden relative">
-                        {stempelPengasuhPreview ? (
-                          <img
-                            src={stempelPengasuhPreview}
-                            alt="Preview Stempel"
-                            className="h-full object-contain mix-blend-multiply rotate-[-6deg]"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <span className="text-[10px] text-slate-400 italic">Belum ada foto Stempel</span>
-                        )}
-                      </div>
-
-                      <div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          id="admin-stempel-upload"
-                          onChange={handleStempelPengasuhUpload}
-                          className="hidden"
-                        />
-                        <label
-                          htmlFor="admin-stempel-upload"
-                          className="w-full py-1.5 px-2 bg-teal-800 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold cursor-pointer shadow-xs transition flex items-center justify-center gap-1"
-                        >
-                          <span>📁 Unggah Foto Stempel</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Live Formal Letter Preview in Profile Modal */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                      Pratinjau Format Surat Formal Dokumen:
-                    </span>
-                    <div className="inline-block text-center relative py-1 px-5 min-w-[220px]">
-                      <p className="text-[10px] text-slate-500 font-semibold mb-0.5">Pengasuh Pesantren,</p>
-                      <div className="relative min-h-[64px] flex flex-col items-center justify-end">
-                        {/* Tanda tangan di atas nama pengasuh */}
-                        <div className="z-10 mb-1 flex items-center justify-center">
-                          {ttdPengasuhPreview ? (
-                            <img src={ttdPengasuhPreview} alt="TTD Pengasuh" className="h-12 max-w-[120px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
-                          ) : (
-                            <span className="text-[10px] font-mono text-emerald-800 italic font-bold">✍️ {customNameInput || "KH. Ahmad Wildan"}</span>
-                          )}
-                        </div>
-
-                        {/* Stempel di sebelah kiri nama pengasuh */}
-                        {stempelPengasuhPreview && (
-                          <div className="z-20 absolute -left-6 -bottom-1 pointer-events-none opacity-85">
-                            <img src={stempelPengasuhPreview} alt="Stempel Pengasuh" className="h-16 w-16 object-contain rotate-[-10deg] mix-blend-multiply" referrerPolicy="no-referrer" />
-                          </div>
-                        )}
-
-                        {/* Nama Pengasuh di bawah tanda tangan */}
-                        <strong className="text-slate-900 block underline text-xs leading-none uppercase">{customNameInput || "KH. Ahmad Wildan Asy'ari"}</strong>
-                      </div>
-                    </div>
-                    <p className="text-[9px] text-slate-400 mt-1 italic">
-                      * Stempel terletak di sebelah kiri nama pengasuh, tanda tangan berada tepat di atas nama pengasuh.
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {/* SECTION: Password Change Form (Always Directly Displayed!) */}
               <form onSubmit={handlePasswordChange} className="space-y-3.5 pt-4 border-t border-slate-100">

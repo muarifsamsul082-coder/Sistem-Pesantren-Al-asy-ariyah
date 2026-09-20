@@ -3,11 +3,119 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   BookOpen, Landmark, Calendar, Phone, Mail, MapPin, Newspaper, Bell, 
   HelpCircle, ArrowUpRight, GraduationCap, ArrowRight, UserSquare, Sparkles,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Images, Maximize2, X
 } from 'lucide-react';
 import { News, Announcement, PortalSettings } from '../types';
 import AcademicCalendar from './AcademicCalendar';
 import { isPpdbCurrentlyActive } from '../lib/dateUtils';
+
+interface GalleryItem {
+  id: string;
+  title: string;
+  category: 'kegiatan' | 'fasilitas' | 'kajian' | 'ekskul';
+  categoryLabel: string;
+  imageUrl: string;
+  description: string;
+}
+
+const DEFAULT_GALLERY: GalleryItem[] = [
+  {
+    id: 'gal-1',
+    title: 'Halaqah Pengajian Kitab Kuning Bersama Pengasuh',
+    category: 'kajian',
+    categoryLabel: 'Kajian Kitab',
+    imageUrl: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=800&q=80',
+    description: 'Santri tekun menyimak bandongan dan sorogan kitab klasik bersama para masyaikh di serambi masjid.'
+  },
+  {
+    id: 'gal-2',
+    title: 'Masjid Utama & Kompleks Keasramaan Pesantren',
+    category: 'fasilitas',
+    categoryLabel: 'Fasilitas Pesantren',
+    imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80',
+    description: 'Pusat peribadatan dan kegiatan harian seluruh santri yang asri, nyaman, dan berdaya tampung ribuan jamaah.'
+  },
+  {
+    id: 'gal-3',
+    title: 'Sholat Berjamaah & Wirid Rutin Santri',
+    category: 'kegiatan',
+    categoryLabel: 'Kegiatan Santri',
+    imageUrl: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&w=800&q=80',
+    description: 'Rutinitas sholat fardhu lima waktu berjamaah dilanjutkan ratib dan istighotsah demi membentuk akhlak santri.'
+  },
+  {
+    id: 'gal-4',
+    title: 'Perpustakaan Turats & Ruang Baca Ilmiah',
+    category: 'fasilitas',
+    categoryLabel: 'Fasilitas Pesantren',
+    imageUrl: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=800&q=80',
+    description: 'Koleksi ribuan judul kitab kuning, ensiklopedia Islam, jurnal, serta referensi ilmu pengetahuan umum.'
+  },
+  {
+    id: 'gal-5',
+    title: 'Setoran Hafalan & Murojaah Tahfidz Al-Qur\'an',
+    category: 'kajian',
+    categoryLabel: 'Kajian Kitab',
+    imageUrl: 'https://images.unsplash.com/photo-1585036156171-384164a8c675?auto=format&fit=crop&w=800&q=80',
+    description: 'Program akselerasi tahfidz Al-Qur\'an 30 Juz dengan bimbingan ustadz pembina mutqin secara istiqomah.'
+  },
+  {
+    id: 'gal-6',
+    title: 'Gedung Asrama Santri & Kamar Nyaman',
+    category: 'fasilitas',
+    categoryLabel: 'Fasilitas Pesantren',
+    imageUrl: 'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=800&q=80',
+    description: 'Tata ruang asrama bersih dengan sirkulasi udara baik dan pengawasan ketat dari pembina kamar 24 jam.'
+  },
+  {
+    id: 'gal-7',
+    title: 'Latihan Seni Hadrah & Shalawat Rebana',
+    category: 'ekskul',
+    categoryLabel: 'Ekstrakurikuler',
+    imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
+    description: 'Pengembangan minat bakat seni musik religi untuk memupuk kecintaan kepada Baginda Nabi Muhammad SAW.'
+  },
+  {
+    id: 'gal-8',
+    title: 'Laboratorium Komputer & Multimedia Santri',
+    category: 'fasilitas',
+    categoryLabel: 'Fasilitas Pesantren',
+    imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
+    description: 'Akses teknologi informasi terarah untuk penunjang riset madrasah dan literasi digital generasi Islam masa kini.'
+  },
+  {
+    id: 'gal-9',
+    title: 'Muhadharah / Khitobah Tiga Bahasa Santri',
+    category: 'ekskul',
+    categoryLabel: 'Ekstrakurikuler',
+    imageUrl: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=800&q=80',
+    description: 'Melatih kepemimpinan, keberanian mental, dan kecakapan pidato dalam bahasa Arab, Inggris, dan Indonesia.'
+  },
+  {
+    id: 'gal-10',
+    title: 'Poskestren (Pos Kesehatan Pesantren)',
+    category: 'fasilitas',
+    categoryLabel: 'Fasilitas Pesantren',
+    imageUrl: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=800&q=80',
+    description: 'Layanan medis pertama dan pemantauan kesehatan berkala bagi seluruh santri oleh tenaga medis profesional.'
+  },
+  {
+    id: 'gal-11',
+    title: 'Latihan Seni Bela Diri & Olahraga Kebugaran',
+    category: 'ekskul',
+    categoryLabel: 'Ekstrakurikuler',
+    imageUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=800&q=80',
+    description: 'Pembinaan fisik tangguh dan kemandirian melalui bela diri pencak silat serta turnamen olahraga santri.'
+  },
+  {
+    id: 'gal-12',
+    title: 'Ro\'an Akbar & Khidmah Lingkungan Asri',
+    category: 'kegiatan',
+    categoryLabel: 'Kegiatan Santri',
+    imageUrl: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=800&q=80',
+    description: 'Budaya gotong royong menjaga kebersihan lingkungan pesantren sebagai manifestasi iman dan kebersamaan.'
+  }
+];
 
 interface PublicPortalProps {
   news: News[];
@@ -33,6 +141,13 @@ export default function PublicPortal({
   const [currentSlide, setCurrentSlide] = React.useState(0);
   const [currentAnnIndex, setCurrentAnnIndex] = React.useState(0);
   const [annFilter, setAnnFilter] = React.useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [galleryCategory, setGalleryCategory] = React.useState<'all' | 'kegiatan' | 'fasilitas' | 'kajian' | 'ekskul'>('all');
+  const [selectedGalleryItem, setSelectedGalleryItem] = React.useState<GalleryItem | null>(null);
+
+  const filteredGallery = React.useMemo(() => {
+    if (galleryCategory === 'all') return DEFAULT_GALLERY;
+    return DEFAULT_GALLERY.filter(item => item.category === galleryCategory);
+  }, [galleryCategory]);
 
   const ppdbStatus = isPpdbCurrentlyActive(settings);
 
@@ -132,40 +247,54 @@ export default function PublicPortal({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: false, amount: 0.15 }}
             transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="lg:col-span-5 bg-gradient-to-br from-emerald-850 to-teal-900 text-white rounded-2xl p-6 sm:p-8 flex flex-col justify-between space-y-6 shadow-md"
+            className="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-emerald-100 p-6 sm:p-8 flex flex-col justify-between space-y-6"
           >
-            <div className="space-y-3">
-              <motion.div 
-                whileHover={{ rotate: [0, -10, 10, 0] }}
-                transition={{ duration: 0.5 }}
-                className="inline-flex p-3 bg-amber-400 text-emerald-950 rounded-xl"
-              >
-                <Landmark className="h-6 w-6" />
-              </motion.div>
-              <h3 className="text-xl font-bold font-sans">Sekilas Tentang Kami</h3>
-              <p className="text-emerald-100 text-xs leading-relaxed font-sans font-medium">
-                {settings.aboutUs}
-              </p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <motion.div 
+                  whileHover={{ rotate: [0, -10, 10, 0] }}
+                  transition={{ duration: 0.5 }}
+                  className="inline-flex p-3 bg-emerald-50 text-emerald-800 border border-emerald-200/70 rounded-xl shadow-2xs"
+                >
+                  <Landmark className="h-6 w-6" />
+                </motion.div>
+                <span className="text-[10px] uppercase font-bold text-emerald-800 font-mono tracking-widest bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-150">
+                  Sekilas Info
+                </span>
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-emerald-950 font-sans">Sekilas Tentang Kami</h3>
+                <motion.div 
+                  initial={{ width: 0 }}
+                  whileInView={{ width: 48 }}
+                  viewport={{ once: false }}
+                  transition={{ duration: 0.8, delay: 0.2 }}
+                  className="border-b-2 border-amber-400 mt-2 mb-3" 
+                />
+                <p className="text-slate-700 text-xs sm:text-sm leading-relaxed font-sans font-medium whitespace-pre-line">
+                  {settings.aboutUs}
+                </p>
+              </div>
             </div>
 
             {(ppdbStatus.isActive || session) && (
-              <div className="pt-4 border-t border-emerald-700/50 flex flex-wrap gap-2">
+              <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-2">
                 {ppdbStatus.isActive && (
                   <motion.button 
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => setView('ppdb')} 
-                    className="px-4 py-2 bg-amber-400 font-bold hover:bg-amber-300 text-emerald-950 rounded-lg text-xs tracking-wide shadow flex items-center gap-1 cursor-pointer"
+                    className="px-4 py-2.5 bg-emerald-800 font-bold hover:bg-emerald-700 text-white rounded-xl text-xs tracking-wide shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
-                    Daftar Santri Baru <ArrowRight className="h-3 w-3" />
+                    Daftar Santri Baru <ArrowRight className="h-3.5 w-3.5" />
                   </motion.button>
                 )}
                 {session && (
                   <motion.button 
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => setView(session.role === 'admin' ? 'admin-dashboard' : 'santri-dashboard')}
-                    className="px-4 py-2 bg-amber-500 font-bold text-emerald-950 rounded-lg text-xs hover:bg-amber-400 shadow flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="px-4 py-2.5 bg-amber-500 font-bold text-slate-950 rounded-xl text-xs hover:bg-amber-400 shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     Kembali ke Dashboard Anda ➡️
                   </motion.button>
@@ -357,7 +486,109 @@ export default function PublicPortal({
         </section>
       )}
 
-      {/* 4. ANNOUNCEMENTS SECTION */}
+      {/* 4. PHOTO GALLERY SECTION */}
+      {(currentView === 'home' || currentView === 'gallery') && (
+        <section id="gallery" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: false, amount: 0.12 }}
+            transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-6"
+          >
+            <div className="text-center">
+              <span className="text-[10px] uppercase font-bold text-emerald-800 font-mono tracking-widest block">Dokumentasi Pesantren</span>
+              <h3 className="text-xl md:text-2xl font-black text-emerald-950 font-sans">Galeri Foto Kegiatan & Fasilitas</h3>
+              <p className="text-xs text-slate-500 max-w-xl mx-auto mt-1">
+                Menyaksikan potret aktivitas harian santri dalam menuntut ilmu, beribadah, mengasah bakat, serta sarana prasarana penunjang kenyamanan di pondok pesantren.
+              </p>
+              <motion.div 
+                initial={{ width: 0 }}
+                whileInView={{ width: 48 }}
+                viewport={{ once: false }}
+                transition={{ duration: 0.9, delay: 0.2 }}
+                className="border-b-2 border-amber-400 mx-auto mt-2" 
+              />
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 pt-1 pb-2">
+              {[
+                { id: 'all', label: 'Semua Foto', count: DEFAULT_GALLERY.length },
+                { id: 'kegiatan', label: 'Kegiatan Santri', count: DEFAULT_GALLERY.filter(g => g.category === 'kegiatan').length },
+                { id: 'fasilitas', label: 'Fasilitas Pesantren', count: DEFAULT_GALLERY.filter(g => g.category === 'fasilitas').length },
+                { id: 'kajian', label: 'Kajian & Tahfidz', count: DEFAULT_GALLERY.filter(g => g.category === 'kajian').length },
+                { id: 'ekskul', label: 'Ekstrakurikuler & Seni', count: DEFAULT_GALLERY.filter(g => g.category === 'ekskul').length },
+              ].map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setGalleryCategory(cat.id as any)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    galleryCategory === cat.id
+                      ? 'bg-emerald-800 text-white shadow-sm'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-emerald-300'
+                  }`}
+                >
+                  <span>{cat.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    galleryCategory === cat.id ? 'bg-emerald-950/60 text-emerald-200' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {cat.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Responsive Grid Layout */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+              {filteredGallery.map((item, idx) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.35, delay: idx * 0.04 }}
+                  whileHover={{ y: -4 }}
+                  onClick={() => setSelectedGalleryItem(item)}
+                  className="group bg-white rounded-2xl overflow-hidden border border-slate-150 shadow-xs hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col text-left"
+                >
+                  {/* Photo Container */}
+                  <div className="relative aspect-4/3 overflow-hidden bg-slate-100">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3.5">
+                      <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                        <Maximize2 className="h-3.5 w-3.5 text-amber-300" /> Lihat Detail
+                      </span>
+                    </div>
+                    <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-emerald-900/85 text-emerald-100 backdrop-blur-xs border border-emerald-700/50">
+                      {item.categoryLabel}
+                    </span>
+                  </div>
+
+                  {/* Caption & Description */}
+                  <div className="p-3.5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h4 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug group-hover:text-emerald-850 transition">
+                        {item.title}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed mt-1">
+                        {item.description}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        </section>
+      )}
+
+      {/* 5. ANNOUNCEMENTS SECTION */}
       {(currentView === 'home' || currentView === 'announcements') && (
         <section id="announcements" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
           <motion.div 
@@ -551,6 +782,71 @@ export default function PublicPortal({
                 >
                   Tutup Bacaan
                 </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* GALLERY PHOTO LIGHTBOX MODAL */}
+      <AnimatePresence>
+        {selectedGalleryItem && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-55 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md"
+            onClick={() => setSelectedGalleryItem(null)}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl overflow-hidden max-w-2xl w-full shadow-2xl border border-slate-800 relative flex flex-col max-h-[92vh]"
+            >
+              <div className="relative aspect-16/10 w-full overflow-hidden bg-slate-950 flex items-center justify-center">
+                <img 
+                  src={selectedGalleryItem.imageUrl} 
+                  alt={selectedGalleryItem.title} 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedGalleryItem(null)}
+                  className="absolute top-3 right-3 p-2 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white backdrop-blur-xs transition cursor-pointer"
+                  title="Tutup Galeri"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="p-5 sm:p-6 text-left space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full tracking-wider bg-emerald-800 text-white">
+                    {selectedGalleryItem.categoryLabel}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Dokumentasi Resmi Pesantren</span>
+                </div>
+                <h3 className="font-extrabold text-base sm:text-lg text-slate-900 leading-snug">
+                  {selectedGalleryItem.title}
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  {selectedGalleryItem.description}
+                </p>
+              </div>
+
+              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span className="font-medium text-[11px] truncate max-w-[200px]">{settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedGalleryItem(null)}
+                  className="px-4 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-xs"
+                >
+                  Tutup Foto
+                </button>
               </div>
             </motion.div>
           </motion.div>

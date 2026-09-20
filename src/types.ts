@@ -243,6 +243,8 @@ export interface PortalSettings {
   rekeningList?: BankAccount[];
   availableFormalClasses?: string[];
   availableMadrasahClasses?: string[];
+  waGatewayToken?: string;
+  waGatewayUrl?: string;
 }
 
 export interface UserSession {

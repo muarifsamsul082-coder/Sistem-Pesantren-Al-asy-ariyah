@@ -90,17 +90,28 @@ import {
 } from './lib/supabase';
 
 export default function App() {
-  const [currentView, setView] = React.useState<string>('home');
+  const [currentView, setViewState] = React.useState<string>(() => {
+    try {
+      // Restore view on refresh within same tab session, or default to home on fresh visit
+      const saved = sessionStorage.getItem('pesantren_current_view');
+      if (saved) return saved;
+    } catch (e) {}
+    return 'home';
+  });
+
+  const setView = (view: string) => {
+    setViewState(view);
+    try {
+      sessionStorage.setItem('pesantren_current_view', view);
+    } catch (e) {}
+  };
+
   const [session, setSession] = React.useState<UserSession | null>(null);
   const [isLoginOpen, setIsLoginOpen] = React.useState(false);
   const [isAccountOpen, setIsAccountOpen] = React.useState(false);
 
-  // Auto-expand account sidebar on desktop on load or when session changes
-  React.useEffect(() => {
-    if (session && typeof window !== 'undefined' && window.innerWidth >= 1024) {
-      setIsAccountOpen(true);
-    }
-  }, [session]);
+  // Note: Account sidebar is not auto-opened on initial load to keep entry view clean and safe
+
 
   const [viewArticleId, setViewArticleId] = React.useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -160,7 +171,20 @@ export default function App() {
   const [toastMessage, setToastMessage] = React.useState('');
 
   // Dashboard tab states for global unified hamburger menu control
-  const [adminTab, setAdminTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>('overview');
+  const [adminTab, setAdminTabState] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>(() => {
+    try {
+      const saved = localStorage.getItem('pesantren_admin_active_tab');
+      if (saved) return saved as any;
+    } catch (e) {}
+    return 'overview';
+  });
+
+  const setAdminTab = (tab: any) => {
+    setAdminTabState(tab);
+    try {
+      localStorage.setItem('pesantren_admin_active_tab', tab);
+    } catch (e) {}
+  };
   const [staffTab, setStaffTab] = React.useState<'students' | 'history' | 'profile' | 'skck' | 'takzir_letter'>('students');
   const [santriTab, setSantriTab] = React.useState<'tagihan' | 'pelanggaran' | 'kesehatan' | 'pengumuman' | 'perizinan'>('tagihan');
   const [showStudentCard, setShowStudentCard] = React.useState(false);

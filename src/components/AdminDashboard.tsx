@@ -284,9 +284,21 @@ export default function AdminDashboard({
   availableMadrasahClasses = ['1A MTs Diniyah', '1B MTs Diniyah', '2A MTs Diniyah', '2B MTs Diniyah', '3A MTs Diniyah', '1A MA Diniyah', '2A MA Diniyah', '3A MA Diniyah'],
   setAvailableMadrasahClasses = () => {}
 }: AdminDashboardProps) {
-  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>('overview');
+  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>(() => {
+    try {
+      const saved = localStorage.getItem('pesantren_admin_active_tab');
+      if (saved) return saved as any;
+    } catch (e) {}
+    return 'overview';
+  });
   const activeTab = propActiveTab || localActiveTab;
-  const setActiveTab = propSetActiveTab || setLocalActiveTab;
+  const setActiveTab = (tab: any) => {
+    if (propSetActiveTab) propSetActiveTab(tab);
+    setLocalActiveTab(tab);
+    try {
+      localStorage.setItem('pesantren_admin_active_tab', tab);
+    } catch (e) {}
+  };
 
   // Supabase Database Config State
   const [supabaseUrlInput, setSupabaseUrlInput] = React.useState<string>(() => getSupabaseConfig().url);
@@ -817,6 +829,83 @@ export default function AdminDashboard({
       localStorage.setItem('pesantren_wa_logs', JSON.stringify(updated));
       return updated;
     });
+  };
+
+  const formatPhoneForWhatsApp = (rawPhone: string) => {
+    let clean = (rawPhone || '').replace(/[^0-9]/g, '');
+    if (clean.startsWith('0')) clean = '62' + clean.slice(1);
+    else if (!clean.startsWith('62')) clean = '62' + clean;
+    return clean;
+  };
+
+  const generateBillWhatsAppMessage = (
+    bill: { title: string; amount: number; dueDate?: string; status?: string; studentName: string; nis?: string },
+    student?: Student
+  ) => {
+    const std = student || students.find(s => s.fullName === bill.studentName || (bill.nis && s.nis === bill.nis));
+    const accounts = settings.rekeningList || [];
+    return `Assalamu'alaikum Wr. Wb.\n\n` +
+      `Yth. Bapak/Ibu Wali Santri dari Ananda *${bill.studentName}*\n` +
+      `NIS: ${bill.nis || std?.nis || '-'}\n` +
+      `Kamar/Asrama: ${std?.kamar || '-'}\n\n` +
+      `Kami sampaikan pemberitahuan terbitnya tagihan administrasi dari *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}*:\n\n` +
+      `📋 *Rincian Tagihan:* ${bill.title}\n` +
+      `💰 *Jumlah Tagihan:* Rp ${Number(bill.amount).toLocaleString('id-ID')}\n` +
+      `📅 *Batas Pembayaran (Jatuh Tempo):* ${bill.dueDate || '-'}\n` +
+      `📌 *Status:* ${bill.status || 'Belum Lunas'}\n\n` +
+      (accounts.length > 0
+        ? `💳 *Rekening Resmi Pembayaran:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n') + `\n\n`
+        : '') +
+      `Bukti setoran dapat diunggah melalui Portal Santri atau dikonfirmasi langsung ke Bendahara Pesantren.\n\n` +
+      `Jazakumullah Khairan Katsiran.\n` +
+      `Wassalamu'alaikum Wr. Wb.\n` +
+      `_Pengurus & Bendahara Administrasi Pesantren_`;
+  };
+
+  const dispatchWhatsAppBillNotification = async (
+    bill: { title: string; amount: number; dueDate?: string; status?: string; studentName: string; nis?: string },
+    student?: Student,
+    autoOpenFallback = false
+  ): Promise<{ success: boolean; mode?: 'gateway' | 'direct'; phone?: string; waUrl?: string; reason?: string }> => {
+    const std = student || students.find(s => s.fullName === bill.studentName || (bill.nis && s.nis === bill.nis));
+    const rawPhone = std?.parentPhone || '';
+    if (!rawPhone) {
+      return { success: false, reason: 'Nomor WhatsApp wali santri belum terisi pada data santri.' };
+    }
+    const phone = formatPhoneForWhatsApp(rawPhone);
+    const message = generateBillWhatsAppMessage(bill, std);
+
+    const gwToken = settings.waGatewayToken || localStorage.getItem('pesantren_wa_gateway_token') || '';
+    const gwUrl = settings.waGatewayUrl || localStorage.getItem('pesantren_wa_gateway_url') || 'https://api.fonnte.com/send';
+
+    if (gwToken) {
+      try {
+        const res = await fetch(gwUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': gwToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            target: phone,
+            message: message
+          })
+        });
+        if (res.ok) {
+          saveWaLog('Tagihan Otomatis (Gateway)', phone, `Wali ${bill.studentName}`, message);
+          return { success: true, mode: 'gateway', phone };
+        }
+      } catch (err) {
+        console.warn('Gateway dispatch error, falling back to direct:', err);
+      }
+    }
+
+    const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    saveWaLog('Tagihan WhatsApp (Direct)', phone, `Wali ${bill.studentName}`, message);
+    if (autoOpenFallback) {
+      window.open(waUrl, '_blank');
+    }
+    return { success: true, mode: 'direct', phone, waUrl };
   };
 
   // Sync WhatsApp Forgot Requests and logs from LocalStorage
@@ -1733,6 +1822,9 @@ export default function AdminDashboard({
   // States for Broadcasting Announcements via WhatsApp
   const [broadcastAnnouncement, setBroadcastAnnouncement] = React.useState<Announcement | null>(null);
   const [broadcastGroup, setBroadcastGroup] = React.useState<string>('all');
+  const [sendWhatsAppOnBill, setSendWhatsAppOnBill] = React.useState<boolean>(true);
+  const [waGatewayTokenInput, setWaGatewayTokenInput] = React.useState<string>(settings.waGatewayToken || '');
+  const [waGatewayUrlInput, setWaGatewayUrlInput] = React.useState<string>(settings.waGatewayUrl || 'https://api.fonnte.com/send');
 
   // States for Admin Tahfidz management
   const [selectedStudentForTahfidz, setSelectedStudentForTahfidz] = React.useState<Student | null>(null);
@@ -2201,32 +2293,33 @@ export default function AdminDashboard({
         <table class="data-table">
           <thead>
             <tr>
-              <th style="width: 40px; text-align: center;">No</th>
-              <th>ID Santri</th>
-              <th>Nomor Induk Santri (NIS)</th>
-              <th>Nama Lengkap Santri</th>
-              <th>Status Keaktifan</th>
-              <th>Jenis Kelamin</th>
-              <th>NIK (No. KTP/KIA)</th>
-              <th>No. Kartu Keluarga (KK)</th>
-              <th>Tempat Lahir</th>
-              <th>Tanggal Lahir</th>
-              <th>Golongan Darah</th>
-              <th>Riwayat Kesehatan / Penyakit</th>
-              <th>Kelas Formal (Sekolah Sore)</th>
-              <th>Kelas Madrasah Diniyah (Pagi)</th>
-              <th>Kelas Gabungan</th>
-              <th>Kamar Asrama</th>
-              <th>Total Hafalan Qur'an</th>
-              <th>Nama Ayah Kandung</th>
-              <th>Nama Ibu Kandung</th>
-              <th>Nama Wali Santri</th>
-              <th>No. WhatsApp / HP Wali</th>
-              <th>Alamat Lengkap</th>
-              <th>Akun / Catatan Madrasah</th>
-              <th>Email Akun Portal</th>
-              <th>Tahun Lulus / Keluar</th>
-              <th>Sebab / Alasan Alumni</th>
+              <th rowspan="2" style="width: 40px; text-align: center;">No</th>
+              <th rowspan="2" style="text-align: center;">NIS / NIA</th>
+              <th rowspan="2">Nama Lengkap Santri</th>
+              <th rowspan="2" style="text-align: center;">Asrama / Kamar</th>
+              <th colspan="2" style="text-align: center; background-color: #047857;">Sekolah / Pendidikan</th>
+              <th rowspan="2" style="text-align: center;">Status Keaktifan</th>
+              <th rowspan="2" style="text-align: center;">Jenis Kelamin</th>
+              <th rowspan="2">NIK (No. KTP/KIA)</th>
+              <th rowspan="2">No. Kartu Keluarga (KK)</th>
+              <th rowspan="2">Tempat Lahir</th>
+              <th rowspan="2">Tanggal Lahir</th>
+              <th rowspan="2" style="text-align: center;">Golongan Darah</th>
+              <th rowspan="2">Riwayat Kesehatan / Penyakit</th>
+              <th rowspan="2">Total Hafalan Qur'an</th>
+              <th rowspan="2">Nama Ayah Kandung</th>
+              <th rowspan="2">Nama Ibu Kandung</th>
+              <th rowspan="2">Nama Wali Santri</th>
+              <th rowspan="2">No. WhatsApp / HP Wali</th>
+              <th rowspan="2">Alamat Lengkap</th>
+              <th rowspan="2">Akun / Catatan Madrasah</th>
+              <th rowspan="2">Email Akun Portal</th>
+              <th rowspan="2">Tahun Lulus / Keluar</th>
+              <th rowspan="2">Sebab / Alasan Alumni</th>
+            </tr>
+            <tr>
+              <th style="text-align: center; background-color: #065f46;">Formal</th>
+              <th style="text-align: center; background-color: #065f46;">Non-Formal (Madrasah)</th>
             </tr>
           </thead>
           <tbody>
@@ -2237,21 +2330,19 @@ export default function AdminDashboard({
       html += `
         <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
           <td class="text-center">${idx + 1}</td>
-          <td style="mso-number-format:'\\@';" class="text-bold">${s.id || '-'}</td>
-          <td style="mso-number-format:'\\@'; font-weight: bold;">${s.nis || '-'}</td>
+          <td style="mso-number-format:'\\@'; text-align: center;" class="text-bold">${s.nis || s.id || '-'}</td>
           <td class="text-bold">${s.fullName || '-'}</td>
-          <td style="font-weight: bold; color: ${statusColor};">${s.status || 'Aktif'}</td>
-          <td>${s.gender || '-'}</td>
+          <td style="text-align: center; font-weight: bold;">${s.kamar || '-'}</td>
+          <td style="text-align: center;">${s.classFormal || s.classSore || '-'}</td>
+          <td style="text-align: center;">${s.classMadrasah || s.classPagi || s.class || '-'}</td>
+          <td style="font-weight: bold; color: ${statusColor}; text-align: center;">${s.status || 'Aktif'}</td>
+          <td style="text-align: center;">${s.gender || '-'}</td>
           <td style="mso-number-format:'\\@';">${s.nik || '-'}</td>
           <td style="mso-number-format:'\\@';">${s.kk || '-'}</td>
           <td>${s.birthPlace || '-'}</td>
           <td>${s.birthDate || '-'}</td>
           <td class="text-center">${s.bloodType || '-'}</td>
           <td>${s.healthHistory || '-'}</td>
-          <td>${s.classFormal || '-'}</td>
-          <td>${s.classMadrasah || '-'}</td>
-          <td>${s.class || '-'}</td>
-          <td>${s.kamar || '-'}</td>
           <td class="text-bold">${s.currentHafalan || '-'}</td>
           <td>${s.fatherName || '-'}</td>
           <td>${s.motherName || '-'}</td>
@@ -2772,7 +2863,19 @@ export default function AdminDashboard({
           status: 'Belum Lunas'
         };
         setBills([added, ...bills]);
-        showAlert('success', `Tagihan "${billTitle}" berhasil dikirim untuk santri ${studentObj.fullName}.`);
+        showAlert('success', `Tagihan "${billTitle}" berhasil dibuat untuk santri ${studentObj.fullName}.`);
+
+        if (sendWhatsAppOnBill) {
+          dispatchWhatsAppBillNotification(added, studentObj, true).then(res => {
+            if (res.success && res.mode === 'gateway') {
+              showAlert('success', `Notifikasi WhatsApp tagihan otomatis terkirim langsung ke wali ${studentObj.fullName} (${res.phone}) via Gateway!`);
+            } else if (res.success && res.mode === 'direct') {
+              showAlert('success', `Membuka WhatsApp untuk mengirimkan rincian tagihan ke wali ${studentObj.fullName}...`);
+            } else if (!res.success) {
+              showAlert('danger', `Tagihan tersimpan, namun nomor WhatsApp wali santri belum terdaftar.`);
+            }
+          });
+        }
       } else {
         const timestamp = Date.now();
         const newBills: Bill[] = targetStudents.map((std, idx) => ({
@@ -2786,7 +2889,23 @@ export default function AdminDashboard({
           status: 'Belum Lunas'
         }));
         setBills([...newBills, ...bills]);
-        showAlert('success', `Tagihan "${billTitle}" berhasil dikirim untuk seluruh (${targetStudents.length}) santri aktif.`);
+        
+        if (sendWhatsAppOnBill) {
+          const gwToken = settings.waGatewayToken || localStorage.getItem('pesantren_wa_gateway_token') || '';
+          if (gwToken) {
+            targetStudents.forEach(async (std) => {
+              const matched = newBills.find(b => b.studentId === std.id);
+              if (matched) {
+                await dispatchWhatsAppBillNotification(matched, std, false);
+              }
+            });
+            showAlert('success', `Tagihan "${billTitle}" berhasil dibuat untuk (${targetStudents.length}) santri dan sedang disiarkan otomatis via WhatsApp Gateway!`);
+          } else {
+            showAlert('success', `Tagihan "${billTitle}" berhasil dibuat untuk (${targetStudents.length}) santri. Gunakan tombol "📲 WA Wali" pada baris tagihan untuk mengirimkan rincian ke wali santri.`);
+          }
+        } else {
+          showAlert('success', `Tagihan "${billTitle}" berhasil dikirim untuk seluruh (${targetStudents.length}) santri aktif.`);
+        }
       }
       setBillTitle('');
       setBillAmount('');
@@ -4510,24 +4629,30 @@ export default function AdminDashboard({
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
               <table id="admin-students-active-list-table" className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-3 text-center w-12 font-extrabold uppercase text-[10px] text-slate-700 bg-slate-100">No</th>
-                    <th className="py-3 px-4">NIS</th>
-                    <th className="py-3 px-4">Nama Lengkap</th>
-                    <th className="py-3 px-4">Alamat</th>
-                    <th className="py-3 px-4">No. Telp / WA Wali</th>
-                    <th className="py-3 px-4">Madrasah (Non-Formal)</th>
-                    <th className="py-3 px-4">Sekolah (Formal)</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                    <th rowSpan={2} className="py-2.5 px-3 text-center w-12 font-extrabold uppercase text-[10px] text-slate-700 bg-slate-100 border-r border-slate-200">No</th>
+                    <th rowSpan={2} className="py-2.5 px-3 font-extrabold text-emerald-950 border-r border-slate-200">NIS / NIA</th>
+                    <th rowSpan={2} className="py-2.5 px-4 font-extrabold text-slate-900 border-r border-slate-200">Nama Lengkap</th>
+                    <th rowSpan={2} className="py-2.5 px-3 text-center font-extrabold text-amber-950 border-r border-slate-200">Asrama / Kamar</th>
+                    <th colSpan={2} className="py-2 px-3 text-center border-r border-slate-200 bg-emerald-50/70 text-emerald-950 font-black">
+                      Sekolah
+                    </th>
+                    <th rowSpan={2} className="py-2.5 px-4 border-r border-slate-200">No. Telp / WA Wali</th>
+                    <th rowSpan={2} className="py-2.5 px-4 border-r border-slate-200">Alamat</th>
+                    <th rowSpan={2} className="py-2.5 px-4 text-right">Aksi</th>
+                  </tr>
+                  <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-bold text-[9px] uppercase tracking-wider">
+                    <th className="py-1.5 px-3 text-center border-r border-slate-200 text-indigo-800 bg-indigo-50/50">Formal</th>
+                    <th className="py-1.5 px-3 text-center border-r border-slate-200 text-teal-800 bg-teal-50/50">Non-Formal</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50 text-slate-700 bg-white">
+                <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                    <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
                       Tidak ditemukan data santri yang cocok dengan pencarian Anda.
                     </td>
                   </tr>
@@ -4537,15 +4662,15 @@ export default function AdminDashboard({
                     return (
                       <React.Fragment key={s.id}>
                         <tr className={`hover:bg-emerald-50/15 transition-all ${isExpanded ? 'bg-emerald-50/5 font-semibold' : ''}`}>
-                          <td className="py-3 px-3 text-center font-mono font-bold text-slate-600 text-xs">
+                          <td className="py-3 px-3 text-center font-mono font-bold text-slate-600 text-xs border-r border-slate-100">
                             {idx + 1}
                           </td>
-                          <td className="py-3 px-4 font-mono font-bold text-emerald-900 text-[10px]">
-                            <span className="px-2 py-1 rounded bg-emerald-50 border border-emerald-150">
-                              {s.nis || '-'}
+                          <td className="py-3 px-3 font-mono font-bold text-emerald-900 text-[11px] border-r border-slate-100 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200">
+                              {s.nis || s.id || '-'}
                             </span>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 border-r border-slate-100">
                             <div className="flex items-center gap-2">
                               <div className="h-7 w-7 bg-emerald-100 rounded-full border border-emerald-200 flex items-center justify-center font-bold text-emerald-800 uppercase text-[10px] shrink-0">
                                 {s.fullName.substring(0, 2)}
@@ -4554,24 +4679,34 @@ export default function AdminDashboard({
                                 <div className="font-extrabold text-slate-900 text-sm">{s.fullName}</div>
                                 <div className="text-[9px] text-gray-500 font-mono flex items-center gap-1.5 flex-wrap">
                                   <span>{s.gender || 'Laki-laki'}</span>
-                                  {s.kamar && <span className="bg-amber-100 text-amber-900 px-1 py-0.2 rounded font-sans font-bold">🚪 Kamar: {s.kamar}</span>}
+                                  <span className="text-gray-400">•</span>
+                                  <span>{s.status || 'Aktif'}</span>
                                 </div>
                               </div>
                             </div>
                           </td>
-                          <td className="py-3 px-4 max-w-[150px] truncate" title={s.address}>
-                            {s.address || 'Jawa Tengah'}
+                          <td className="py-3 px-3 text-center border-r border-slate-100 whitespace-nowrap">
+                            {s.kamar ? (
+                              <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded text-[11px] border border-amber-200">
+                                🚪 {s.kamar}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 italic text-[11px]">-</span>
+                            )}
                           </td>
-                          <td className="py-3 px-4 font-mono font-semibold">
-                            {s.parentPhone || '-'}
-                          </td>
-                          <td className="py-3 px-4 font-bold text-teal-800">
-                            {s.classMadrasah || s.classPagi || s.class || '-'}
-                          </td>
-                          <td className="py-3 px-4 font-bold text-indigo-800">
+                          <td className="py-3 px-3 font-bold text-indigo-900 text-center border-r border-slate-100 text-xs bg-indigo-50/20">
                             {s.classFormal || s.classSore || '-'}
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-3 font-bold text-teal-900 text-center border-r border-slate-100 text-xs bg-teal-50/20">
+                            {s.classMadrasah || s.classPagi || s.class || '-'}
+                          </td>
+                          <td className="py-3 px-4 font-mono font-semibold border-r border-slate-100 whitespace-nowrap text-xs">
+                            {s.parentPhone || '-'}
+                          </td>
+                          <td className="py-3 px-4 max-w-[150px] truncate border-r border-slate-100 text-xs" title={s.address}>
+                            {s.address || 'Jawa Tengah'}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 type="button"
@@ -5943,6 +6078,23 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={sendWhatsAppOnBill}
+                    onChange={(e) => setSendWhatsAppOnBill(e.target.checked)}
+                    className="h-4 w-4 rounded text-emerald-700 focus:ring-emerald-600 border-gray-300"
+                  />
+                  <span className="text-[11px] font-bold text-emerald-950 flex items-center gap-1">
+                    📲 Kirim Pesan WhatsApp Otomatis ke Wali Santri
+                  </span>
+                </label>
+                <p className="text-[9.5px] text-emerald-800/80 leading-relaxed pl-6">
+                  Otomatis memformat rincian tagihan, nominal, jatuh tempo, dan rekening transfer resmi. Jika WhatsApp Gateway aktif, pesan langsung terkirim di latar belakang tanpa membuka aplikasi WA.
+                </p>
+              </div>
+
               <button
                 type="submit"
                 className="w-full py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-lg transition text-xs cursor-pointer shadow-xs uppercase tracking-wider"
@@ -6263,6 +6415,24 @@ export default function AdminDashboard({
                         className="text-amber-700 hover:underline text-[9px] font-bold block text-center mt-1 w-full cursor-pointer"
                       >
                         Edit Data Tagihan ✏️
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await dispatchWhatsAppBillNotification(b, undefined, true);
+                          if (!res.success) {
+                            showAlert('danger', res.reason || 'Nomor WhatsApp wali tidak ditemukan.');
+                          } else if (res.mode === 'gateway') {
+                            showAlert('success', `Rincian tagihan berhasil terkirim via WhatsApp Gateway ke wali ${b.studentName} (${res.phone})!`);
+                          } else {
+                            showAlert('success', `Membuka WhatsApp untuk mengirim rincian tagihan ke wali ${b.studentName}...`);
+                          }
+                        }}
+                        className="text-emerald-800 hover:text-emerald-950 font-bold text-[9px] flex items-center justify-center gap-1 mt-1 w-full cursor-pointer bg-emerald-50 hover:bg-emerald-100 py-0.5 px-1.5 rounded border border-emerald-200"
+                        title="Kirim Rincian Tagihan ke WhatsApp Wali Santri"
+                      >
+                        📲 WA Wali
                       </button>
 
                       {b.status === 'Lunas' && (
@@ -7452,61 +7622,6 @@ export default function AdminDashboard({
                 )}
               </div>
 
-              {/* Pratinjau Terpadu Format Surat Formal Dokumen */}
-              <div className="md:col-span-2 bg-white border border-emerald-200 rounded-xl p-4 text-center">
-                <span className="text-[10px] font-extrabold text-emerald-900 uppercase tracking-wider block mb-2">
-                  Pratinjau Format Surat Resmi Dokumen Pesantren:
-                </span>
-                <div className="inline-block text-center relative py-2 px-6 bg-slate-50/80 border border-slate-200 rounded-lg min-w-[260px]">
-                  <p className="text-[10px] text-slate-500 font-semibold mb-0.5">
-                    {getCityFromAddress(editSettings.address || settings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </p>
-                  <p className="text-[11px] font-black text-slate-900 uppercase mb-1">
-                    Pengasuh Pondok Pesantren
-                  </p>
-
-                  <div className="relative min-h-[64px] flex flex-col items-center justify-end my-1">
-                    {/* Tanda tangan di atas nama pengasuh */}
-                    <div className="z-10 mb-1 flex items-center justify-center">
-                      {editSettings.ttdPengasuhUrl ? (
-                        <img
-                          src={editSettings.ttdPengasuhUrl}
-                          alt="TTD Pengasuh"
-                          className="h-14 max-w-[130px] object-contain mix-blend-multiply"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <span className="text-xs font-mono text-emerald-800 italic font-extrabold">
-                          ✍️ {editSettings.namaPengasuh || "KH. Ahmad Wildan"}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Stempel di sebelah kiri nama pengasuh */}
-                    {editSettings.stempelPengasuhUrl && (
-                      <div className="z-20 absolute -left-7 -bottom-1 pointer-events-none opacity-85">
-                        <img
-                          src={editSettings.stempelPengasuhUrl}
-                          alt="Stempel Pengasuh"
-                          className="h-20 w-20 object-contain rotate-[-10deg] mix-blend-multiply"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                    )}
-
-                    {/* Nama Pengasuh di bawah tanda tangan */}
-                    <div>
-                      <strong className="text-xs font-black text-gray-950 underline leading-none uppercase block">
-                        {editSettings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}
-                      </strong>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-2 italic">
-                  * Stempel berada di sebelah kiri nama pengasuh, tanda tangan berada di atas nama pengasuh, proporsional seperti surat formal resmi.
-                </p>
-              </div>
-
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-emerald-900 uppercase mb-1">Tentang Pesantren (Sekilas Info)</label>
                 <textarea
@@ -7517,7 +7632,7 @@ export default function AdminDashboard({
                     setEditSettings({ ...editSettings, aboutUs: e.target.value });
                     setIsSettingsDirty(true);
                   }}
-                  className="w-full px-3 py-2 border border-emerald-100 rounded-lg bg-emerald-50/10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 shadow-2xs font-medium"
                 />
               </div>
 
@@ -7531,7 +7646,7 @@ export default function AdminDashboard({
                     setEditSettings({ ...editSettings, vision: e.target.value });
                     setIsSettingsDirty(true);
                   }}
-                  className="w-full px-3 py-2 border border-emerald-100 rounded-lg bg-emerald-50/10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 shadow-2xs font-medium"
                 />
               </div>
 
@@ -7763,17 +7878,20 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
-                {missingTablesInfo && missingTablesInfo.missingTables.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowSqlModal(true)}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-md border border-amber-400 cursor-pointer animate-pulse"
-                    >
-                      <Code className="h-4 w-4" /> ⚡ Skrip SQL Otomatis ({missingTablesInfo.missingTables.length} Tabel Belum Ada di Supabase)
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowSqlModal(true)}
+                    className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow border border-emerald-600/70 cursor-pointer"
+                  >
+                    <Code className="h-4 w-4" /> 📋 Skrip SQL Supabase (PCSB & Semua Tabel)
+                  </button>
+                  {missingTablesInfo && missingTablesInfo.missingTables.length > 0 && (
+                    <span className="px-2.5 py-1 bg-amber-500 text-slate-950 font-black rounded-lg text-[10px] animate-pulse">
+                      {missingTablesInfo.missingTables.length} Tabel Belum Ada
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -8037,9 +8155,9 @@ export default function AdminDashboard({
             </div>
           )}
 
-          {/* MODAL GENERATOR SKRIP SQL SUPABASE (Hanya tampil jika ada tabel aplikasi yang belum sinkron dengan Supabase, otomatis terhapus saat terhubung) */}
+          {/* MODAL GENERATOR SKRIP SQL SUPABASE */}
           <AnimatePresence>
-            {showSqlModal && missingTablesInfo && missingTablesInfo.missingTables.length > 0 && (
+            {showSqlModal && (
               <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
@@ -8052,10 +8170,12 @@ export default function AdminDashboard({
                       <Code className="h-5 w-5 text-amber-400" />
                       <div>
                         <h3 className="font-extrabold text-base text-white uppercase tracking-wide">
-                          Skrip SQL Otomatis Tabel Supabase
+                          Skrip SQL Supabase (PCSB & Seluruh Tabel Sistem)
                         </h3>
                         <p className="text-[11px] text-slate-300">
-                          Terdapat <strong>{missingTablesInfo.missingTables.length} tabel aplikasi</strong> yang belum ada di Supabase ({missingTablesInfo.missingTables.join(', ')}). Skrip ini otomatis terhapus ketika tabel telah dibuat dan terhubung.
+                          {missingTablesInfo && missingTablesInfo.missingTables.length > 0
+                            ? `Terdapat ${missingTablesInfo.missingTables.length} tabel yang belum terdeteksi (${missingTablesInfo.missingTables.join(', ')}). Salin dan jalankan skrip ini di SQL Editor Supabase.`
+                            : 'Salin dan jalankan skrip SQL berikut pada SQL Editor di Dashboard Supabase untuk mengaktifkan sinkronisasi pendaftaran PCSB online realtime & seluruh tabel.'}
                         </p>
                       </div>
                     </div>
@@ -8068,7 +8188,11 @@ export default function AdminDashboard({
                   </div>
 
                   <div className="flex-1 overflow-y-auto bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs text-amber-300 selection:bg-amber-900 selection:text-white leading-relaxed">
-                    <pre className="whitespace-pre-wrap">{missingTablesInfo.generatedSql}</pre>
+                    <pre className="whitespace-pre-wrap">
+                      {(missingTablesInfo && missingTablesInfo.missingTables.length > 0 && missingTablesInfo.generatedSql)
+                        ? missingTablesInfo.generatedSql
+                        : SUPABASE_SQL_SCHEMA}
+                    </pre>
                   </div>
 
                   <div className="flex justify-between items-center pt-4 border-t border-slate-800 mt-3 flex-wrap gap-2">
@@ -8086,14 +8210,17 @@ export default function AdminDashboard({
                       <button
                         type="button"
                         onClick={() => {
-                          navigator.clipboard.writeText(missingTablesInfo.generatedSql);
+                          const sqlToCopy = (missingTablesInfo && missingTablesInfo.missingTables.length > 0 && missingTablesInfo.generatedSql)
+                            ? missingTablesInfo.generatedSql
+                            : SUPABASE_SQL_SCHEMA;
+                          navigator.clipboard.writeText(sqlToCopy);
                           setCopiedSql(true);
                           setTimeout(() => setCopiedSql(false), 3000);
                         }}
                         className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
                       >
                         {copiedSql ? <CheckCircle2 className="h-4 w-4 text-slate-950" /> : <Copy className="h-4 w-4" />}
-                        {copiedSql ? 'Tersalin ke Clipboard!' : 'Salin Skrip SQL Otomatis'}
+                        {copiedSql ? 'Tersalin ke Clipboard!' : 'Salin Skrip SQL'}
                       </button>
                       <button
                         type="button"
@@ -8536,6 +8663,97 @@ export default function AdminDashboard({
               <span className="px-3 py-1 bg-amber-200 border border-amber-300 text-amber-950 rounded-lg text-xs font-bold uppercase tracking-wide">
                 {forgotRequests.filter(r => r.status === 'Pending').length} Permintaan Aktif
               </span>
+            </div>
+          </div>
+
+          {/* Card Panduan & Konfigurasi Pengiriman WhatsApp (Direct vs Gateway Otomatis) */}
+          <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-6 space-y-4 text-left">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-50 pb-3">
+              <div>
+                <h4 className="font-extrabold text-sm text-emerald-950 flex items-center gap-2">
+                  <span>📱</span> Integrasi WhatsApp Notifikasi Tagihan & Informasi Pesantren
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Panduan cara kerja pengiriman pesan ke nomor wali santri dan konfigurasi gateway otomatis.
+                </p>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shrink-0 w-fit ${
+                settings.waGatewayToken
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+              }`}>
+                {settings.waGatewayToken ? '🟢 Gateway Aktif (100% Otomatis)' : '⚪ Mode Direct (wa.me)'}
+              </span>
+            </div>
+
+            {/* Penjelasan Sistem Pengiriman */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>1️⃣</span> Mode Direct Link (Bawaan / Tanpa Biaya)
+                </div>
+                <p className="text-slate-600 leading-relaxed text-[11px]">
+                  • <strong>Cara Kerja:</strong> Ketika tombol diklik, aplikasi membuka WhatsApp di HP/laptop admin dengan teks tagihan/info dan nomor wali yang telah terisi otomatis.<br/>
+                  • <strong>Nomor Pengirim:</strong> Terkirim melalui akun WhatsApp yang aktif di perangkat admin saat itu.<br/>
+                  • <strong>Kelebihan:</strong> Gratis 100%, tanpa perlu langganan API atau nomor server khusus.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200 space-y-2">
+                <div className="font-bold text-emerald-950 flex items-center gap-1.5">
+                  <span>2️⃣</span> Mode Gateway API (Langsung Otomatis Tanpa Mampir ke WA)
+                </div>
+                <p className="text-emerald-850 leading-relaxed text-[11px]">
+                  • <strong>Cara Kerja:</strong> Pesan dikirimkan oleh server/API di latar belakang (background) langsung ke nomor wali santri tanpa perlu membuka WhatsApp di perangkat admin.<br/>
+                  • <strong>Nomor Pengirim:</strong> Menggunakan nomor WhatsApp resmi pesantren yang didaftarkan pada WhatsApp Gateway (seperti Fonnte / Wablas).<br/>
+                  • <strong>Kelebihan:</strong> Praktis sekali klik langsung sampai, dan wali santri menerima pesan resmi dari nomor pesantren.
+                </p>
+              </div>
+            </div>
+
+            {/* Input Token Gateway */}
+            <div className="pt-2 border-t border-slate-100 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+              <div className="md:col-span-6 space-y-1">
+                <label className="text-[10px] font-bold text-slate-700 uppercase">Token WhatsApp Gateway (Opsional - Contoh: Fonnte)</label>
+                <input
+                  type="password"
+                  placeholder="Masukkan Token API (misal: 6pXkL9... dari fonnte.com)"
+                  value={waGatewayTokenInput}
+                  onChange={(e) => setWaGatewayTokenInput(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-emerald-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                />
+              </div>
+
+              <div className="md:col-span-4 space-y-1">
+                <label className="text-[10px] font-bold text-slate-700 uppercase">Endpoint URL Gateway</label>
+                <input
+                  type="text"
+                  placeholder="https://api.fonnte.com/send"
+                  value={waGatewayUrlInput}
+                  onChange={(e) => setWaGatewayUrlInput(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-emerald-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = {
+                      ...settings,
+                      waGatewayToken: waGatewayTokenInput.trim(),
+                      waGatewayUrl: waGatewayUrlInput.trim()
+                    };
+                    updateAndPersistSettings(updated);
+                    localStorage.setItem('pesantren_wa_gateway_token', waGatewayTokenInput.trim());
+                    localStorage.setItem('pesantren_wa_gateway_url', waGatewayUrlInput.trim());
+                    showAlert('success', waGatewayTokenInput.trim() ? 'Konfigurasi WhatsApp Gateway berhasil disimpan & aktif!' : 'Token gateway dinonaktifkan (kembali ke Mode Direct wa.me).');
+                  }}
+                  className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-lg transition cursor-pointer shadow-xs"
+                >
+                  Simpan Token
+                </button>
+              </div>
             </div>
           </div>
 
@@ -12244,35 +12462,35 @@ export default function AdminDashboard({
           <table className="w-full text-[10px] border-collapse border-2 border-slate-900">
             <thead>
               <tr className="bg-slate-100 text-slate-900 font-extrabold text-center uppercase tracking-wider">
-                <th className="border border-slate-700 px-3 py-2.5 w-10">No</th>
-                <th className="border border-slate-700 px-3 py-2.5 text-left">Nomer Identitas & Nama Santri (ID & Nama)</th>
-                <th className="border border-slate-700 px-3 py-2.5">NIS</th>
-                <th className="border border-slate-700 px-3 py-2.5">Gender</th>
-                <th className="border border-slate-700 px-3 py-2.5">Kamar</th>
-                <th className="border border-slate-700 px-3 py-2.5">Kelas (Form/Non-F)</th>
-                <th className="border border-slate-700 px-3 py-2.5 text-left">Orang Tua / Wali</th>
-                <th className="border border-slate-700 px-3 py-2.5">No. WA Wali</th>
+                <th rowSpan={2} className="border border-slate-700 px-2 py-2 w-10">No</th>
+                <th rowSpan={2} className="border border-slate-700 px-3 py-2 text-center font-mono">NIS / NIA</th>
+                <th rowSpan={2} className="border border-slate-700 px-3 py-2 text-left">Nama Lengkap Santri</th>
+                <th rowSpan={2} className="border border-slate-700 px-3 py-2 text-center">Asrama / Kamar</th>
+                <th colSpan={2} className="border border-slate-700 px-3 py-1.5 text-center bg-slate-200">Sekolah / Pendidikan</th>
+                <th rowSpan={2} className="border border-slate-700 px-2.5 py-2 text-center">Gender</th>
+                <th rowSpan={2} className="border border-slate-700 px-3 py-2 text-left">Orang Tua / Wali</th>
+                <th rowSpan={2} className="border border-slate-700 px-3 py-2 text-center">No. WA Wali</th>
+              </tr>
+              <tr className="bg-slate-50 text-slate-800 font-bold text-center text-[9px] uppercase tracking-wider">
+                <th className="border border-slate-700 px-2 py-1 bg-indigo-50/50">Formal</th>
+                <th className="border border-slate-700 px-2 py-1 bg-teal-50/50">Non-Formal</th>
               </tr>
             </thead>
             <tbody>
               {filteredStudents.map((s, idx) => (
                 <tr key={s.id} className="hover:bg-slate-50">
-                  <td className="border border-slate-700 px-3 py-2 text-center font-mono font-bold text-slate-700">{idx + 1}</td>
-                  <td className="border border-slate-700 px-3 py-2 text-left">
-                    <span className="block font-mono text-[9px] font-black text-emerald-800">ID: {s.id}</span>
-                    <span className="font-extrabold text-slate-900 text-[11px] block">{s.fullName}</span>
-                  </td>
-                  <td className="border border-slate-700 px-3 py-2 text-center font-mono font-bold text-slate-900">{s.nis || '-'}</td>
-                  <td className="border border-slate-700 px-3 py-2 text-center text-slate-800">{s.gender}</td>
-                  <td className="border border-slate-700 px-3 py-2 text-center font-bold text-amber-900">{s.kamar || '-'}</td>
-                  <td className="border border-slate-700 px-3 py-2 text-center text-slate-800">
-                    {(s.classMadrasah || s.classPagi || s.class)} / {(s.classFormal || s.classSore || '-')}
-                  </td>
-                  <td className="border border-slate-700 px-3 py-2 text-slate-800">
+                  <td className="border border-slate-700 px-2 py-1.5 text-center font-mono font-bold text-slate-700">{idx + 1}</td>
+                  <td className="border border-slate-700 px-3 py-1.5 text-center font-mono font-bold text-slate-900">{s.nis || s.id || '-'}</td>
+                  <td className="border border-slate-700 px-3 py-1.5 text-left font-extrabold text-slate-950">{s.fullName}</td>
+                  <td className="border border-slate-700 px-3 py-1.5 text-center font-bold text-amber-900">{s.kamar || '-'}</td>
+                  <td className="border border-slate-700 px-2 py-1.5 text-center text-slate-800">{s.classFormal || s.classSore || '-'}</td>
+                  <td className="border border-slate-700 px-2 py-1.5 text-center text-slate-800">{s.classMadrasah || s.classPagi || s.class || '-'}</td>
+                  <td className="border border-slate-700 px-2.5 py-1.5 text-center text-slate-800">{s.gender}</td>
+                  <td className="border border-slate-700 px-3 py-1.5 text-slate-800">
                     <span className="block font-semibold">Ayah: {s.fatherName || s.parentName || '-'}</span>
                     <span className="block text-[9px] text-gray-500">Ibu: {s.motherName || '-'}</span>
                   </td>
-                  <td className="border border-slate-700 px-3 py-2 text-center font-mono text-slate-900">{s.parentPhone || '-'}</td>
+                  <td className="border border-slate-700 px-3 py-1.5 text-center font-mono text-slate-900">{s.parentPhone || '-'}</td>
                 </tr>
               ))}
             </tbody>
