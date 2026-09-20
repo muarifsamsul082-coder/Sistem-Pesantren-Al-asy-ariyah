@@ -2202,15 +2202,25 @@ export async function syncStaffUsersWithSupabase(localStaff: StaffUserItem[]): P
           registeredAt: item.registered_at || undefined,
         };
         const existing = map.get(item.id);
+        const emailLower = (mapped.email || '').toLowerCase();
+        const customLocalName = typeof window !== 'undefined' 
+          ? (localStorage.getItem('staff_custom_name_' + emailLower) || 
+             (mapped.role === 'admin' ? (localStorage.getItem('admin_custom_name_' + emailLower) || localStorage.getItem('admin_custom_name_muarifsamsul082@gmail.com') || localStorage.getItem('admin_custom_name_admin@alasyariyah.sch.id')) : null))
+          : null;
+        const resolvedName = customLocalName || mapped.fullName || existing?.fullName || '';
+
         if (existing) {
           map.set(item.id, {
             ...existing,
             ...mapped,
-            fullName: mapped.fullName || existing.fullName,
+            fullName: resolvedName,
             password: existing.password
           });
         } else {
-          map.set(item.id, mapped);
+          map.set(item.id, {
+            ...mapped,
+            fullName: resolvedName
+          });
         }
       });
       return Array.from(map.values());

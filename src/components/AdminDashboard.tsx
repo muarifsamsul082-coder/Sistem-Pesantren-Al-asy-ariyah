@@ -43,6 +43,7 @@ import {
   syncPpdbWithSupabase,
   syncRoomsWithSupabase,
   syncBillsWithSupabase,
+  pushAllStaffUsersToSupabase,
   syncSettingsWithSupabase,
   syncMasterClassesWithSupabase,
   pushMasterClassesToSupabase,
@@ -1752,27 +1753,41 @@ export default function AdminDashboard({
     registeredAt: string;
     tempPassword?: string;
   }[]>(() => {
+    const activeAdminDefault = (typeof window !== 'undefined' && (
+      localStorage.getItem('admin_custom_name_' + (session?.email || 'muarifsamsul082@gmail.com').toLowerCase()) ||
+      localStorage.getItem('admin_custom_name_muarifsamsul082@gmail.com') ||
+      localStorage.getItem('admin_custom_name_admin@alasyariyah.sch.id') ||
+      (session?.fullName && session.fullName !== 'Muhammad' ? session.fullName : 'Ustadz Samsul')
+    )) || 'Ustadz Samsul';
+
     const saved = localStorage.getItem('pesantren_staff_users');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          if (!parsed.some((u: any) => u.role === 'admin')) {
-            parsed.unshift({
+          const updated = parsed.map((u: any) => {
+            if (u.role === 'admin' || (u.email && (u.email.toLowerCase() === 'admin@alasyariyah.sch.id' || u.email.toLowerCase() === 'muarifsamsul082@gmail.com'))) {
+              return { ...u, fullName: activeAdminDefault, name: activeAdminDefault };
+            }
+            return u;
+          });
+          if (!updated.some((u: any) => u.role === 'admin')) {
+            updated.unshift({
               id: 'usr-admin',
-              fullName: 'Ustadz Ahmad Wildan, M.Pd (Admin)',
-              email: 'admin@alasyariyah.sch.id',
+              fullName: activeAdminDefault,
+              name: activeAdminDefault,
+              email: (session?.email || 'muarifsamsul082@gmail.com').toLowerCase(),
               role: 'admin',
               isConfirmed: true,
               registeredAt: '2026-01-01'
             });
           }
-          return parsed;
+          return updated;
         }
       } catch (e) {}
     }
     return [
-      { id: 'usr-admin', fullName: 'Ustadz Ahmad Wildan, M.Pd (Admin)', email: 'admin@alasyariyah.sch.id', role: 'admin', isConfirmed: true, registeredAt: '2026-01-01' },
+      { id: 'usr-admin', fullName: activeAdminDefault, email: (session?.email || 'muarifsamsul082@gmail.com').toLowerCase(), role: 'admin', isConfirmed: true, registeredAt: '2026-01-01' },
       { id: 'usr-1', fullName: 'Ustadz Junaidi Al-Anshori', email: 'keamanan@alasyariyah.sch.id', role: 'keamanan', isConfirmed: true, registeredAt: '2026-01-10' },
       { id: 'usr-2', fullName: 'Ustadz Abdul Somad, S.Sy', email: 'ketertiban@alasyariyah.sch.id', role: 'ketertiban', isConfirmed: true, registeredAt: '2026-02-15' },
       { id: 'usr-3', fullName: 'Ustadzah dr. Fatimah Az-Zahra', email: 'kesehatan@alasyariyah.sch.id', role: 'kesehatan', isConfirmed: true, registeredAt: '2026-03-01' },
@@ -1791,18 +1806,25 @@ export default function AdminDashboard({
       }
     };
     window.addEventListener('pesantren_staff_users_updated', handleSync);
-    return () => window.removeEventListener('pesantren_staff_users_updated', handleSync);
+    window.addEventListener('pesantren_admin_name_updated', handleSync);
+    return () => {
+      window.removeEventListener('pesantren_staff_users_updated', handleSync);
+      window.removeEventListener('pesantren_admin_name_updated', handleSync);
+    };
   }, []);
 
   // Sync staffUsers names automatically with Portal Settings and custom profile names
   const getResolvedStaffName = React.useCallback((u: { email?: string; fullName?: string; name?: string; role?: string }) => {
+    if (u.role === 'admin' || (u.email && (u.email.toLowerCase() === 'admin@alasyariyah.sch.id' || u.email.toLowerCase() === 'muarifsamsul082@gmail.com'))) {
+      return currentAdminName || 'Ustadz Samsul';
+    }
     const emailKey = (u.email || '').toLowerCase();
     if (emailKey) {
       const custom = localStorage.getItem('staff_custom_name_' + emailKey);
       if (custom) return custom;
     }
     return u.fullName || u.name || 'Pengurus Pesantren';
-  }, []);
+  }, [currentAdminName]);
 
   const handleUpdateStaffName = (staffId: string, newName: string) => {
     if (!newName.trim()) return;
@@ -1810,6 +1832,19 @@ export default function AdminDashboard({
     if (!target) return;
     const emailKey = (target.email || '').toLowerCase();
     localStorage.setItem('staff_custom_name_' + emailKey, newName.trim());
+
+    if (target.role === 'admin' || emailKey === 'admin@alasyariyah.sch.id' || emailKey === 'muarifsamsul082@gmail.com') {
+      localStorage.setItem('admin_custom_name_' + emailKey, newName.trim());
+      localStorage.setItem('admin_custom_name_muarifsamsul082@gmail.com', newName.trim());
+      localStorage.setItem('admin_custom_name_admin@alasyariyah.sch.id', newName.trim());
+      try {
+        const sess = JSON.parse(localStorage.getItem('pesantren_session') || '{}');
+        sess.fullName = newName.trim();
+        sess.roleName = newName.trim();
+        localStorage.setItem('pesantren_session', JSON.stringify(sess));
+      } catch (e) {}
+    }
+
     if (target.role) {
       const configKey = `${target.role}_config`;
       try {
@@ -1817,12 +1852,20 @@ export default function AdminDashboard({
         localStorage.setItem(configKey, JSON.stringify({ ...existing, name: newName.trim() }));
       } catch (e) {}
     }
-    const updated = staffUsers.map(u => u.id === staffId ? { ...u, fullName: newName.trim(), name: newName.trim() } : u);
+    const updated = staffUsers.map(u => {
+      if (u.id === staffId || (target.role === 'admin' && u.role === 'admin')) {
+        return { ...u, fullName: newName.trim(), name: newName.trim() };
+      }
+      return u;
+    });
     setStaffUsers(updated);
     localStorage.setItem('pesantren_staff_users', JSON.stringify(updated));
     window.dispatchEvent(new Event('pesantren_staff_users_updated'));
     window.dispatchEvent(new Event('staff_configs_updated'));
     window.dispatchEvent(new Event('pesantren_admin_name_updated'));
+    if (isSupabaseConfigured()) {
+      pushAllStaffUsersToSupabase(updated).catch(() => {});
+    }
     fetch('/api/staff-users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1868,6 +1911,8 @@ export default function AdminDashboard({
   const [newStaffName, setNewStaffName] = React.useState('');
   const [newStaffEmail, setNewStaffEmail] = React.useState('');
   const [newStaffRole, setNewStaffRole] = React.useState<'admin' | 'keamanan' | 'ketertiban' | 'kesehatan'>('keamanan');
+  const [editingStaffId, setEditingStaffId] = React.useState<string | null>(null);
+  const [editingStaffName, setEditingStaffName] = React.useState<string>('');
   const [simulatedEmailDetails, setSimulatedEmailDetails] = React.useState<{ to: string, link: string, name: string, role: string } | null>(null);
 
   // Modal notification for newly registered staff credentials
@@ -1880,34 +1925,11 @@ export default function AdminDashboard({
     registeredAt: string;
   } | null>(null);
 
-  const getStaffAssets = (role: string) => {
-    if (role === 'keamanan') {
-      return {
-        sig: settings?.ttdKeamananUrl || '✍️ Junaidi',
-        seal: settings?.stempelKeamananUrl || '🛡️ STEMPEL KEAMANAN'
-      };
-    }
-    if (role === 'ketertiban') {
-      return {
-        sig: settings?.ttdKetertibanUrl || '✒️ Abdul Somad',
-        seal: settings?.stempelKetertibanUrl || '⚖️ STEMPEL KETERTIBAN'
-      };
-    }
-    if (role === 'kesehatan') {
-      return {
-        sig: settings?.ttdKesehatanUrl || '⚕️ Fatimah',
-        seal: settings?.stempelKesehatanUrl || '🩺 POSKESTREN'
-      };
-    }
-    if (role === 'bendahara') {
-      return {
-        sig: settings?.ttdBendaharaUrl || '✍️ Siti Aminah',
-        seal: settings?.stempelBendaharaUrl || '💰 STEMPEL BENDAHARA'
-      };
-    }
+  const getStaffAssets = (_role: string) => {
+    // Stempel dan tanda tangan pada pengurus menggunakan foto sama dengan pengasuh
     return {
-      sig: settings?.ttdPengurusUrl || settings?.ttdPengasuhUrl || '✍️ Ahmad Wildan',
-      seal: settings?.stempelPesantrenUrl || settings?.stempelPengasuhUrl || '📜 STEMPEL PENGASUHAN'
+      sig: settings?.ttdPengasuhUrl || settings?.ttdPengurusUrl || '✍️ Pengurus Pesantren',
+      seal: settings?.stempelPengasuhUrl || settings?.stempelPesantrenUrl || '💮 STEMPEL RESMI PESANTREN'
     };
   };
 
@@ -8347,8 +8369,6 @@ export default function AdminDashboard({
                       <th className="px-3 py-2.5">Nama Pengurus</th>
                       <th className="px-3 py-2.5">Alamat Email</th>
                       <th className="px-3 py-2.5">Bidang / Hak Akses</th>
-                      <th className="px-3 py-2.5">Gambar TTD</th>
-                      <th className="px-3 py-2.5">Gambar Stempel</th>
                       <th className="px-3 py-2.5">Status Akun</th>
                       <th className="px-3 py-2.5">Tanggal Daftar</th>
                       <th className="px-3 py-2.5 text-center">Tindakan</th>
@@ -8357,14 +8377,61 @@ export default function AdminDashboard({
                   <tbody className="divide-y divide-gray-100">
                     {staffUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-gray-400 italic">Belum ada akun pengurus tambahan yang didaftarkan.</td>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-400 italic">Belum ada akun pengurus tambahan yang didaftarkan.</td>
                       </tr>
                     ) : (
                       staffUsers.map((user) => {
-                        const assets = getStaffAssets(user.role);
+                        const resolvedName = getResolvedStaffName(user);
+                        const isEditingThis = editingStaffId === user.id;
+
                         return (
                           <tr key={user.id} className="hover:bg-slate-50/50">
-                            <td className="px-3 py-3 font-bold text-slate-900">{user.fullName}</td>
+                            <td className="px-3 py-3">
+                              {isEditingThis ? (
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={editingStaffName}
+                                    onChange={(e) => setEditingStaffName(e.target.value)}
+                                    className="px-2 py-1 border border-emerald-500 rounded bg-white text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-700 min-w-[180px]"
+                                    autoFocus
+                                    placeholder="Ketik nama lengkap pengurus..."
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleUpdateStaffName(user.id, editingStaffName);
+                                      setEditingStaffId(null);
+                                    }}
+                                    className="px-2 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded text-[10px] shadow-xs cursor-pointer"
+                                  >
+                                    Simpan
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingStaffId(null)}
+                                    className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded text-[10px] cursor-pointer"
+                                  >
+                                    Batal
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-900">{resolvedName}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingStaffId(user.id);
+                                      setEditingStaffName(resolvedName);
+                                    }}
+                                    className="text-[10px] text-emerald-800 hover:text-emerald-950 hover:underline flex items-center gap-0.5 cursor-pointer font-medium"
+                                    title="Edit / Ubah Nama Pengurus"
+                                  >
+                                    ✏️ Ubah
+                                  </button>
+                                </div>
+                              )}
+                            </td>
                             <td className="px-3 py-3 font-mono text-slate-600">{user.email}</td>
                             <td className="px-3 py-3">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
@@ -8375,24 +8442,6 @@ export default function AdminDashboard({
                               }`}>
                                 {user.role === 'admin' ? 'Admin' : `Bid. ${user.role}`}
                               </span>
-                            </td>
-                            <td className="px-3 py-3">
-                              {isImageUrl(assets.sig) ? (
-                                <img src={assets.sig} alt="TTD Pengurus" className="h-8 max-w-[85px] object-contain border border-slate-200 rounded p-0.5 bg-white shadow-2xs" referrerPolicy="no-referrer" />
-                              ) : (
-                                <span className="inline-flex items-center text-[10px] bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded font-mono font-bold">
-                                  {assets.sig}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-3 py-3">
-                              {isImageUrl(assets.seal) ? (
-                                <img src={assets.seal} alt="Stempel Pengurus" className="h-8 max-w-[85px] object-contain border border-emerald-200 rounded p-0.5 bg-emerald-50 shadow-2xs" referrerPolicy="no-referrer" />
-                              ) : (
-                                <span className="inline-flex items-center text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded font-mono font-bold">
-                                  {assets.seal}
-                                </span>
-                              )}
                             </td>
                             <td className="px-3 py-3">
                               {user.isConfirmed ? (
@@ -8407,19 +8456,32 @@ export default function AdminDashboard({
                             </td>
                             <td className="px-3 py-3 text-slate-500 font-mono">{user.registeredAt}</td>
                             <td className="px-3 py-3 text-center space-x-1.5 whitespace-nowrap">
+                              {!isEditingThis && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingStaffId(user.id);
+                                    setEditingStaffName(resolvedName);
+                                  }}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded text-[10px] transition cursor-pointer"
+                                  title="Ubah Nama"
+                                >
+                                  ✏️ Edit Nama
+                                </button>
+                              )}
                               {!user.isConfirmed && (
                                 <button
                                   type="button"
                                   onClick={() => {
                                     triggerConfirm(
                                       'Setujui Akun Pengurus/Admin',
-                                      `Apakah Anda yakin ingin menyetujui pendaftaran akun ${user.fullName} (${user.role.toUpperCase()})?`,
+                                      `Apakah Anda yakin ingin menyetujui pendaftaran akun ${resolvedName} (${user.role.toUpperCase()})?`,
                                       () => {
                                         const updated = staffUsers.map(u => u.id === user.id ? { ...u, isConfirmed: true } : u);
                                         setStaffUsers(updated);
                                         localStorage.setItem('pesantren_staff_users', JSON.stringify(updated));
                                         window.dispatchEvent(new Event('pesantren_staff_users_updated'));
-                                        showAlert('success', `Akun ${user.fullName} berhasil disetujui! Sekarang akun tersebut sudah aktif dan dapat login.`);
+                                        showAlert('success', `Akun ${resolvedName} berhasil disetujui! Sekarang akun tersebut sudah aktif dan dapat login.`);
                                       }
                                     );
                                   }}
@@ -8433,7 +8495,7 @@ export default function AdminDashboard({
                                 onClick={() => {
                                   triggerConfirm(
                                     'Hapus Akun Pengurus',
-                                    `Apakah Anda yakin ingin menghapus akun pengurus ${user.fullName}?`,
+                                    `Apakah Anda yakin ingin menghapus akun pengurus ${resolvedName}?`,
                                     () => {
                                       handleDeleteStaff(user.id);
                                     }
@@ -9553,29 +9615,39 @@ export default function AdminDashboard({
               <div className="text-left pl-8 relative ml-auto w-[240px]">
                 <div>
                   <p className="text-gray-650 font-medium">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                  <p className="font-bold text-gray-900">Pengasuh Pondok Pesantren</p>
+                  <p className="font-bold text-gray-900 leading-tight">Pengasuh Pondok Pesantren</p>
                 </div>
                 
-                {/* Overlapping Signature & Stamp Container */}
-                <div className="h-20 w-44 relative flex items-center justify-start select-none my-1">
-                  {/* Tanda tangan (background) */}
+                {/* Overlapping Signature & Stamp Container - Full Height from Position to Name */}
+                <div className="h-28 w-60 relative flex items-center justify-start select-none my-0">
+                  {/* Tanda tangan (Full dari jabatan sampai nama di bawahnya) */}
                   <div className="z-10 absolute inset-0 flex items-center justify-start">
                     {isImageUrl(settings.ttdPengasuhUrl) ? (
-                      <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-20 max-w-[140px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                      <img 
+                        src={settings.ttdPengasuhUrl} 
+                        alt="TTD Pengasuh" 
+                        className="h-full w-auto max-h-28 max-w-[210px] object-contain object-left mix-blend-multiply" 
+                        referrerPolicy="no-referrer" 
+                      />
                     ) : (
-                      <span className="text-[10px] font-mono text-emerald-800 italic font-extrabold tracking-wide">
-                        {settings.ttdPengasuhUrl || "✒️ KH. Ahmad Wildan"}
+                      <span className="text-sm font-mono text-emerald-850 italic font-extrabold tracking-wide py-1">
+                        {settings.ttdPengasuhUrl || "✒️ " + (settings.namaPengasuh || "KH. Ahmad Wildan")}
                       </span>
                     )}
                   </div>
 
-                  {/* Stempel (foreground overlapping) */}
+                  {/* Stempel (Terletak di pinggir kiri tanda tangan dengan sistem tumpang tindih) */}
                   {settings.stempelPengasuhUrl && (
-                    <div className="z-20 absolute left-[25px] top-[0px] pointer-events-none opacity-85">
+                    <div className="z-20 absolute -left-8 top-1/2 -translate-y-1/2 pointer-events-none opacity-90">
                       {isImageUrl(settings.stempelPengasuhUrl) ? (
-                        <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-24 w-24 object-contain rotate-[10deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                        <img 
+                          src={settings.stempelPengasuhUrl} 
+                          alt="Stempel Pengasuh" 
+                          className="h-24 w-24 sm:h-28 sm:w-28 object-contain rotate-[-8deg] mix-blend-multiply" 
+                          referrerPolicy="no-referrer" 
+                        />
                       ) : (
-                        <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[10deg] leading-tight text-center bg-white/75 shadow-xs">
+                        <div className="border border-double border-emerald-600/70 text-emerald-700/90 rounded-full h-20 w-20 flex items-center justify-center text-[8px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/80 shadow-xs">
                           {settings.stempelPengasuhUrl}
                         </div>
                       )}
@@ -9584,7 +9656,7 @@ export default function AdminDashboard({
                 </div>
 
                 <div>
-                  <p className="font-extrabold text-gray-900 border-b border-gray-400 pb-1 inline-block min-w-[200px]">
+                  <p className="font-extrabold text-gray-900 border-b border-gray-400 pb-0.5 inline-block min-w-[220px] leading-tight">
                     {settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}
                   </p>
                 </div>

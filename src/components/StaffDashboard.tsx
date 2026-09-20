@@ -482,13 +482,16 @@ export default function StaffDashboard({
       }
     };
 
+    const sharedPengasuhSig = pesantrenSettings?.ttdPengasuhUrl || pesantrenSettings?.ttdPengurusUrl || '';
+    const sharedPengasuhSeal = pesantrenSettings?.stempelPengasuhUrl || pesantrenSettings?.stempelPesantrenUrl || '';
+
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         return {
           name: parsed.name || defaults[dept].name,
-          signature: parsed.signature || defaults[dept].signature,
-          seal: parsed.seal || defaults[dept].seal,
+          signature: sharedPengasuhSig || parsed.signature || defaults[dept].signature,
+          seal: sharedPengasuhSeal || parsed.seal || defaults[dept].seal,
           letterTemplate1: parsed.letterTemplate1 || defaults[dept].letterTemplate1,
           letterTemplate2: parsed.letterTemplate2 || defaults[dept].letterTemplate2,
           letterTemplate3: parsed.letterTemplate3 || defaults[dept].letterTemplate3
@@ -497,7 +500,11 @@ export default function StaffDashboard({
         // ignore
       }
     }
-    return defaults[dept];
+    return {
+      ...defaults[dept],
+      signature: sharedPengasuhSig || defaults[dept].signature,
+      seal: sharedPengasuhSeal || defaults[dept].seal
+    };
   };
 
   // Automatically adjust default points based on level

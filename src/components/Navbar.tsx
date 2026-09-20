@@ -2,7 +2,7 @@ import React from 'react';
 import { BookOpen, LogIn, LogOut, Shield, User, Menu, X, Landmark, GraduationCap, Users, Sun, Moon, CreditCard, Sparkles } from 'lucide-react';
 import { UserSession, Student, PortalSettings } from '../types';
 import { isPpdbCurrentlyActive } from '../lib/dateUtils';
-import { isSupabaseConfigured, pushSettingsToSupabase, pushStaffConfigToSupabase } from '../lib/supabase';
+import { isSupabaseConfigured, pushSettingsToSupabase, pushStaffConfigToSupabase, pushAllStaffUsersToSupabase } from '../lib/supabase';
 
 interface NavbarProps {
   currentView: string;
@@ -424,13 +424,19 @@ export default function Navbar({
     if (session?.role === 'admin') {
       const emailKey = (session.email || 'muarifsamsul082@gmail.com').toLowerCase();
       localStorage.setItem('admin_custom_name_' + emailKey, newName);
+      localStorage.setItem('admin_custom_name_muarifsamsul082@gmail.com', newName);
+      localStorage.setItem('admin_custom_name_admin@alasyariyah.sch.id', newName);
 
       // 1. Update in staff users list and sync to menu persetujuan & akun pengurus
       try {
         const staffUsers = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
         let found = false;
         const updatedStaff = staffUsers.map((u: any) => {
-          if (u && u.email && u.email.toLowerCase() === emailKey) {
+          if (
+            u.role === 'admin' ||
+            u.id === 'usr-admin' ||
+            (u.email && (u.email.toLowerCase() === emailKey || u.email.toLowerCase() === 'admin@alasyariyah.sch.id' || u.email.toLowerCase() === 'muarifsamsul082@gmail.com'))
+          ) {
             found = true;
             return { ...u, fullName: newName, name: newName };
           }
@@ -438,8 +444,8 @@ export default function Navbar({
         });
 
         if (!found) {
-          updatedStaff.push({
-            id: 'admin-' + Date.now(),
+          updatedStaff.unshift({
+            id: 'usr-admin',
             fullName: newName,
             name: newName,
             email: emailKey,
@@ -451,6 +457,9 @@ export default function Navbar({
 
         localStorage.setItem('pesantren_staff_users', JSON.stringify(updatedStaff));
         window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+        if (isSupabaseConfigured()) {
+          pushAllStaffUsersToSupabase(updatedStaff).catch(() => {});
+        }
         fetch('/api/staff-users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -511,6 +520,9 @@ export default function Navbar({
         if (changed) {
           localStorage.setItem('pesantren_staff_users', JSON.stringify(updatedStaff));
           window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+          if (isSupabaseConfigured()) {
+            pushAllStaffUsersToSupabase(updatedStaff).catch(() => {});
+          }
           // Broadcast to server
           fetch('/api/staff-users', {
             method: 'POST',
