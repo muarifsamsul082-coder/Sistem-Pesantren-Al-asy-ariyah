@@ -62,8 +62,17 @@ async function startServer() {
   // Settings & PPDB Sync API routes - ensures all devices see the exact same PPDB and portal settings instantly
   const SETTINGS_STORAGE_PATH = path.join(process.cwd(), '.portal_settings.json');
   const PPDB_STORAGE_PATH = path.join(process.cwd(), '.portal_ppdb.json');
+  const PPDB_ARCHIVE_STORAGE_PATH = path.join(process.cwd(), '.portal_ppdb_archive.json');
   const STUDENTS_STORAGE_PATH = path.join(process.cwd(), '.portal_students.json');
   const STAFF_STORAGE_PATH = path.join(process.cwd(), '.portal_staff_users.json');
+  const STAFF_CONFIGS_STORAGE_PATH = path.join(process.cwd(), '.portal_staff_configs.json');
+
+  // Static uploads serving
+  const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.use('/uploads', express.static(uploadsDir));
 
   app.get("/api/settings", (req, res) => {
     try {
@@ -124,7 +133,17 @@ async function startServer() {
         } catch (e) {}
       }
 
+      if (incoming && incoming.action === 'replace' && Array.isArray(incoming.ppdb)) {
+        fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(incoming.ppdb, null, 2), 'utf-8');
+        return res.json({ success: true, count: incoming.ppdb.length });
+      }
+
       if (Array.isArray(incoming)) {
+        // If query replace=true or incoming array provided to sync
+        if (req.query.replace === 'true') {
+          fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
+          return res.json({ success: true, count: incoming.length });
+        }
         // Merge without losing data
         const map = new Map<string, any>();
         list.forEach(item => { if (item && item.id) map.set(item.id, item); });
@@ -143,7 +162,47 @@ async function startServer() {
         return res.json({ success: true, count: list.length });
       }
     } catch (e) {
-      console.error("Error saving ppdb:", e);
+      console.error("Error saving ppdb file:", e);
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  app.delete("/api/ppdb/:id", (req, res) => {
+    try {
+      const id = req.params.id;
+      if (fs.existsSync(PPDB_STORAGE_PATH)) {
+        let list: any[] = JSON.parse(fs.readFileSync(PPDB_STORAGE_PATH, 'utf-8') || '[]');
+        list = list.filter((p: any) => p && p.id !== id);
+        fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.json({ success: true, count: 0 });
+  });
+
+  // PPDB Archive persistence
+  app.get("/api/ppdb-archive", (req, res) => {
+    try {
+      if (fs.existsSync(PPDB_ARCHIVE_STORAGE_PATH)) {
+        const raw = fs.readFileSync(PPDB_ARCHIVE_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, archive: Array.isArray(parsed) ? parsed : [] });
+      }
+    } catch (e) {}
+    return res.json({ success: true, archive: [] });
+  });
+
+  app.post("/api/ppdb-archive", (req, res) => {
+    try {
+      const incoming = req.body;
+      if (Array.isArray(incoming)) {
+        fs.writeFileSync(PPDB_ARCHIVE_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
+        return res.json({ success: true, count: incoming.length });
+      }
+    } catch (e) {
       return res.status(500).json({ success: false, error: String(e) });
     }
     return res.status(400).json({ success: false, error: "Invalid payload" });
@@ -239,6 +298,65 @@ async function startServer() {
       return res.status(500).json({ success: false, error: String(e) });
     }
     return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  // Staff Configs persistence (name, letter templates, signature photo, seal photo)
+  app.get("/api/staff-configs", (req, res) => {
+    try {
+      if (fs.existsSync(STAFF_CONFIGS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(STAFF_CONFIGS_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, configs: parsed || {} });
+      }
+    } catch (e) {}
+    return res.json({ success: true, configs: {} });
+  });
+
+  app.post("/api/staff-configs", (req, res) => {
+    try {
+      const incoming = req.body;
+      let existing: Record<string, any> = {};
+      if (fs.existsSync(STAFF_CONFIGS_STORAGE_PATH)) {
+        try {
+          existing = JSON.parse(fs.readFileSync(STAFF_CONFIGS_STORAGE_PATH, 'utf-8')) || {};
+        } catch (e) {}
+      }
+
+      if (incoming && incoming.role && incoming.config) {
+        existing[incoming.role] = { ...(existing[incoming.role] || {}), ...incoming.config };
+      } else if (incoming && typeof incoming === 'object') {
+        existing = { ...existing, ...incoming };
+      }
+      fs.writeFileSync(STAFF_CONFIGS_STORAGE_PATH, JSON.stringify(existing, null, 2), 'utf-8');
+      return res.json({ success: true, configs: existing });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
+  // Dedicated image upload endpoint (saves photo to disk and returns accessible path or base64)
+  app.post("/api/upload", (req, res) => {
+    try {
+      const { dataUrl, filename, category } = req.body;
+      if (!dataUrl || typeof dataUrl !== 'string') {
+        return res.status(400).json({ success: false, error: "dataUrl required" });
+      }
+
+      // Check if it's base64 data url
+      const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const ext = matches[1].split('/')[1] || 'png';
+        const cleanExt = ext === 'jpeg' ? 'jpg' : ext;
+        const safeName = (filename || `${category || 'img'}_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_') + `.${cleanExt}`;
+        const filePath = path.join(uploadsDir, safeName);
+        fs.writeFileSync(filePath, Buffer.from(matches[2], 'base64'));
+        const publicUrl = `/uploads/${safeName}`;
+        return res.json({ success: true, url: publicUrl, dataUrl });
+      }
+      return res.json({ success: true, url: dataUrl, dataUrl });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
   });
 
   // API Route: AI Validation Assistant

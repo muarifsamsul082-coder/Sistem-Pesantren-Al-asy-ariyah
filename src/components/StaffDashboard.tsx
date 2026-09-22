@@ -446,6 +446,11 @@ export default function StaffDashboard({
     window.dispatchEvent(new Event('pesantren_admin_name_updated'));
     window.dispatchEvent(new Event('staff_configs_updated'));
     window.dispatchEvent(new Event('pesantren_db_sync'));
+    fetch('/api/staff-configs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, config: dataObj })
+    }).catch(() => {});
     if (isSupabaseConfigured()) {
       pushStaffConfigToSupabase(role, { name: deptName, signature: deptSignature, seal: deptSeal }).catch(e => console.error(e));
     }

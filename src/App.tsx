@@ -410,14 +410,61 @@ export default function App() {
         const ppdbRes = await fetch('/api/ppdb');
         if (ppdbRes.ok) {
           const ppdbJson = await ppdbRes.json();
-          if (ppdbJson && ppdbJson.success && Array.isArray(ppdbJson.ppdb) && ppdbJson.ppdb.length > 0) {
+          if (ppdbJson && ppdbJson.success && Array.isArray(ppdbJson.ppdb)) {
+            const serverPpdb = ppdbJson.ppdb;
             const localPpdb = getLocal<PCSBRegistration[]>('pesantren_ppdb', []);
-            const map = new Map<string, PCSBRegistration>();
-            localPpdb.forEach(p => { if (p && p.id) map.set(p.id, p); });
-            ppdbJson.ppdb.forEach((p: PCSBRegistration) => { if (p && p.id) map.set(p.id, p); });
-            const merged = Array.from(map.values());
-            setPpdbList(merged);
-            localStorage.setItem('pesantren_ppdb', JSON.stringify(merged));
+            
+            // If local has new items not on server, push them
+            const serverIds = new Set(serverPpdb.map((p: any) => p.id));
+            const unsynced = localPpdb.filter(p => p && p.id && !serverIds.has(p.id));
+            if (unsynced.length > 0 && serverPpdb.length > 0) {
+              // Push unsynced items to server
+              unsynced.forEach(item => {
+                fetch('/api/ppdb', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(item)
+                }).catch(() => {});
+              });
+              const merged = [...unsynced, ...serverPpdb];
+              setPpdbList(merged);
+              localStorage.setItem('pesantren_ppdb', JSON.stringify(merged));
+            } else if (serverPpdb.length > 0 || localPpdb.length === 0) {
+              setPpdbList(serverPpdb);
+              localStorage.setItem('pesantren_ppdb', JSON.stringify(serverPpdb));
+            } else if (localPpdb.length > 0 && serverPpdb.length === 0) {
+              // Push local to server to initialize server database
+              fetch('/api/ppdb', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(localPpdb)
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch (e) {}
+
+      // Sync PPDB Archive from server across devices
+      try {
+        const archRes = await fetch('/api/ppdb-archive');
+        if (archRes.ok) {
+          const archJson = await archRes.json();
+          if (archJson && archJson.success && Array.isArray(archJson.archive)) {
+            const serverArchive = archJson.archive;
+            const localArchive = getLocal<any[]>('pesantren_ppdb_archive', []);
+            if (serverArchive.length > 0) {
+              const map = new Map<string, any>();
+              localArchive.forEach(item => { if (item && item.id) map.set(item.id, item); });
+              serverArchive.forEach((item: any) => { if (item && item.id) map.set(item.id, item); });
+              const merged = Array.from(map.values());
+              localStorage.setItem('pesantren_ppdb_archive', JSON.stringify(merged));
+            } else if (localArchive.length > 0) {
+              fetch('/api/ppdb-archive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(localArchive)
+              }).catch(() => {});
+            }
           }
         }
       } catch (e) {}
@@ -448,10 +495,56 @@ export default function App() {
             const localStaff = getLocal<any[]>('pesantren_staff_users', []);
             const map = new Map<string, any>();
             localStaff.forEach(u => { if (u && u.email) map.set(u.email.toLowerCase(), u); });
-            staffJson.staffUsers.forEach((u: any) => { if (u && u.email) map.set(u.email.toLowerCase(), u); });
+            staffJson.staffUsers.forEach((u: any) => { 
+              if (u && u.email) {
+                map.set(u.email.toLowerCase(), u);
+                // Also cache name to local storage so device immediately shows resolved name
+                const resolvedName = u.fullName || u.name;
+                if (resolvedName) {
+                  localStorage.setItem('staff_custom_name_' + u.email.toLowerCase(), resolvedName);
+                  if (u.role === 'admin') {
+                    localStorage.setItem('admin_custom_name_' + u.email.toLowerCase(), resolvedName);
+                  }
+                }
+              }
+            });
             const merged = Array.from(map.values());
             localStorage.setItem('pesantren_staff_users', JSON.stringify(merged));
+            
+            // Check if current user session needs updated name
+            const currentSess = getLocal<any>('pesantren_session', null);
+            if (currentSess && currentSess.email) {
+              const matched = merged.find(u => u.email.toLowerCase() === currentSess.email.toLowerCase());
+              if (matched && (matched.fullName || matched.name) && currentSess.fullName !== (matched.fullName || matched.name)) {
+                const updatedSess = { ...currentSess, fullName: matched.fullName || matched.name };
+                setSession(updatedSess);
+                localStorage.setItem('pesantren_session', JSON.stringify(updatedSess));
+              }
+            }
+            
             window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+          }
+        }
+      } catch (e) {}
+
+      // Sync Staff Configs (names, templates, signatures, stamps) across devices
+      try {
+        const configRes = await fetch('/api/staff-configs');
+        if (configRes.ok) {
+          const configJson = await configRes.json();
+          if (configJson && configJson.success && configJson.configs) {
+            const configs = configJson.configs;
+            (['keamanan', 'ketertiban', 'kesehatan'] as const).forEach(dept => {
+              if (configs[dept]) {
+                const existing = getLocal<any>(`${dept}_config`, {});
+                const merged = { ...existing, ...configs[dept] };
+                localStorage.setItem(`${dept}_config`, JSON.stringify(merged));
+                if (merged.name) {
+                  localStorage.setItem(`staff_custom_name_${dept}@alasyariyah.sch.id`, merged.name);
+                }
+              }
+            });
+            window.dispatchEvent(new Event('staff_configs_updated'));
           }
         }
       } catch (e) {}

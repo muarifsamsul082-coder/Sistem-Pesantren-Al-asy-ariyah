@@ -1958,6 +1958,13 @@ export default function AdminDashboard({
     if (isSupabaseConfigured()) {
       pushAllStaffUsersToSupabase(updated).catch(() => {});
     }
+    if (target.role && ['keamanan', 'ketertiban', 'kesehatan'].includes(target.role)) {
+      fetch('/api/staff-configs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: target.role, config: { name: newName.trim() } })
+      }).catch(() => {});
+    }
     fetch('/api/staff-users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2498,7 +2505,15 @@ export default function AdminDashboard({
           setPpdbArchive(newArchive);
           localStorage.setItem('pesantren_ppdb_archive', JSON.stringify(newArchive));
           
-          setPpdbList(ppdbList.filter(p => p.id !== id));
+          const rem = ppdbList.filter(p => p.id !== id);
+          setPpdbList(rem);
+          localStorage.setItem('pesantren_ppdb', JSON.stringify(rem));
+          fetch('/api/ppdb-archive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newArchive)
+          }).catch(() => {});
+          fetch(`/api/ppdb/${id}`, { method: 'DELETE' }).catch(() => {});
           showAlert('danger', `Pendaftaran ${registration.fullName} telah ditolak dan diarsipkan.`);
         }
       );
@@ -2614,6 +2629,12 @@ export default function AdminDashboard({
     localStorage.setItem('pesantren_bills', JSON.stringify([...newBillsList, ...bills]));
 
     // Sinkronisasi otomatis ke Supabase Cloud (Langsung masuk ke tabel santri & tagihan di semua perangkat)
+    fetch('/api/ppdb-archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newArchive)
+    }).catch(() => {});
+    fetch(`/api/ppdb/${id}`, { method: 'DELETE' }).catch(() => {});
     if (isSupabaseConfigured()) {
       pushStudentToSupabase(newStudent).catch(e => console.error('Cloud push student error:', e));
       pushAllBillsToSupabase(newBillsList).catch(e => console.error('Cloud push bills error:', e));
@@ -4503,6 +4524,7 @@ export default function AdminDashboard({
                           const updatedList = ppdbList.filter(p => p.id !== reg.id);
                           setPpdbList(updatedList);
                           localStorage.setItem('pesantren_ppdb', JSON.stringify(updatedList));
+                          fetch(`/api/ppdb/${reg.id}`, { method: 'DELETE' }).catch(() => {});
                           if (isSupabaseConfigured()) {
                             deletePpdbFromSupabase(reg.id).catch(e => console.error('Cloud delete PPDB error:', e));
                           }
