@@ -614,7 +614,7 @@ export default function AdminDashboard({
         const found = staffList.find((u: any) => u.email?.toLowerCase() === userEmail);
         if (found && (found.fullName || found.name)) return found.fullName || found.name;
       } catch (e) {}
-      if (userEmail === 'muarifsamsul082@gmail.com') return 'Muarif Samsul';
+      if (userEmail === 'muarifsamsul082@gmail.com') return 'Ustadz Samsul';
     }
     return session?.roleName || 'Admin Utama';
   }, [session, adminNameVersion]);
@@ -906,6 +906,48 @@ export default function AdminDashboard({
       window.open(waUrl, '_blank');
     }
     return { success: true, mode: 'direct', phone, waUrl };
+  };
+
+  // Universal WhatsApp dispatcher: sends via Pesantren Gateway (official number) if configured, or direct wa.me fallback
+  const sendWhatsAppUniversal = async (
+    phone: string,
+    message: string,
+    type: string,
+    recipientLabel: string
+  ): Promise<{ success: boolean; mode: 'gateway' | 'direct' }> => {
+    const cleanPhone = formatPhoneForWhatsApp(phone);
+    const gwToken = settings.waGatewayToken || localStorage.getItem('pesantren_wa_gateway_token') || '';
+    const gwUrl = settings.waGatewayUrl || localStorage.getItem('pesantren_wa_gateway_url') || 'https://api.fonnte.com/send';
+
+    if (gwToken) {
+      try {
+        const res = await fetch('/api/send-wa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: cleanPhone,
+            message: message,
+            token: gwToken,
+            url: gwUrl
+          })
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
+          saveWaLog(`${type} (Gateway Resmi)`, cleanPhone, recipientLabel, message);
+          return { success: true, mode: 'gateway' };
+        }
+      } catch (err) {
+        console.warn('Gateway dispatch error, falling back to direct:', err);
+      }
+    }
+
+    try {
+      window.open(formatWhatsAppUrl(cleanPhone, message), '_blank');
+    } catch (e) {
+      console.warn("Popup blocked or not allowed", e);
+    }
+    saveWaLog(`${type} (Direct WA)`, cleanPhone, recipientLabel, message);
+    return { success: true, mode: 'direct' };
   };
 
   // Sync WhatsApp Forgot Requests and logs from LocalStorage
@@ -2252,6 +2294,9 @@ export default function AdminDashboard({
     const address = settings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur";
     const tagline = settings.tagline || "Mencetak Generasi Qur'ani, Berakhlakul Karimah";
 
+    // Strictly filter active students only (exclude alumni)
+    const activeStudents = students.filter(s => s && s.status !== 'Alumni' && s.status !== 'Berhenti');
+
     let html = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head>
@@ -2260,7 +2305,7 @@ export default function AdminDashboard({
           <x:ExcelWorkbook>
             <x:ExcelWorksheets>
               <x:ExcelWorksheet>
-                <x:Name>Database Lengkap Santri</x:Name>
+                <x:Name>Database Santri Aktif</x:Name>
                 <x:WorksheetOptions>
                   <x:DisplayGridlines/>
                 </x:WorksheetOptions>
@@ -2290,7 +2335,7 @@ export default function AdminDashboard({
               <div class="kop-subtitle">${address}</div>
               <div class="kop-subtitle" style="font-style: italic; font-weight: bold; color: #047857;">${tagline}</div>
               <div style="font-size: 13px; font-weight: bold; margin-top: 10px; border-bottom: 2px solid #064e3b; padding-bottom: 5px; color: #064e3b;">
-                LAPORAN DATABASE INDUK SANTRI & ALUMNI LENGKAP - TAHUN ${new Date().getFullYear()} (TOTAL: ${students.length} SANTRI)
+                LAPORAN DATA INDUK SANTRI AKTIF - TAHUN ${new Date().getFullYear()} (TOTAL: ${activeStudents.length} SANTRI)
               </div>
             </td>
           </tr>
@@ -2301,7 +2346,7 @@ export default function AdminDashboard({
           <thead>
             <tr>
               <th rowspan="2" style="width: 40px; text-align: center;">No</th>
-              <th rowspan="2" style="text-align: center;">NIS / NIA</th>
+              <th rowspan="2" style="text-align: center;">NIS</th>
               <th rowspan="2">Nama Lengkap Santri</th>
               <th rowspan="2" style="text-align: center;">Asrama / Kamar</th>
               <th colspan="2" style="text-align: center; background-color: #047857;">Sekolah / Pendidikan</th>
@@ -2321,8 +2366,6 @@ export default function AdminDashboard({
               <th rowspan="2">Alamat Lengkap</th>
               <th rowspan="2">Akun / Catatan Madrasah</th>
               <th rowspan="2">Email Akun Portal</th>
-              <th rowspan="2">Tahun Lulus / Keluar</th>
-              <th rowspan="2">Sebab / Alasan Alumni</th>
             </tr>
             <tr>
               <th style="text-align: center; background-color: #065f46;">Formal</th>
@@ -2332,8 +2375,8 @@ export default function AdminDashboard({
           <tbody>
     `;
 
-    students.forEach((s, idx) => {
-      const statusColor = s.status === 'Aktif' ? '#15803d' : s.status === 'Alumni' ? '#1e40af' : s.status === 'Cuti' ? '#b45309' : '#b91c1c';
+    activeStudents.forEach((s, idx) => {
+      const statusColor = s.status === 'Aktif' ? '#15803d' : '#b45309';
       html += `
         <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
           <td class="text-center">${idx + 1}</td>
@@ -2358,8 +2401,6 @@ export default function AdminDashboard({
           <td>${s.address || '-'}</td>
           <td>${s.akunMadrasah || '-'}</td>
           <td>${s.email || '-'}</td>
-          <td>${s.tahunKeluar || '-'}</td>
-          <td>${s.alumniReason || '-'}</td>
         </tr>
       `;
     });
@@ -2375,11 +2416,126 @@ export default function AdminDashboard({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `DATABASE_LENGKAP_SANTRI_${new Date().getFullYear()}.xls`);
+    link.setAttribute('download', `DATA_SANTRI_AKTIF_${new Date().getFullYear()}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showAlert('success', 'Database seluruh santri lengkap (' + students.length + ' data santri & alumni tanpa terkecuali) berhasil diekspor ke Excel!');
+    showAlert('success', `Data santri aktif (${activeStudents.length} santri tanpa data alumni) berhasil diekspor ke Excel!`);
+  };
+
+  const exportAlumniToExcel = () => {
+    const title = settings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
+    const address = settings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur";
+    const tagline = settings.tagline || "Mencetak Generasi Qur'ani, Berakhlakul Karimah";
+
+    // Strictly filter alumni only
+    const alumniList = students.filter(s => s && (s.status === 'Alumni' || s.status === 'Berhenti'));
+
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Buku Induk Alumni</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: 'Arial', sans-serif; font-size: 11px; }
+          .kop-title { font-size: 16px; font-weight: bold; text-transform: uppercase; color: #78350f; }
+          .kop-subtitle { font-size: 11px; color: #475569; }
+          .data-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          .data-table th { border: 1px solid #94a3b8; background-color: #78350f; color: #ffffff; padding: 8px 6px; font-size: 11px; font-weight: bold; text-align: left; text-transform: uppercase; }
+          .data-table td { border: 1px solid #cbd5e1; padding: 6px; font-size: 11px; vertical-align: top; }
+          .text-center { text-align: center; }
+          .text-bold { font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <!-- KOP SURAT RESMI -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="text-align: left;">
+              <div class="kop-title">${title}</div>
+              <div class="kop-subtitle">${address}</div>
+              <div class="kop-subtitle" style="font-style: italic; font-weight: bold; color: #b45309;">${tagline}</div>
+              <div style="font-size: 13px; font-weight: bold; margin-top: 10px; border-bottom: 2px solid #78350f; padding-bottom: 5px; color: #78350f;">
+                BUKU INDUK ALUMNI PONDOK PESANTREN - TAHUN ${new Date().getFullYear()} (TOTAL: ${alumniList.length} ALUMNI)
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- DATA TABLE -->
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width: 40px; text-align: center;">No</th>
+              <th rowspan="2" style="text-align: center;">NIA / NIS</th>
+              <th rowspan="2">Nama Lengkap Alumni</th>
+              <th rowspan="2" style="text-align: center;">Tahun Lulus / Keluar</th>
+              <th rowspan="2" style="text-align: center;">Status Alumni</th>
+              <th rowspan="2" style="text-align: center;">Jenis Kelamin</th>
+              <th colspan="2" style="text-align: center; background-color: #92400e;">Sekolah Terakhir</th>
+              <th rowspan="2">Alasan / Keterangan</th>
+              <th rowspan="2">No. WhatsApp / HP</th>
+              <th rowspan="2">Alamat Lengkap</th>
+              <th rowspan="2">Nama Orang Tua / Wali</th>
+              <th rowspan="2">Total Hafalan Qur'an</th>
+            </tr>
+            <tr>
+              <th style="text-align: center; background-color: #78350f;">Formal</th>
+              <th style="text-align: center; background-color: #78350f;">Madrasah</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    alumniList.forEach((a, idx) => {
+      html += `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fefce8'};">
+          <td class="text-center">${idx + 1}</td>
+          <td style="mso-number-format:'\\@'; text-align: center;" class="text-bold">${a.alumniId || a.nis || a.id || '-'}</td>
+          <td class="text-bold">${a.fullName || '-'}</td>
+          <td style="text-align: center; font-weight: bold; color: #92400e;">${a.tahunKeluar || '-'}</td>
+          <td style="text-align: center; font-weight: bold; color: #1e40af;">${a.status || 'Alumni'}</td>
+          <td style="text-align: center;">${a.gender || '-'}</td>
+          <td style="text-align: center;">${a.classFormal || a.classSore || '-'}</td>
+          <td style="text-align: center;">${a.classMadrasah || a.classPagi || a.class || '-'}</td>
+          <td>${a.alumniReason || '-'}</td>
+          <td style="mso-number-format:'\\@';">${a.parentPhone || '-'}</td>
+          <td>${a.address || '-'}</td>
+          <td>${a.parentName || a.guardianName || a.fatherName || '-'}</td>
+          <td class="text-bold">${a.currentHafalan || '-'}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `BUKU_INDUK_ALUMNI_${new Date().getFullYear()}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showAlert('success', `Data alumni (${alumniList.length} alumni terpisah dari santri aktif) berhasil diekspor ke Excel!`);
   };
 
   // Add News
@@ -2514,7 +2670,19 @@ export default function AdminDashboard({
             body: JSON.stringify(newArchive)
           }).catch(() => {});
           fetch(`/api/ppdb/${id}`, { method: 'DELETE' }).catch(() => {});
-          showAlert('danger', `Pendaftaran ${registration.fullName} telah ditolak dan diarsipkan.`);
+
+          // Dispatch automatic polite WhatsApp notice to parent
+          if (registration.parentPhone) {
+            const rejectMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${registration.fullName}*,\n\nKami menginformasikan bahwa setelah melalui proses verifikasi berkas pendaftaran santri baru (PCSB) di *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}*, pendaftaran ananda saat ini *Belum Dapat Diterima* atau ditolak oleh panitia seleksi.\n\nUntuk informasi dan konsultasi lebih lanjut, silakan menghubungi Sekretariat Panitia PCSB Pesantren.\n\nJazakumullah Khairan Katsiran.\nWassalamu'alaikum Wr. Wb.\n_Panitia PCSB Pesantren_`;
+            sendWhatsAppUniversal(
+              registration.parentPhone,
+              rejectMsg,
+              'Penolakan Pendaftaran PCSB',
+              `${registration.parentName || 'Wali'} (${registration.fullName})`
+            );
+          }
+
+          showAlert('danger', `Pendaftaran ${registration.fullName} telah ditolak, diarsipkan, dan notifikasi WA dikirim.`);
         }
       );
     }
@@ -2643,15 +2811,15 @@ export default function AdminDashboard({
     }
     window.dispatchEvent(new Event('pesantren_db_sync'));
 
-    // Kirim Akun Login Santri / Wali Santri via WhatsApp secara otomatis
+    // Kirim Akun Login Santri / Wali Santri via WhatsApp secara otomatis (menggunakan Gateway Pesantren jika aktif)
     const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu Wali dari *${registration.fullName}*,\n\nAlhamdulillah, verifikasi fisik & konfirmasi kehadiran santri baru di Pondok Pesantren Al-Asy'ariyah telah BERHASIL!\n\nBerikut adalah info akun login untuk masuk ke Portal Santri / Wali Santri:\n• *Situs Web Portal:* ${window.location.origin}\n• *NIS (Username):* ${generatedNis}\n• *Email:* ${email}\n• *Password Default (NIS):* ${generatedNis}\n\nSilakan simpan informasi login ini dengan baik.\n\nWassalamu'alaikum Wr. Wb.\n-- Panitia Penerimaan Santri Al-Asy'ariyah --`;
     
-    try {
-      window.open(formatWhatsAppUrl(registration.parentPhone, waMsg), '_blank');
-    } catch (e) {
-      console.warn("Popup blocked or not allowed in sandbox iframe", e);
-    }
-    saveWaLog('Calon Santri Hadir (Verifikasi & Akun)', registration.parentPhone, `${registration.parentName} (Wali ${registration.fullName})`, waMsg);
+    sendWhatsAppUniversal(
+      registration.parentPhone,
+      waMsg,
+      'Calon Santri Hadir (Verifikasi & Akun)',
+      `${registration.parentName} (Wali ${registration.fullName})`
+    );
 
     showAlert('success', `${registration.fullName} berhasil diverifikasi & dipindahkan ke Database Santri! Info kredensial login berhasil dikirim ke orang tua via WhatsApp.`);
     setPpdbConfirmData(null);
@@ -2864,10 +3032,24 @@ export default function AdminDashboard({
 
       setBills([...generatedBills, ...bills]);
       
+      if (sendWhatsAppOnBill) {
+        targetStudents.forEach(async (std) => {
+          if (!std.parentPhone) return;
+          const totalPkgAmount = packageItems.reduce((acc, it) => acc + it.amount, 0);
+          const pkgBreakdown = packageItems.map(it => `• ${it.title}: Rp ${it.amount.toLocaleString('id-ID')}`).join('\n');
+          const accounts = settings.rekeningList || [];
+          const bankInfo = accounts.length > 0
+            ? `💳 *Rekening Pembayaran:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n') + `\n\n`
+            : '';
+          const pkgMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${std.fullName}* (NIS: ${std.nis || '-'}),\n\nBerikut rincian tagihan *Paket Biaya Masuk / Santri Baru* dari *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}*:\n\n📋 *Rincian Komponen Paket:*\n${pkgBreakdown}\n\n💰 *Total Tagihan Paket:* Rp ${totalPkgAmount.toLocaleString('id-ID')}\n📅 *Batas Jatuh Tempo:* ${billDueDate || '-'}\n\n${bankInfo}Bukti transfer dapat diunggah melalui Portal Santri pada menu Tagihan Keuangan.\n\nJazakumullah Khairan Katsiran.\nWassalamu'alaikum Wr. Wb.\n_Bendahara Pesantren_`;
+          await sendWhatsAppUniversal(std.parentPhone, pkgMsg, 'Tagihan Paket Santri Baru', `Wali ${std.fullName}`);
+        });
+      }
+
       if (billRecipientType === 'single') {
-        showAlert('success', `Berhasil membuat ${packageItems.length} tagihan paket santri baru untuk ${targetStudents[0].fullName}.`);
+        showAlert('success', `Berhasil membuat ${packageItems.length} tagihan paket santri baru untuk ${targetStudents[0].fullName}. Notifikasi rincian tagihan otomatis dikirimkan via WhatsApp.`);
       } else {
-        showAlert('success', `Berhasil mengirimkan paket ${packageItems.length} tagihan ke seluruh (${targetStudents.length}) santri aktif.`);
+        showAlert('success', `Berhasil mengirimkan paket ${packageItems.length} tagihan ke seluruh (${targetStudents.length}) santri aktif dan menyiarkannya via WhatsApp.`);
       }
 
     } else {
@@ -2982,10 +3164,27 @@ export default function AdminDashboard({
       
       const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${recipientName},\n\nKami menginformasikan bahwa pembayaran tagihan *${targetBill.title}* atas nama santri *${targetBill.studentName}* senilai *Rp ${targetBill.amount.toLocaleString()}* telah DISETUJUI dan diverifikasi LUNAS oleh Bendahara Al-Asy'ariyah.\n\nTerima kasih banyak atas partisipasi dan kontribusi bapak/ibu wali santri.\n\nWassalamu'alaikum Wr. Wb.\n-- Bendahara Pondok Pesantren Al-Asy'ariyah --`;
       
-      window.open(formatWhatsAppUrl(recipientPhone, waMsg), '_blank');
-      saveWaLog('Persetujuan Pembayaran', recipientPhone, `${recipientName} (Wali ${targetBill.studentName})`, waMsg);
-      
-      showAlert('success', `Status tagihan diperbarui! Bukti WhatsApp berhasil disiapkan untuk dikirim ke nomor +62${recipientPhone}`);
+      sendWhatsAppUniversal(
+        recipientPhone,
+        waMsg,
+        'Persetujuan Pembayaran',
+        `${recipientName} (Wali ${targetBill.studentName})`
+      );
+      showAlert('success', `Status tagihan diperbarui! Notifikasi pelunasan WhatsApp dikirimkan ke nomor +62${recipientPhone}`);
+    } else if (targetBill && newStatus === 'Belum Lunas' && targetBill.paymentProofUrl) {
+      const student = students.find(s => s.id === targetBill.studentId);
+      const recipientPhone = student?.parentPhone;
+      const recipientName = student?.parentName || 'Wali Santri';
+      if (recipientPhone) {
+        const rejectMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${recipientName},\n\nMohon maaf, bukti pembayaran yang Anda unggah untuk tagihan *${targetBill.title}* atas nama ananda *${targetBill.studentName}* belum dapat disetujui oleh Bendahara Pesantren (bukti kurang jelas / nominal tidak sesuai).\n\nSilakan periksa kembali mutasi Anda dan unggah ulang bukti transfer yang valid melalui Portal Santri.\n\nTerima kasih.\nWassalamu'alaikum Wr. Wb.\n-- Bendahara Pesantren --`;
+        sendWhatsAppUniversal(
+          recipientPhone,
+          rejectMsg,
+          'Penolakan Bukti Pembayaran',
+          `${recipientName} (Wali ${targetBill.studentName})`
+        );
+      }
+      showAlert('danger', 'Status tagihan dikembalikan ke Belum Lunas dan notifikasi revisi terkirim ke WhatsApp wali santri.');
     } else {
       showAlert('success', 'Status Pembayaran Tagihan berhasil diperbarui!');
     }
@@ -3299,15 +3498,15 @@ export default function AdminDashboard({
         >
           {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Sapaan Salam Friendly (Kotak Hijau) */}
-          <div className="mb-6 font-sans text-left bg-gradient-to-r from-emerald-800 to-teal-950 p-5 sm:p-6 rounded-2xl border border-emerald-950 flex items-center gap-4 shadow-md text-white">
-            <span className="text-3xl filter drop-shadow">👋</span>
+          {/* Sapaan Salam Friendly (Kotak Hijau Ringkas) */}
+          <div className="mb-6 font-sans text-left bg-gradient-to-r from-emerald-800 to-teal-950 p-4 sm:p-5 rounded-2xl border border-emerald-950 flex items-center gap-3.5 shadow-sm text-white">
+            <span className="text-2xl filter drop-shadow">👋</span>
             <div>
-              <h2 className="text-base font-black tracking-wide uppercase">
-                ASSALAMU'ALAIKUM WR. WB. SELAMAT DATANG KEMBALI, <span className="text-amber-300 underline decoration-amber-400 decoration-2 font-black">{currentAdminName}</span>!
+              <h2 className="text-sm sm:text-base font-extrabold tracking-wide uppercase">
+                Assalamu'alaikum, <span className="text-amber-300 font-black">{currentAdminName}</span>
               </h2>
-              <p className="text-emerald-100 text-xs mt-1 leading-relaxed font-medium">
-                Selamat menjalankan amanah dan mengawal khidmah administrasi selaku <strong className="text-amber-200 font-extrabold uppercase">{session?.role === 'admin' ? 'Administrator' : (session?.roleName || 'Admin')}</strong>. Semoga seluruh ikhtiar Anda dalam memajukan pangkalan data Pondok Pesantren Al-Asy'ariyah senantiasa bernilai ibadah serta membawa keberkahan dunia akhirat.
+              <p className="text-emerald-100/90 text-xs mt-0.5 font-medium">
+                Selamat bertugas mengawal administrasi Pondok Pesantren Al-Asy'ariyah.
               </p>
             </div>
           </div>
@@ -4524,9 +4723,26 @@ export default function AdminDashboard({
                           const updatedList = ppdbList.filter(p => p.id !== reg.id);
                           setPpdbList(updatedList);
                           localStorage.setItem('pesantren_ppdb', JSON.stringify(updatedList));
+
+                          // Blacklist deleted ID so local and cloud sync never resurrects it
+                          try {
+                            const deletedIds = JSON.parse(localStorage.getItem('pesantren_deleted_ppdb_ids') || '[]');
+                            if (!deletedIds.includes(reg.id)) {
+                              deletedIds.push(reg.id);
+                              localStorage.setItem('pesantren_deleted_ppdb_ids', JSON.stringify(deletedIds));
+                            }
+                          } catch (e) {}
+
                           fetch(`/api/ppdb/${reg.id}`, { method: 'DELETE' }).catch(() => {});
+                          fetch('/api/ppdb', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'replace', ppdb: updatedList })
+                          }).catch(() => {});
+
                           if (isSupabaseConfigured()) {
                             deletePpdbFromSupabase(reg.id).catch(e => console.error('Cloud delete PPDB error:', e));
+                            pushAllPpdbToSupabase(updatedList).catch(e => console.error('Cloud push PPDB error:', e));
                           }
                           window.dispatchEvent(new Event('pesantren_db_sync'));
                           showAlert('danger', `Data pendaftaran ${reg.fullName} berhasil dihapus.`);
@@ -4952,9 +5168,16 @@ export default function AdminDashboard({
                         `Daftar_Alumni_${alumniYearFilter !== 'Semua' ? 'Tahun_' + alumniYearFilter : 'Semua_Angkatan'}`
                       );
                     }}
-                    className="col-span-2 sm:col-span-1 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-700 text-white rounded-xl text-xs font-bold shadow-md hover:from-amber-600 hover:to-amber-800 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    className="col-span-1 px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-800 text-white rounded-xl text-xs font-bold shadow-md hover:from-amber-700 hover:to-amber-900 transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    <Download className="h-3.5 w-3.5" /> Ekspor Cetak
+                    <Printer className="h-3.5 w-3.5" /> Cetak Data Alumni
+                  </button>
+
+                  <button
+                    onClick={exportAlumniToExcel}
+                    className="col-span-1 px-4 py-2 bg-gradient-to-r from-teal-600 to-teal-800 text-white rounded-xl text-xs font-bold shadow-md hover:from-teal-700 hover:to-teal-900 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Ekspor Excel Alumni
                   </button>
                 </div>
               </div>
@@ -8769,7 +8992,15 @@ export default function AdminDashboard({
                     updateAndPersistSettings(updated);
                     localStorage.setItem('pesantren_wa_gateway_token', waGatewayTokenInput.trim());
                     localStorage.setItem('pesantren_wa_gateway_url', waGatewayUrlInput.trim());
-                    showAlert('success', waGatewayTokenInput.trim() ? 'Konfigurasi WhatsApp Gateway berhasil disimpan & aktif!' : 'Token gateway dinonaktifkan (kembali ke Mode Direct wa.me).');
+                    fetch('/api/wa-token', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        token: waGatewayTokenInput.trim(),
+                        url: waGatewayUrlInput.trim()
+                      })
+                    }).catch(() => {});
+                    showAlert('success', waGatewayTokenInput.trim() ? 'Konfigurasi WhatsApp Gateway berhasil disimpan & aktif di semua perangkat!' : 'Token gateway dinonaktifkan (kembali ke Mode Direct wa.me).');
                   }}
                   className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-lg transition cursor-pointer shadow-xs"
                 >
@@ -9038,10 +9269,14 @@ export default function AdminDashboard({
                                     waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu Wali Santri dari *${capitalizedName}*,\n\nPermintaan info kredensial login Anda telah disetujui oleh Administrator Pesantren Al-Asy'ariyah.\n\nBerikut detail info akun untuk login ke portal:\n• *Situs Web Portal:* ${window.location.origin}\n• *NIS (Username):* ${finalNis}\n${actualCreds}\n\nSilakan simpan informasi ini baik-baik demi keutuhan data akademik santri.\n\nWassalamu'alaikum Wr. Wb.\n-- Admin Pondok Pesantren Al-Asy'ariyah --`;
                                   }
                                   
-                                  window.open(formatWhatsAppUrl(req.parentPhone, waMsg), '_blank');
-                                  saveWaLog('Persetujuan Akun', req.parentPhone, `Wali ${capitalizedName}`, waMsg);
+                                  sendWhatsAppUniversal(
+                                    req.parentPhone,
+                                    waMsg,
+                                    'Persetujuan Akun',
+                                    `Wali ${capitalizedName}`
+                                  );
 
-                                  showAlert('success', `Akses info login disetujui! Akun berhasil dikonfigurasi & WhatsApp disiapkan.`);
+                                  showAlert('success', `Akses info login disetujui! Akun berhasil dikonfigurasi & WhatsApp terkirim.`);
                                   window.dispatchEvent(new Event('forgot_requests_updated'));
                                 }}
                                 className="px-3 py-1.5 bg-gradient-to-r from-teal-800 to-emerald-900 hover:from-teal-700 hover:to-emerald-800 text-white rounded text-[11px] font-black shadow-md cursor-pointer transition flex items-center gap-1 active:scale-95"
@@ -10107,6 +10342,14 @@ export default function AdminDashboard({
                 pushStudentToSupabase(updatedStudent).catch(err => console.error('Cloud update student error:', err));
               }
               window.dispatchEvent(new Event('pesantren_db_sync'));
+
+              // Send automatic WhatsApp notice on status update (e.g. Alumni)
+              if (originalStudent && originalStudent.status !== updatedStudent.status && updatedStudent.parentPhone) {
+                if (updatedStudent.status === 'Alumni') {
+                  const alumniMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${updatedStudent.fullName}* (NIS: ${updatedStudent.nis}),\n\nAlhamdulillah, status akademik ananda di *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}* telah resmi diperbarui menjadi *ALUMNI / LULUS*.\n\nSelamat atas kelulusan ananda. Semoga ilmu dan hafalan yang diperoleh selama di pesantren berkah, bermanfaat bagi agama, nusa, dan bangsa.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Pondok Pesantren_`;
+                  sendWhatsAppUniversal(updatedStudent.parentPhone, alumniMsg, 'Pembaruan Status Alumni', `Wali ${updatedStudent.fullName}`);
+                }
+              }
 
               setEditingStudent(null);
               showAlert('success', 'Data santri/alumni berhasil diperbarui!');

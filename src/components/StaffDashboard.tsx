@@ -181,6 +181,7 @@ export default function StaffDashboard({
   const [staffSubTab, setStaffSubTab] = React.useState<'perizinan' | 'takzir' | 'kesehatan'>(
     role === 'ketertiban' ? 'takzir' : role === 'kesehatan' ? 'kesehatan' : 'perizinan'
   );
+  const [sendWhatsAppOnRecord, setSendWhatsAppOnRecord] = React.useState<boolean>(true);
 
   React.useEffect(() => {
     if (role === 'ketertiban') {
@@ -581,6 +582,33 @@ export default function StaffDashboard({
     });
 
     persistStudents(updatedStudents);
+
+    // Automatic WhatsApp dispatch to parent
+    if (sendWhatsAppOnRecord && selectedStudent?.parentPhone) {
+      const rawPhone = selectedStudent.parentPhone.replace(/[^0-9]/g, '');
+      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
+      let waMsg = '';
+      const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
+
+      if (customInputType === 'takzir') {
+        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan catatan kedisiplinan santri dari Pengurus Ketertiban & Keamanan *${schoolName}*:\n\n📌 *Pelanggaran:* ${violationType}\n⚠️ *Tingkat/Poin:* ${violationLevel} (${violationPoints} Poin)\n⚖️ *Bentuk Sanksi/Takzir:* ${violationConsequence || '-'}\n📅 *Tanggal:* ${new Date().toISOString().split('T')[0]}\n\nMohon kerja sama dan doa bapak/ibu wali santri untuk terus memotivasi ananda menjadi pribadi berakhlakul karimah.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Keamanan & Ketertiban ${schoolName}_`;
+      } else if (customInputType === 'izin') {
+        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan bahwa ananda telah diberikan Surat Izin (${permitType}) oleh Pengurus Ketertiban & Perizinan *${schoolName}*:\n\n📋 *Keperluan/Tujuan:* ${permitDesc}\n📅 *Waktu Keluar:* ${new Date().toISOString().replace('T', ' ').substring(0, 16)}\n⏰ *Batas Kembali ke Pondok:* ${expectedReturn || '-'}\n\nMohon bantu memastikan ananda kembali ke pesantren tepat waktu sesuai jadwal perizinan.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Ketertiban & Perizinan ${schoolName}_`;
+      } else if (customInputType === 'kesehatan') {
+        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan kondisi kesehatan ananda dari Pos Kesehatan Pesantren (Poskestren) *${schoolName}*:\n\n🩺 *Keluhan:* ${complaint}\n📋 *Diagnosa:* ${diagnosis}\n💊 *Tindakan/Pengobatan:* ${treatment}\n🏥 *Status Saat Ini:* ${healthStatus}\n\nSaat ini ananda dalam penanganan dan pengawasan tim medis poskestren. Mohon sambung doa untuk kesembuhan ananda.\n\nWassalamu'alaikum Wr. Wb.\n_Tim Medis Poskestren ${schoolName}_`;
+      }
+
+      if (waMsg) {
+        fetch('/api/send-wa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: cleanPhone,
+            message: waMsg
+          })
+        }).catch(err => console.warn('Auto-WA staff dispatch skipped or gateway error:', err));
+      }
+    }
     
     // Reset forms
     setPermitDesc('');
@@ -599,11 +627,16 @@ export default function StaffDashboard({
 
   // Update Security Status (Returned / Late)
   const handleUpdateReturnStatus = (studentId: string, logId: string, isLate: boolean) => {
+    let studentForNotice: Student | undefined;
+    let logForNotice: SecurityLog | undefined;
+
     const updated = students.map(s => {
       if (s.id === studentId) {
+        studentForNotice = s;
         let updatedDisciplineLogs = s.disciplineLogs || [];
         const updatedLogs = (s.securityLogs || []).map(log => {
           if (log.id === logId) {
+            logForNotice = log;
             if (isLate) {
               const newDisc: DisciplineLog = {
                 id: `disc-auto-${Date.now()}`,
@@ -636,13 +669,37 @@ export default function StaffDashboard({
       return s;
     });
     persistStudents(updated);
+
+    // Send return confirmation notice to parent
+    if (studentForNotice?.parentPhone) {
+      const rawPhone = studentForNotice.parentPhone.replace(/[^0-9]/g, '');
+      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
+      const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
+      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+      const returnMsg = isLate
+        ? `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nKami menginformasikan bahwa ananda telah tiba kembali di *${schoolName}* pada *${nowStr}* dengan status *Terlambat* dari batas jadwal izin. Ananda telah menerima pembinaan dari pos keamanan.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Keamanan & Ketertiban_`
+        : `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nAlhamdulillah, ananda telah tiba kembali di *${schoolName}* dengan selamat dan tepat waktu pada *${nowStr}*. Status perizinan ananda telah ditutup.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Keamanan & Ketertiban_`;
+
+      fetch('/api/send-wa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target: cleanPhone,
+          message: returnMsg
+        })
+      }).catch(err => console.warn('Auto-WA return notice skipped:', err));
+    }
   };
 
   const handleApprovePermit = (studentId: string, logId: string) => {
+    let studentForNotice: Student | undefined;
+    let logForNotice: SecurityLog | undefined;
     const updated = students.map(s => {
       if (s.id === studentId) {
+        studentForNotice = s;
         const updatedLogs = (s.securityLogs || []).map(log => {
           if (log.id === logId) {
+            logForNotice = log;
             return {
               ...log,
               status: 'Aktif / Keluar' as const,
@@ -656,13 +713,30 @@ export default function StaffDashboard({
       return s;
     });
     persistStudents(updated);
+
+    if (studentForNotice?.parentPhone && logForNotice) {
+      const rawPhone = studentForNotice.parentPhone.replace(/[^0-9]/g, '');
+      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
+      const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
+      const approveMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nSurat Izin Santri (${logForNotice.permitType}) telah *DISETUJUI & DIVERIFIKASI* oleh Pos Keamanan *${schoolName}*.\n\n📋 *Keperluan:* ${logForNotice.description}\n⏰ *Batas Waktu Kembali:* ${logForNotice.expectedReturnDate || '-'}\n\nMohon bantu memastikan ananda kembali ke pesantren tepat waktu.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Pos Keamanan_`;
+
+      fetch('/api/send-wa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: cleanPhone, message: approveMsg })
+      }).catch(() => {});
+    }
   };
 
   const handleRejectPermit = (studentId: string, logId: string) => {
+    let studentForNotice: Student | undefined;
+    let logForNotice: SecurityLog | undefined;
     const updated = students.map(s => {
       if (s.id === studentId) {
+        studentForNotice = s;
         const updatedLogs = (s.securityLogs || []).map(log => {
           if (log.id === logId) {
+            logForNotice = log;
             return {
               ...log,
               status: 'Ditolak' as const,
@@ -676,6 +750,19 @@ export default function StaffDashboard({
       return s;
     });
     persistStudents(updated);
+
+    if (studentForNotice?.parentPhone && logForNotice) {
+      const rawPhone = studentForNotice.parentPhone.replace(/[^0-9]/g, '');
+      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
+      const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
+      const rejectMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nPermohonan perizinan santri (${logForNotice.permitType}) untuk keperluan *${logForNotice.description}* saat ini *BELUM DAPAT DISETUJUI / DITOLAK* oleh Pengurus Keamanan *${schoolName}* karena alasan tata tertib atau kuota izin.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Pos Keamanan_`;
+
+      fetch('/api/send-wa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: cleanPhone, message: rejectMsg })
+      }).catch(() => {});
+    }
   };
 
   // Delete Log from a student record database
@@ -741,10 +828,14 @@ export default function StaffDashboard({
   };
 
   // Filtered list of students
-  const filteredStudents = students.filter(s => 
-    s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.nis.includes(searchTerm)
-  );
+  const filteredStudents = students.filter(s => {
+    if (!s) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
+    if (!term) return true;
+    const nameMatch = s.fullName && String(s.fullName).toLowerCase().includes(term);
+    const nisMatch = s.nis && String(s.nis).includes(term);
+    return Boolean(nameMatch || nisMatch);
+  });
 
   // All logs compiled for history tab
   const allSecurityLogs: SecurityLog[] = [];
@@ -913,7 +1004,7 @@ export default function StaffDashboard({
       )}
 
       {/* Sub Tab: SKCK Penerbitan or Takzir Letter */}
-      {((activeSubTab === 'skck' || activeSubTab === 'takzir_letter')) && role === 'keamanan' && (
+      {((activeSubTab === 'skck' || activeSubTab === 'takzir_letter')) && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 max-w-3xl space-y-6 animate-fade-in">
           <div className="flex items-center gap-2 border-b border-dashed border-slate-150 pb-3">
             <Shield className="h-5 w-5 text-emerald-800" />
@@ -925,49 +1016,63 @@ export default function StaffDashboard({
           </div>
           <p className="text-xs text-slate-500 leading-normal">
             {activeSubTab === 'skck' 
-              ? "* Silakan ketik atau masukkan NIS santri untuk mencari data dari database Keamanan. Setelah santri terverifikasi, Anda dapat mengetik sendiri alasan/keperluan penerbitan SKCK ini secara luring."
-              : "* Silakan ketik atau masukkan NIS santri untuk memverifikasi dan mencetak Surat Rekam Jejak Takzir Santri."}
+              ? "* Silakan ketik NIS/nama santri atau pilih langsung dari daftar untuk memverifikasi dan mencetak SKCK."
+              : "* Silakan ketik NIS/nama santri atau pilih langsung dari daftar untuk memverifikasi dan mencetak Surat Rekam Jejak Takzir Santri."}
           </p>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Cari / Input NIS Santri</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Contoh: 2021.01.0001 (atau ketik nama santri)"
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Cari / Input NIS Santri</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Ketik NIS santri atau nama..."
+                    value={skckNis}
+                    onChange={(e) => setSkckNis(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 focus:outline-none font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Atau Pilih dari Daftar Santri</label>
+                <select
                   value={skckNis}
                   onChange={(e) => setSkckNis(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 focus:outline-none font-mono text-slate-900"
-                />
-              </div>
-              <div className="mt-1 flex flex-wrap gap-1 items-center">
-                <span className="text-[10px] text-slate-400 font-bold">Rekomendasi Santri:</span>
-                {students.slice(0, 4).map(s => (
-                  <button 
-                    key={s.id} 
-                    type="button" 
-                    onClick={() => setSkckNis(s.nis)}
-                    className="text-[10px] bg-slate-50 hover:bg-slate-100 rounded px-1.5 py-0.5 border border-slate-200 text-slate-700 font-mono"
-                  >
-                    {s.fullName} ({s.nis})
-                  </button>
-                ))}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 focus:outline-none bg-white text-slate-800 font-semibold"
+                >
+                  <option value="">-- Pilih Santri ({students.length} Santri) --</option>
+                  {students.map(s => (
+                    <option key={s.id} value={s.nis || s.fullName}>
+                      {s.fullName} {s.nis ? `(${s.nis})` : ''} - Kamar {s.kamar || '-'}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
             {(() => {
-              const matchedStudent = students.find(s => s.nis === skckNis.trim() || s.fullName.toLowerCase().includes(skckNis.trim().toLowerCase()));
+              const cleanQuery = (skckNis || '').trim().toLowerCase();
+              const matchedStudent = cleanQuery === '' ? null : students.find(s => 
+                (s.nis && String(s.nis).trim().toLowerCase() === cleanQuery) ||
+                (s.fullName && String(s.fullName).toLowerCase().includes(cleanQuery)) ||
+                (s.id && s.id === cleanQuery)
+              );
               if (!matchedStudent) {
-                if (skckNis) {
+                if (skckNis.trim()) {
                   return (
                     <div className="text-xs text-red-600 bg-red-50 p-3 rounded font-medium">
                       ❌ Santri dengan NIS atau nama "{skckNis}" tidak ditemukan di basis data Pesantren.
                     </div>
                   );
                 }
-                return null;
+                return (
+                  <div className="text-xs text-slate-500 bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-center font-medium">
+                    🔍 Masukkan NIS santri di atas atau pilih santri dari menu pilihan untuk menampilkan surat.
+                  </div>
+                );
               }
 
               // Filter active (unresolved) logs
@@ -1747,8 +1852,8 @@ export default function StaffDashboard({
         </div>
       )}
 
-      {/* Sub Tab: Student Main List */}
-      {activeSubTab === 'students' && (
+      {/* Sub Tab: Student Main List (Default Fallback) */}
+      {(activeSubTab === 'students' || !['profile', 'skck', 'takzir_letter', 'history'].includes(activeSubTab)) && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 animate-fade-in">
 
           {/* GRAPHS AND ANALYTICS ACCORDING TO ROLE AUTHORITY */}
@@ -2057,23 +2162,45 @@ export default function StaffDashboard({
 
 
             {(() => {
-              const filteredOptions = inputSearchTerm.trim() === '' ? [] : students.filter(s => 
-                s.fullName.toLowerCase().includes(inputSearchTerm.toLowerCase()) ||
-                s.nis.includes(inputSearchTerm)
-              );
+              const term = (inputSearchTerm || '').trim().toLowerCase();
+              const filteredOptions = term === '' 
+                ? students.slice(0, 100) 
+                : students.filter(s => {
+                    if (!s) return false;
+                    const nameMatch = s.fullName && String(s.fullName).toLowerCase().includes(term);
+                    const nisMatch = s.nis && String(s.nis).toLowerCase().includes(term);
+                    return Boolean(nameMatch || nisMatch);
+                  });
 
               return (
                 <form onSubmit={(e) => {
                   e.preventDefault();
-                  if (!inputSelectedStudentId) {
-                    alert('Silakan pilih nama santri terlebih dahulu!');
+                  let targetId = inputSelectedStudentId;
+                  
+                  // If not chosen from dropdown, attempt auto-match from inputSearchTerm
+                  if (!targetId && term !== '') {
+                    const directMatch = students.find(s => {
+                      if (!s) return false;
+                      const exactNis = s.nis && String(s.nis).trim().toLowerCase() === term;
+                      const exactName = s.fullName && String(s.fullName).trim().toLowerCase() === term;
+                      const partialNis = s.nis && String(s.nis).toLowerCase().includes(term);
+                      const partialName = s.fullName && String(s.fullName).toLowerCase().includes(term);
+                      return exactNis || exactName || partialNis || partialName;
+                    });
+                    if (directMatch) {
+                      targetId = directMatch.id;
+                    }
+                  }
+
+                  if (!targetId) {
+                    alert('Silakan ketik NIS / Nama santri atau pilih nama santri dari daftar terlebih dahulu.');
                     return;
                   }
-                  const foundStud = students.find(s => s.id === inputSelectedStudentId);
+                  const foundStud = students.find(s => s.id === targetId);
                   if (foundStud) {
                     setSelectedStudent(foundStud);
                     setShowAddModal(true);
-                    // Clear the search box and selected student dropdown immediately!
+                    // Clear the search box and selected student dropdown
                     setInputSearchTerm('');
                     setInputSelectedStudentId('');
                   }
@@ -2085,10 +2212,16 @@ export default function StaffDashboard({
                         type="text"
                         value={inputSearchTerm}
                         onChange={(e) => {
-                          setInputSearchTerm(e.target.value);
-                          setInputSelectedStudentId(''); // Reset selection when typing
+                          const val = e.target.value;
+                          setInputSearchTerm(val);
+                          // Auto match if exact NIS
+                          const cleanVal = val.trim().toLowerCase();
+                          if (cleanVal) {
+                            const exact = students.find(s => s.nis && String(s.nis).trim().toLowerCase() === cleanVal);
+                            if (exact) setInputSelectedStudentId(exact.id);
+                          }
                         }}
-                        placeholder="Ketik Nama atau NIS..."
+                        placeholder="Ketik NIS atau Nama Santri..."
                         className="w-full shadow-3xs border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-emerald-700 focus:outline-none bg-white text-slate-800 font-semibold h-9"
                       />
                     </div>
@@ -2097,21 +2230,18 @@ export default function StaffDashboard({
                       <select 
                         value={inputSelectedStudentId}
                         onChange={(e) => setInputSelectedStudentId(e.target.value)}
-                        required 
                         className="w-full shadow-3xs border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-emerald-700 focus:outline-none bg-white text-slate-800 font-semibold h-9"
                       >
-                        {inputSearchTerm.trim() === '' ? (
-                          <option value="">-- Ketik pencarian terlebih dahulu --</option>
-                        ) : filteredOptions.length === 0 ? (
-                          <option value="">-- Tidak ditemukan santri --</option>
-                        ) : (
-                          <>
-                            <option value="">-- Pilih ({filteredOptions.length} kecocokan) --</option>
-                            {filteredOptions.map(s => (
-                              <option key={s.id} value={s.id}>{s.fullName} ({s.nis})</option>
-                            ))}
-                          </>
-                        )}
+                        <option value="">
+                          {term === '' 
+                            ? `-- Pilih Santri (${students.length} Santri) --` 
+                            : `-- Hasil Pencarian (${filteredOptions.length} kecocokan) --`}
+                        </option>
+                        {filteredOptions.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.fullName} {s.nis ? `(${s.nis})` : ''} - Kamar {s.kamar || '-'}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -2430,6 +2560,23 @@ export default function StaffDashboard({
                   </div>
                 </>
               )}
+
+              {/* Toggle Notifikasi Otomatis via WhatsApp */}
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">📲</span>
+                  <div>
+                    <div className="text-xs font-bold text-emerald-950">Kirim Notifikasi WhatsApp Resmi ke Wali Santri</div>
+                    <div className="text-[10px] text-emerald-700">Terkirim otomatis dari Nomor WhatsApp Pesantren</div>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={sendWhatsAppOnRecord}
+                  onChange={(e) => setSendWhatsAppOnRecord(e.target.checked)}
+                  className="h-4 w-4 text-emerald-700 rounded border-emerald-300 focus:ring-emerald-600 cursor-pointer"
+                />
+              </div>
 
               {/* Modal footer btns */}
               <div className="flex gap-2 pt-4 border-t border-slate-100">

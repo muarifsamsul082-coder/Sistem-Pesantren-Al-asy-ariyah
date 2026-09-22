@@ -173,7 +173,7 @@ export default function App() {
   // Dashboard tab states for global unified hamburger menu control
   const [adminTab, setAdminTabState] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>(() => {
     try {
-      const saved = localStorage.getItem('pesantren_admin_active_tab');
+      const saved = sessionStorage.getItem('pesantren_admin_active_tab') || localStorage.getItem('pesantren_admin_active_tab');
       if (saved) return saved as any;
     } catch (e) {}
     return 'overview';
@@ -182,12 +182,59 @@ export default function App() {
   const setAdminTab = (tab: any) => {
     setAdminTabState(tab);
     try {
+      sessionStorage.setItem('pesantren_admin_active_tab', tab);
       localStorage.setItem('pesantren_admin_active_tab', tab);
     } catch (e) {}
   };
-  const [staffTab, setStaffTab] = React.useState<'students' | 'history' | 'profile' | 'skck' | 'takzir_letter'>('students');
-  const [santriTab, setSantriTab] = React.useState<'tagihan' | 'pelanggaran' | 'kesehatan' | 'pengumuman' | 'perizinan'>('tagihan');
+
+  const [staffTab, setStaffTabState] = React.useState<'students' | 'history' | 'profile' | 'skck' | 'takzir_letter'>(() => {
+    try {
+      const saved = sessionStorage.getItem('pesantren_staff_active_tab') || localStorage.getItem('pesantren_staff_active_tab');
+      if (saved) return saved as any;
+    } catch (e) {}
+    return 'students';
+  });
+
+  const setStaffTab = (tab: any) => {
+    setStaffTabState(tab);
+    try {
+      sessionStorage.setItem('pesantren_staff_active_tab', tab);
+      localStorage.setItem('pesantren_staff_active_tab', tab);
+    } catch (e) {}
+  };
+
+  const [santriTab, setSantriTabState] = React.useState<'tagihan' | 'pelanggaran' | 'kesehatan' | 'pengumuman' | 'perizinan'>(() => {
+    try {
+      const saved = sessionStorage.getItem('pesantren_santri_active_tab') || localStorage.getItem('pesantren_santri_active_tab');
+      if (saved) return saved as any;
+    } catch (e) {}
+    return 'tagihan';
+  });
+
+  const setSantriTab = (tab: any) => {
+    setSantriTabState(tab);
+    try {
+      sessionStorage.setItem('pesantren_santri_active_tab', tab);
+      localStorage.setItem('pesantren_santri_active_tab', tab);
+    } catch (e) {}
+  };
+
   const [showStudentCard, setShowStudentCard] = React.useState(false);
+  // Auto scroll to top whenever navigating to home/dashboard or switching tabs
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [currentView, adminTab, staffTab, santriTab]);
+
+  // Clean up localStorage session when window closes to enforce auto-logout across all devices
+  React.useEffect(() => {
+    const handleBeforeUnload = () => {
+      localStorage.removeItem('pesantren_session');
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   const touchStartRef = React.useRef<number | null>(null);
   const [isMouseDown, setIsMouseDown] = React.useState(false);
@@ -411,12 +458,23 @@ export default function App() {
         if (ppdbRes.ok) {
           const ppdbJson = await ppdbRes.json();
           if (ppdbJson && ppdbJson.success && Array.isArray(ppdbJson.ppdb)) {
-            const serverPpdb = ppdbJson.ppdb;
-            const localPpdb = getLocal<PCSBRegistration[]>('pesantren_ppdb', []);
+            let deletedIds: Set<string>;
+            try {
+              const rawDeleted = JSON.parse(localStorage.getItem('pesantren_deleted_ppdb_ids') || '[]');
+              const rawArchive = JSON.parse(localStorage.getItem('pesantren_ppdb_archive') || '[]');
+              const archiveIds = Array.isArray(rawArchive) ? rawArchive.map((a: any) => a.id) : [];
+              deletedIds = new Set([...rawDeleted, ...archiveIds]);
+            } catch {
+              deletedIds = new Set();
+            }
+
+            const serverPpdb = ppdbJson.ppdb.filter((p: any) => p && p.id && !deletedIds.has(p.id));
+            const rawLocalPpdb = getLocal<PCSBRegistration[]>('pesantren_ppdb', []);
+            const localPpdb = rawLocalPpdb.filter(p => p && p.id && !deletedIds.has(p.id));
             
-            // If local has new items not on server, push them
+            // If local has new items not on server and not deleted, push them
             const serverIds = new Set(serverPpdb.map((p: any) => p.id));
-            const unsynced = localPpdb.filter(p => p && p.id && !serverIds.has(p.id));
+            const unsynced = localPpdb.filter(p => p && p.id && !serverIds.has(p.id) && !deletedIds.has(p.id));
             if (unsynced.length > 0 && serverPpdb.length > 0) {
               // Push unsynced items to server
               unsynced.forEach(item => {
@@ -482,6 +540,22 @@ export default function App() {
             const merged = Array.from(map.values());
             setStudents(merged);
             localStorage.setItem('pesantren_students', JSON.stringify(merged));
+          }
+        }
+      } catch (e) {}
+
+      // Sync Alumni from server across devices (separated database)
+      try {
+        const almRes = await fetch('/api/alumni');
+        if (almRes.ok) {
+          const almJson = await almRes.json();
+          if (almJson && almJson.success && Array.isArray(almJson.alumni)) {
+            const localAlumni = getLocal<Student[]>('pesantren_alumni', []);
+            const map = new Map<string, Student>();
+            localAlumni.forEach(a => { if (a && a.id) map.set(a.id, a); });
+            almJson.alumni.forEach((a: Student) => { if (a && a.id) map.set(a.id, a); });
+            const mergedAlumni = Array.from(map.values());
+            localStorage.setItem('pesantren_alumni', JSON.stringify(mergedAlumni));
           }
         }
       } catch (e) {}
@@ -691,32 +765,47 @@ export default function App() {
     window.addEventListener('pesantren_settings_updated', handleStorageChange);
     window.addEventListener('focus', handleWindowFocus);
 
-    // Restore login session if saved
-    const storedSession = localStorage.getItem('pesantren_session');
+    // Restore login session: use sessionStorage so closing window/Chrome automatically logs out
+    const storedSession = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
     if (storedSession) {
-      const parsedSess = JSON.parse(storedSession);
-      if (parsedSess.role === 'santri') {
-        const studentId = parsedSess.studentId;
-        const localStudents = getLocal<Student[]>('pesantren_students', []);
-        const currentStudent = localStudents.find(s => s.id === studentId);
-        if (currentStudent && currentStudent.status === 'Alumni') {
-          localStorage.removeItem('pesantren_session');
-          setSession(null);
-          setView('home');
-          return;
+      try {
+        const parsedSess = JSON.parse(storedSession);
+        if (parsedSess.role === 'santri') {
+          const studentId = parsedSess.studentId;
+          const localStudents = getLocal<Student[]>('pesantren_students', []);
+          const currentStudent = localStudents.find(s => s.id === studentId);
+          if (currentStudent && currentStudent.status === 'Alumni') {
+            sessionStorage.removeItem('pesantren_session');
+            localStorage.removeItem('pesantren_session');
+            setSession(null);
+            setView('home');
+            return;
+          }
         }
+        setSession(parsedSess);
+        sessionStorage.setItem('pesantren_session', JSON.stringify(parsedSess));
+
+        // CRITICAL: Preserve active menu on refresh! Do not force reset to overview/dashboard
+        const savedView = sessionStorage.getItem('pesantren_current_view');
+        if (savedView) {
+          setView(savedView);
+        } else {
+          if (parsedSess.role === 'admin') {
+            setView('admin-dashboard');
+          } else if (parsedSess.role === 'santri') {
+            setView('santri-dashboard');
+          } else if (['keamanan', 'ketertiban', 'kesehatan'].includes(parsedSess.role)) {
+            setView('staff-dashboard');
+          }
+        }
+      } catch (e) {
+        sessionStorage.removeItem('pesantren_session');
+        localStorage.removeItem('pesantren_session');
+        setSession(null);
       }
-      setSession(parsedSess);
-      setAdminTab('overview');
-      setStaffTab('students');
-      setSantriTab('tagihan');
-      if (parsedSess.role === 'admin') {
-        setView('admin-dashboard');
-      } else if (parsedSess.role === 'santri') {
-        setView('santri-dashboard');
-      } else if (['keamanan', 'ketertiban', 'kesehatan'].includes(parsedSess.role)) {
-        setView('staff-dashboard');
-      }
+    } else {
+      localStorage.removeItem('pesantren_session');
+      setSession(null);
     }
 
     return () => {
@@ -791,9 +880,10 @@ export default function App() {
 
   const handleLoginSuccess = (newSession: UserSession) => {
     setSession(newSession);
+    sessionStorage.setItem('pesantren_session', JSON.stringify(newSession));
     localStorage.setItem('pesantren_session', JSON.stringify(newSession));
     
-    // Always open first/statistics tab on login
+    // Always open first/statistics tab on fresh login
     setAdminTab('overview');
     setStaffTab('students');
     setSantriTab('tagihan');
@@ -810,6 +900,8 @@ export default function App() {
 
   const handleLogout = () => {
     setSession(null);
+    sessionStorage.removeItem('pesantren_session');
+    sessionStorage.removeItem('pesantren_current_view');
     localStorage.removeItem('pesantren_session');
     setView('home');
   };
@@ -846,6 +938,23 @@ export default function App() {
     if (isSupabaseConfigured()) {
       await pushPpdbToSupabase(regWithId).catch(err => console.error("Error pushing PPDB to Supabase:", err));
       window.dispatchEvent(new Event('pesantren_db_sync'));
+    }
+
+    // Automatically trigger official WhatsApp notification to prospective student's parent
+    if (regWithId.parentPhone) {
+      const rawPhone = regWithId.parentPhone.replace(/[^0-9]/g, '');
+      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
+      const schoolName = settings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
+      const waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari Ananda *${regWithId.fullName}*,\n\nAlhamdulillah, formulir pendaftaran calon santri baru (PCSB) di *${schoolName}* telah berhasil diterima sistem:\n\n📋 *Rincian Pendaftaran:*\n• No. Registrasi: *${regWithId.id}*\n• Nama Calon: *${regWithId.fullName}*\n• Jenjang/Pendidikan: *${regWithId.jenjangPendidikan || 'Reguler'}*\n• Tanggal Pendaftaran: ${regWithId.registrationDate}\n• Status: *Menunggu Verifikasi Panitia*\n\nTim Panitia Penerimaan Santri Baru akan segera memvalidasi berkas pendaftaran. Pantau pembaruan status dan pengumuman melalui nomor WhatsApp resmi ini.\n\nWassalamu'alaikum Wr. Wb.\n_Panitia PCSB ${schoolName}_`;
+
+      fetch('/api/send-wa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target: cleanPhone,
+          message: waMsg
+        })
+      }).catch(err => console.warn('Auto-PCSB WA trigger skipped or gateway not active:', err));
     }
   };
 

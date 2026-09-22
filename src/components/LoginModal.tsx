@@ -112,7 +112,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       const defaultAccounts = [
         {
           id: 'admin-main',
-          fullName: localStorage.getItem('admin_custom_name_muarifsamsul082@gmail.com') || 'Muarif Samsul',
+          fullName: localStorage.getItem('admin_custom_name_muarifsamsul082@gmail.com') || 'Ustadz Samsul',
           email: 'muarifsamsul082@gmail.com',
           role: 'admin' as const,
           isConfirmed: true,
@@ -186,7 +186,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         setError('');
         onClose();
         const customName = localStorage.getItem('admin_custom_name_' + inputEmail) || localStorage.getItem('staff_custom_name_' + inputEmail);
-        const resolvedFullName = customName || matchedUser.fullName || matchedUser.name || (inputEmail === 'muarifsamsul082@gmail.com' ? 'Muarif Samsul' : 'Pengurus');
+        const resolvedFullName = customName || matchedUser.fullName || matchedUser.name || (inputEmail === 'muarifsamsul082@gmail.com' ? 'Ustadz Samsul' : 'Pengurus');
         
         // Also persist custom name for this email so it's permanently retained
         if (resolvedFullName && !customName) {

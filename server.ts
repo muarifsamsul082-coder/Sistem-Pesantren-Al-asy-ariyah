@@ -64,8 +64,12 @@ async function startServer() {
   const PPDB_STORAGE_PATH = path.join(process.cwd(), '.portal_ppdb.json');
   const PPDB_ARCHIVE_STORAGE_PATH = path.join(process.cwd(), '.portal_ppdb_archive.json');
   const STUDENTS_STORAGE_PATH = path.join(process.cwd(), '.portal_students.json');
+  const ALUMNI_STORAGE_PATH = path.join(process.cwd(), '.portal_alumni.json');
+  const BILLS_STORAGE_PATH = path.join(process.cwd(), '.portal_bills.json');
   const STAFF_STORAGE_PATH = path.join(process.cwd(), '.portal_staff_users.json');
   const STAFF_CONFIGS_STORAGE_PATH = path.join(process.cwd(), '.portal_staff_configs.json');
+  const ADMIN_NAME_STORAGE_PATH = path.join(process.cwd(), '.portal_admin_name.json');
+  const WA_TOKEN_STORAGE_PATH = path.join(process.cwd(), '.portal_wa_token.json');
 
   // Static uploads serving
   const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
@@ -253,16 +257,263 @@ async function startServer() {
     return res.status(400).json({ success: false, error: "Invalid payload" });
   });
 
+  // Alumni dedicated multi-device persistence (separated from active students)
+  app.get("/api/alumni", (req, res) => {
+    try {
+      if (fs.existsSync(ALUMNI_STORAGE_PATH)) {
+        const raw = fs.readFileSync(ALUMNI_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, alumni: Array.isArray(parsed) ? parsed : [] });
+      }
+    } catch (e) {
+      console.error("Error reading alumni file:", e);
+    }
+    return res.json({ success: true, alumni: [] });
+  });
+
+  app.post("/api/alumni", (req, res) => {
+    try {
+      const incoming = req.body;
+      let list: any[] = [];
+      if (fs.existsSync(ALUMNI_STORAGE_PATH)) {
+        try {
+          list = JSON.parse(fs.readFileSync(ALUMNI_STORAGE_PATH, 'utf-8'));
+          if (!Array.isArray(list)) list = [];
+        } catch (e) {}
+      }
+
+      if (incoming && incoming.replace && Array.isArray(incoming.alumni)) {
+        list = incoming.alumni;
+        fs.writeFileSync(ALUMNI_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      } else if (Array.isArray(incoming)) {
+        fs.writeFileSync(ALUMNI_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
+        return res.json({ success: true, count: incoming.length });
+      } else if (incoming && incoming.id) {
+        const existingIdx = list.findIndex(s => s.id === incoming.id);
+        if (existingIdx >= 0) {
+          list[existingIdx] = incoming;
+        } else {
+          list.push(incoming);
+        }
+        fs.writeFileSync(ALUMNI_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
+      console.error("Error saving alumni:", e);
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  // Bills multi-device persistence (ensures payments never revert/bounce)
+  app.get("/api/bills", (req, res) => {
+    try {
+      if (fs.existsSync(BILLS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(BILLS_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, bills: Array.isArray(parsed) ? parsed : [] });
+      }
+    } catch (e) {
+      console.error("Error reading bills file:", e);
+    }
+    return res.json({ success: true, bills: [] });
+  });
+
+  app.post("/api/bills", (req, res) => {
+    try {
+      const incoming = req.body;
+      let list: any[] = [];
+      if (fs.existsSync(BILLS_STORAGE_PATH)) {
+        try {
+          list = JSON.parse(fs.readFileSync(BILLS_STORAGE_PATH, 'utf-8'));
+          if (!Array.isArray(list)) list = [];
+        } catch (e) {}
+      }
+
+      if (incoming && incoming.replace && Array.isArray(incoming.bills)) {
+        list = incoming.bills;
+        fs.writeFileSync(BILLS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      } else if (Array.isArray(incoming)) {
+        fs.writeFileSync(BILLS_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
+        return res.json({ success: true, count: incoming.length });
+      } else if (incoming && incoming.id) {
+        const existingIdx = list.findIndex(b => b.id === incoming.id);
+        if (existingIdx >= 0) {
+          list[existingIdx] = incoming;
+        } else {
+          list.push(incoming);
+        }
+        fs.writeFileSync(BILLS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
+      console.error("Error saving bills:", e);
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  // Admin Name multi-device persistence (Ustadz Samsul)
+  app.get("/api/admin-name", (req, res) => {
+    try {
+      if (fs.existsSync(ADMIN_NAME_STORAGE_PATH)) {
+        const raw = fs.readFileSync(ADMIN_NAME_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, adminName: parsed.name || 'Ustadz Samsul' });
+      }
+    } catch (e) {}
+    return res.json({ success: true, adminName: 'Ustadz Samsul' });
+  });
+
+  app.post("/api/admin-name", (req, res) => {
+    try {
+      const { name } = req.body;
+      if (typeof name === 'string' && name.trim()) {
+        fs.writeFileSync(ADMIN_NAME_STORAGE_PATH, JSON.stringify({ name: name.trim() }, null, 2), 'utf-8');
+        return res.json({ success: true, adminName: name.trim() });
+      }
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  // WhatsApp Gateway Token storage & query endpoints for cross-device sharing
+  app.get("/api/wa-token", (req, res) => {
+    try {
+      if (fs.existsSync(WA_TOKEN_STORAGE_PATH)) {
+        const data = JSON.parse(fs.readFileSync(WA_TOKEN_STORAGE_PATH, 'utf-8'));
+        return res.json(data);
+      }
+      if (fs.existsSync(SETTINGS_STORAGE_PATH)) {
+        const settings = JSON.parse(fs.readFileSync(SETTINGS_STORAGE_PATH, 'utf-8'));
+        if (settings.waGatewayToken) {
+          return res.json({ token: settings.waGatewayToken, url: settings.waGatewayUrl || 'https://api.fonnte.com/send' });
+        }
+      }
+      return res.json({ token: '', url: 'https://api.fonnte.com/send' });
+    } catch (e) {
+      return res.json({ token: '', url: 'https://api.fonnte.com/send' });
+    }
+  });
+
+  app.post("/api/wa-token", (req, res) => {
+    try {
+      const { token, url } = req.body;
+      const payload = {
+        token: (token || '').trim(),
+        url: (url || 'https://api.fonnte.com/send').trim(),
+        updatedAt: new Date().toISOString()
+      };
+      fs.writeFileSync(WA_TOKEN_STORAGE_PATH, JSON.stringify(payload, null, 2), 'utf-8');
+
+      // Also sync into settings if settings exists
+      if (fs.existsSync(SETTINGS_STORAGE_PATH)) {
+        try {
+          const settings = JSON.parse(fs.readFileSync(SETTINGS_STORAGE_PATH, 'utf-8'));
+          settings.waGatewayToken = payload.token;
+          settings.waGatewayUrl = payload.url;
+          fs.writeFileSync(SETTINGS_STORAGE_PATH, JSON.stringify(settings, null, 2), 'utf-8');
+        } catch (e) {}
+      }
+      return res.json({ success: true, ...payload });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // WhatsApp Gateway Backend Proxy - sends message from Pesantren's own registered WA number safely without browser CORS errors
+  app.post("/api/send-wa", async (req, res) => {
+    try {
+      const { target, message, token, url } = req.body;
+      if (!target || !message) {
+        return res.status(400).json({ success: false, error: "target and message are required" });
+      }
+
+      let gwToken = token;
+      let gwUrl = url || 'https://api.fonnte.com/send';
+
+      // If token not provided in body, check dedicated wa_token file first, then settings file
+      if (!gwToken && fs.existsSync(WA_TOKEN_STORAGE_PATH)) {
+        try {
+          const waConfig = JSON.parse(fs.readFileSync(WA_TOKEN_STORAGE_PATH, 'utf-8'));
+          if (waConfig.token) {
+            gwToken = waConfig.token;
+            if (waConfig.url) gwUrl = waConfig.url;
+          }
+        } catch (e) {}
+      }
+
+      if (!gwToken && fs.existsSync(SETTINGS_STORAGE_PATH)) {
+        try {
+          const settings = JSON.parse(fs.readFileSync(SETTINGS_STORAGE_PATH, 'utf-8'));
+          gwToken = settings.waGatewayToken;
+          if (settings.waGatewayUrl) gwUrl = settings.waGatewayUrl;
+        } catch (e) {}
+      }
+
+      if (!gwToken) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "WhatsApp Gateway Token belum dikonfigurasi di Pengaturan Pesantren. Silakan hubungkan nomor WA Pesantren via Fonnte atau Gateway pilihan Anda." 
+        });
+      }
+
+      const response = await fetch(gwUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': gwToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          target: target,
+          message: message
+        })
+      });
+
+      const data = await response.json().catch(() => ({ status: response.ok }));
+      return res.json({ success: response.ok, response: data });
+    } catch (e: any) {
+      console.error("Error dispatching WA via Gateway:", e);
+      return res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
   // Staff Users multi-device persistence
   app.get("/api/staff-users", (req, res) => {
     try {
+      let list: any[] = [];
       if (fs.existsSync(STAFF_STORAGE_PATH)) {
         const raw = fs.readFileSync(STAFF_STORAGE_PATH, 'utf-8');
         const parsed = JSON.parse(raw);
-        return res.json({ success: true, staffUsers: Array.isArray(parsed) ? parsed : [] });
+        if (Array.isArray(parsed)) list = parsed;
       }
+      // Ensure default admin/staff muarifsamsul082@gmail.com has Ustadz Samsul
+      const userEmail = 'muarifsamsul082@gmail.com';
+      const existing = list.find(u => u && u.email && u.email.toLowerCase() === userEmail);
+      if (existing) {
+        if (!existing.fullName || existing.fullName === 'Muarif Samsul') {
+          existing.fullName = 'Ustadz Samsul';
+          existing.name = 'Ustadz Samsul';
+          try { fs.writeFileSync(STAFF_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8'); } catch (e) {}
+        }
+      } else {
+        list.push({
+          id: 'usr-admin-default',
+          email: userEmail,
+          fullName: 'Ustadz Samsul',
+          name: 'Ustadz Samsul',
+          role: 'admin',
+          isConfirmed: true,
+          registeredAt: '2026-01-01'
+        });
+        try { fs.writeFileSync(STAFF_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8'); } catch (e) {}
+      }
+      return res.json({ success: true, staffUsers: list });
     } catch (e) {}
-    return res.json({ success: true, staffUsers: [] });
+    return res.json({ success: true, staffUsers: [{ id: 'usr-admin-default', email: 'muarifsamsul082@gmail.com', fullName: 'Ustadz Samsul', role: 'admin' }] });
   });
 
   app.post("/api/staff-users", (req, res) => {

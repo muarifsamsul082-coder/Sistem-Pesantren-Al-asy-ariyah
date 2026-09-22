@@ -4,7 +4,7 @@ import {
   User, CreditCard, Landmark, DollarSign, Calendar, Clock, AlertCircle, 
   CheckCircle2, Bell, ShieldAlert, Sparkles, Send, UploadCloud, Check, Printer, IdCard, X, Download
 } from 'lucide-react';
-import { Student, Bill, Announcement, PortalSettings, SecurityLog } from '../types';
+import { Student, Bill, Announcement, PortalSettings, SecurityLog, compressImage } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
 import { isSupabaseConfigured, pushStudentToSupabase, pushBillToSupabase, markLocalDataChanged } from '../lib/supabase';
 
@@ -185,6 +185,18 @@ export default function SantriDashboard({
       return updated;
     });
 
+    // Trigger confirmation notification to parent WhatsApp
+    if (student.parentPhone) {
+      const rawPhone = student.parentPhone.replace(/[^0-9]/g, '');
+      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
+      const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${student.parentName || 'Wali Santri'},\n\nTerima kasih, bukti transfer pembayaran untuk tagihan *${selectedBill.title}* senilai *Rp ${selectedBill.amount.toLocaleString('id-ID')}* ananda *${student.fullName}* telah berhasil diunggah ke sistem portal pesantren.\n\nStatus: *Menunggu Konfirmasi Bendahara*.\nBukti akan segera diverifikasi oleh panitia keuangan pesantren.\n\nWassalamu'alaikum Wr. Wb.\n_Bendahara Pesantren_`;
+      fetch('/api/send-wa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: cleanPhone, message: waMsg })
+      }).catch(err => console.warn('Auto-WA bill payment upload notification error:', err));
+    }
+
     setSuccess(true);
     setTimeout(() => {
       setSuccess(false);
@@ -251,6 +263,18 @@ export default function SantriDashboard({
         } catch (e) {}
         return updated;
       });
+    }
+
+    // Trigger instant payment receipt notification to parent WhatsApp
+    if (student.parentPhone) {
+      const rawPhone = student.parentPhone.replace(/[^0-9]/g, '');
+      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
+      const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${student.parentName || 'Wali Santri'},\n\nAlhamdulillah, pembayaran online untuk tagihan *${selectedBill.title}* senilai *Rp ${selectedBill.amount.toLocaleString('id-ID')}* atas nama ananda *${student.fullName}* telah BERHASIL dan diverifikasi LUNAS secara otomatis.\n\nKuitansi pelunasan digital telah otomatis tercatat dan dapat diunduh kapan saja melalui Portal Santri.\n\nTerima kasih atas partisipasi dan dukungannya.\nWassalamu'alaikum Wr. Wb.\n_Bendahara Pesantren_`;
+      fetch('/api/send-wa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: cleanPhone, message: waMsg })
+      }).catch(err => console.warn('Auto-WA instant pay notification error:', err));
     }
 
     setSuccess(true);
@@ -561,16 +585,21 @@ export default function SantriDashboard({
                                    type="file"
                                    accept="image/*"
                                    id="payment-proof-upload"
-                                   onChange={(e) => {
+                                   onChange={async (e) => {
                                      const file = e.target.files?.[0];
                                      if (file) {
-                                       const reader = new FileReader();
-                                       reader.onloadend = () => {
-                                         if (typeof reader.result === 'string') {
-                                           setProofUrl(reader.result);
-                                         }
-                                       };
-                                       reader.readAsDataURL(file);
+                                       try {
+                                         const compressed = await compressImage(file, 800, 800, 0.7);
+                                         setProofUrl(compressed);
+                                       } catch {
+                                         const reader = new FileReader();
+                                         reader.onloadend = () => {
+                                           if (typeof reader.result === 'string') {
+                                             setProofUrl(reader.result);
+                                           }
+                                         };
+                                         reader.readAsDataURL(file);
+                                       }
                                      }
                                    }}
                                    className="hidden"

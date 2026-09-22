@@ -183,7 +183,7 @@ export default function Navbar({
         } catch (e) {}
       }
       if (!adminName && emailKey === 'muarifsamsul082@gmail.com') {
-        adminName = 'Muarif Samsul';
+        adminName = 'Ustadz Samsul';
       }
       if (!adminName) {
         adminName = 'Admin Utama';

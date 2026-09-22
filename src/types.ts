@@ -40,6 +40,7 @@ export interface PCSBRegistration {
   bloodType?: string;
   healthHistory?: string;
   paymentType?: 'Cicilan Bulanan' | 'Langsung Lunas';
+  jenjangPendidikan?: string;
 }
 
 export interface TahfidzLog {
