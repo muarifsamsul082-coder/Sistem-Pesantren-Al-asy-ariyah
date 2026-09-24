@@ -50,7 +50,14 @@ import {
   checkMissingSupabaseTables,
   type TableSyncStatus
 } from '../lib/supabase';
-import { isPpdbCurrentlyActive, autoAdjustPpdbSettings, getTodayDateString } from '../lib/dateUtils';
+import { 
+  isPpdbCurrentlyActive, 
+  autoAdjustPpdbSettings, 
+  getTodayDateString,
+  normalizeDateToYMD,
+  formatIndonesianDate as formatIndoDateUtil
+} from '../lib/dateUtils';
+import WhatsAppBroadcastPanel from './WhatsAppBroadcastPanel';
 
 interface AdminDashboardProps {
   students: Student[];
@@ -99,35 +106,7 @@ const formatIndonesianDate = (dateStr: string) => {
     if (/[a-zA-Z]/.test(cleanStr) && cleanStr.split(/\s+/).length >= 2) {
       return cleanStr;
     }
-    
-    const dmyPattern = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/;
-    const dmyMatch = cleanStr.match(dmyPattern);
-    if (dmyMatch) {
-      const day = parseInt(dmyMatch[1], 10);
-      const month = parseInt(dmyMatch[2], 10) - 1;
-      const year = parseInt(dmyMatch[3], 10);
-      const d = new Date(year, month, day);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-      }
-    }
-
-    const ymdPattern = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/;
-    const ymdMatch = cleanStr.match(ymdPattern);
-    if (ymdMatch) {
-      const year = parseInt(ymdMatch[1], 10);
-      const month = parseInt(ymdMatch[2], 10) - 1;
-      const day = parseInt(ymdMatch[3], 10);
-      const d = new Date(year, month, day);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-      }
-    }
-
-    const d = new Date(cleanStr);
-    if (!isNaN(d.getTime())) {
-      return d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-    }
+    return formatIndoDateUtil(cleanStr) || cleanStr;
   } catch (e) {
     console.error("Error formatting date:", e);
   }
@@ -1327,24 +1306,54 @@ export default function AdminDashboard({
     }, 3000);
   };
 
+  // Dedicated immediate handler for PPDB Start Date & End Date changes (prevents date bouncing/mental)
+  const handleUpdatePpdbDate = async (field: 'ppdbStartDate' | 'ppdbEndDate', rawVal: string) => {
+    const val = rawVal ? normalizeDateToYMD(rawVal) : '';
+    const updated: PortalSettings = {
+      ...editSettings,
+      [field]: val
+    };
+
+    setEditSettings(updated);
+    setSettings(updated);
+    setIsSettingsDirty(false);
+    markLocalDataChanged('settings');
+
+    try {
+      localStorage.setItem('pesantren_settings', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: updated }));
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      }).catch(e => console.warn('Failed to push settings to /api/settings:', e));
+
+      if (isSupabaseConfigured()) {
+        await pushSettingsToSupabase(updated);
+      }
+
+      const label = field === 'ppdbStartDate' ? 'Mulai' : 'Akhir';
+      showAlert('success', val 
+        ? `Tanggal ${label} Pendaftaran berhasil ditetapkan ke ${formatIndonesianDate(val)} dan disimpan!` 
+        : `Tanggal ${label} Pendaftaran berhasil dikosongkan.`);
+    } catch (err) {
+      console.error('Error saving PPDB date:', err);
+    }
+  };
+
   // Immediate toggle for PPDB Online status across all devices
   const handleTogglePpdbOnline = async (isChecked: boolean) => {
-    let nextSettings = {
+    const nextSettings = {
       ...editSettings,
       ppdbOpen: isChecked
     };
 
-    // If opening, ensure ppdbEndDate isn't an expired date that immediately closes it on other devices
-    if (isChecked && nextSettings.ppdbEndDate) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      if (nextSettings.ppdbEndDate < todayStr) {
-        nextSettings.ppdbEndDate = '';
-      }
-    }
-
     setEditSettings(nextSettings);
     setSettings(nextSettings);
     setIsSettingsDirty(false);
+    markLocalDataChanged('settings');
 
     try {
       localStorage.setItem('pesantren_settings', JSON.stringify(nextSettings));
@@ -1867,6 +1876,7 @@ export default function AdminDashboard({
   const [sendWhatsAppOnBill, setSendWhatsAppOnBill] = React.useState<boolean>(true);
   const [waGatewayTokenInput, setWaGatewayTokenInput] = React.useState<string>(settings.waGatewayToken || '');
   const [waGatewayUrlInput, setWaGatewayUrlInput] = React.useState<string>(settings.waGatewayUrl || 'https://api.fonnte.com/send');
+  const [waSubTab, setWaSubTab] = React.useState<'broadcast' | 'requests' | 'gateway_config'>('broadcast');
 
   // States for Admin Tahfidz management
   const [selectedStudentForTahfidz, setSelectedStudentForTahfidz] = React.useState<Student | null>(null);
@@ -3563,6 +3573,39 @@ export default function AdminDashboard({
             </div>
           </div>
 
+          {/* Quick Action Banner: WhatsApp Broadcast */}
+          <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 rounded-2xl p-4 sm:p-5 text-white shadow-sm border border-emerald-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5 text-left">
+              <div className="p-2.5 bg-white/10 rounded-xl text-xl shrink-0">
+                📢
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-extrabold text-white">
+                    Pusat Kirim WhatsApp Massal (Broadcast ke Wali Santri)
+                  </h4>
+                  <span className="text-[9px] bg-amber-400 text-emerald-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Fitur Baru
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-100/90 mt-1 max-w-2xl leading-relaxed">
+                  Kirim pengumuman libur pesantren, jadwal masuk asrama, atau pengingat tagihan bulanan santri dengan filter kelas, kamar, dan status lunas secara instan.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('whatsapp');
+                setWaSubTab('broadcast');
+              }}
+              className="px-4 py-2.5 bg-amber-400 hover:bg-amber-350 text-emerald-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer shrink-0 self-stretch md:self-auto justify-center"
+            >
+              <span>Kirim Pesan Massal Sekarang</span>
+              <span>➜</span>
+            </button>
+          </div>
+
           {/* ANTREAN PERSETUJUAN IZIN KELUAR PONDOK */}
             {(() => {
               const pendingPermits: { studentId: string; studentName: string; log: SecurityLog }[] = [];
@@ -4558,6 +4601,62 @@ export default function AdminDashboard({
       {/* Tab: PPDB Registration Review */}
       {activeTab === 'ppdb' && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 space-y-6">
+          {/* PPDB SCHEDULE & STATUS QUICK BAR */}
+          {(() => {
+            const ppdbStatus = isPpdbCurrentlyActive({
+              ppdbOpen: editSettings.ppdbOpen,
+              ppdbStartDate: editSettings.ppdbStartDate,
+              ppdbEndDate: editSettings.ppdbEndDate
+            });
+            return (
+              <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs transition ${
+                ppdbStatus.isActive 
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950' 
+                  : 'bg-amber-50/70 border-amber-200 text-amber-950'
+              }`}>
+                <div className="space-y-1 text-left">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-base">{ppdbStatus.isActive ? '🟢' : '🚫'}</span>
+                    <span className="font-bold text-sm">Status Jalur Pendaftaran Online:</span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      ppdbStatus.isActive ? 'bg-emerald-700 text-white' : 'bg-amber-600 text-white'
+                    }`}>
+                      {ppdbStatus.badgeText}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    {ppdbStatus.statusText}
+                  </p>
+                  <p className="text-[11px] font-medium text-slate-700">
+                    Jadwal Resmi: <strong className="font-mono text-emerald-900">{editSettings.ppdbStartDate ? formatIndonesianDate(editSettings.ppdbStartDate) : '(Bebas/Tanpa Batas Mulai)'}</strong> s/d <strong className="font-mono text-emerald-900">{editSettings.ppdbEndDate ? formatIndonesianDate(editSettings.ppdbEndDate) : '(Bebas/Tanpa Batas Akhir)'}</strong>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => handleTogglePpdbOnline(!editSettings.ppdbOpen)}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer shadow-xs ${
+                      editSettings.ppdbOpen
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                    }`}
+                  >
+                    {editSettings.ppdbOpen ? 'Tutup Pendaftaran' : 'Buka Pendaftaran'}
+                  </button>
+                  {setActiveTab && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('settings')}
+                      className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer shadow-xs"
+                    >
+                      ⚙️ Atur Tanggal Pendaftaran
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* REKAPAN PCSB */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-emerald-50/20 rounded-2xl border border-emerald-100">
             <div className="bg-white p-3.5 rounded-xl border border-emerald-50 shadow-xs text-center text-emerald-950">
@@ -7967,10 +8066,7 @@ export default function AdminDashboard({
                     {editSettings.ppdbStartDate && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditSettings(prev => ({ ...prev, ppdbStartDate: '' }));
-                          setIsSettingsDirty(true);
-                        }}
+                        onClick={() => handleUpdatePpdbDate('ppdbStartDate', '')}
                         className="text-[9px] text-red-500 hover:underline font-bold cursor-pointer"
                       >
                         Kosongkan
@@ -7979,12 +8075,8 @@ export default function AdminDashboard({
                   </div>
                   <input
                     type="date"
-                    value={editSettings.ppdbStartDate || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setEditSettings(prev => ({ ...prev, ppdbStartDate: val }));
-                      setIsSettingsDirty(true);
-                    }}
+                    value={editSettings.ppdbStartDate ? normalizeDateToYMD(editSettings.ppdbStartDate) : ''}
+                    onChange={(e) => handleUpdatePpdbDate('ppdbStartDate', e.target.value)}
                     className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 font-mono text-gray-800"
                   />
                   <span className="text-[10px] text-emerald-700 mt-1 block font-medium">
@@ -7998,10 +8090,7 @@ export default function AdminDashboard({
                     {editSettings.ppdbEndDate && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditSettings(prev => ({ ...prev, ppdbEndDate: '' }));
-                          setIsSettingsDirty(true);
-                        }}
+                        onClick={() => handleUpdatePpdbDate('ppdbEndDate', '')}
                         className="text-[9px] text-red-500 hover:underline font-bold cursor-pointer"
                       >
                         Kosongkan
@@ -8010,24 +8099,30 @@ export default function AdminDashboard({
                   </div>
                   <input
                     type="date"
-                    value={editSettings.ppdbEndDate || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const todayStr = getTodayDateString();
-                      const isExpired = val && val.trim() !== '' && todayStr > val.trim();
-                      setEditSettings(prev => ({
-                        ...prev,
-                        ppdbEndDate: val,
-                        ppdbOpen: isExpired ? false : prev.ppdbOpen
-                      }));
-                      setIsSettingsDirty(true);
-                    }}
+                    value={editSettings.ppdbEndDate ? normalizeDateToYMD(editSettings.ppdbEndDate) : ''}
+                    onChange={(e) => handleUpdatePpdbDate('ppdbEndDate', e.target.value)}
                     className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 font-mono text-gray-800"
                   />
                   <span className="text-[10px] text-emerald-700 mt-1 block font-medium">
                     {editSettings.ppdbEndDate ? formatIndonesianDate(editSettings.ppdbEndDate) : '(Kosong / Tanpa Batas Akhir)'}
                   </span>
                 </div>
+              </div>
+
+              {/* Instant Persistence Indicator */}
+              <div className="mt-2.5 flex items-center justify-between text-[11px] text-emerald-800 bg-emerald-100/50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <span>🔒</span> Tanggal pendaftaran tersimpan otomatis & tersinkronisasi realtime ke server dan cloud setiap kali Anda memilih tanggal.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSavePortalSettings();
+                  }}
+                  className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-bold text-[10px] transition cursor-pointer shrink-0"
+                >
+                  ✓ Simpan Permanen
+                </button>
               </div>
 
               {/* Real-time Status Preview Card */}
@@ -8894,22 +8989,108 @@ export default function AdminDashboard({
       {/* Tab: WhatsApp Automation & Account Requests */}
       {activeTab === 'whatsapp' && (
         <div className="space-y-6">
-          {/* Banner */}
-          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-1 text-left">
-              <h3 className="font-extrabold text-amber-950 text-base flex items-center gap-1.5">
-                Pusat Layanan WhatsApp & Permintaan Akun Wali Santri
-              </h3>
-              <p className="text-xs text-amber-850 max-w-2xl leading-relaxed">
-                Pantau permintaan dari wali santri yang lupa kredensial login, dan otomatisasi pemberitahuan akad/rekening pembayaran yang telah diverifikasi Bendahara. Seluruh pengiriman menggunakan direct gateway interaktif WhatsApp untuk kenyamanan wali santri.
+          {/* Header Sub Tab Navigation */}
+          <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-emerald-100 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-base">📢</span>
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  Pusat Layanan WhatsApp & Broadcast Massal
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                Kirim pengumuman libur pesantren, jadwal kedatangan, dan pengingat tagihan bulanan santri ke wali santri secara terarah dengan template resmi.
               </p>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <span className="px-3 py-1 bg-amber-200 border border-amber-300 text-amber-950 rounded-lg text-xs font-bold uppercase tracking-wide">
-                {forgotRequests.filter(r => r.status === 'Pending').length} Permintaan Aktif
-              </span>
+
+            {/* Sub-tab buttons */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setWaSubTab('broadcast')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs ${
+                  waSubTab === 'broadcast'
+                    ? 'bg-emerald-800 text-white shadow-sm'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <span>📢</span>
+                <span>Kirim Pesan Massal</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-black uppercase ${
+                  waSubTab === 'broadcast' ? 'bg-amber-400 text-emerald-950' : 'bg-emerald-200 text-emerald-900'
+                }`}>
+                  Utama
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWaSubTab('requests')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs ${
+                  waSubTab === 'requests'
+                    ? 'bg-emerald-800 text-white shadow-sm'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <span>📋</span>
+                <span>Pendaftaran Offline & Akun</span>
+                {forgotRequests.filter(r => r.status === 'Pending').length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-400 text-amber-950 animate-pulse">
+                    {forgotRequests.filter(r => r.status === 'Pending').length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWaSubTab('gateway_config')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs ${
+                  waSubTab === 'gateway_config'
+                    ? 'bg-emerald-800 text-white shadow-sm'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <span>⚙️</span>
+                <span>Gateway & Log ({waLogs.length})</span>
+              </button>
             </div>
           </div>
+
+          {/* Sub-tab 1: Broadcast Massal Panel */}
+          {waSubTab === 'broadcast' && (
+            <WhatsAppBroadcastPanel
+              students={students}
+              bills={bills}
+              settings={settings}
+              saveWaLog={saveWaLog}
+              logAdminActivity={logAdminActivity}
+              showAlert={showAlert}
+              availableFormalClasses={availableFormalClasses}
+              availableMadrasahClasses={availableMadrasahClasses}
+              rooms={rooms}
+              currentAdminName={currentAdminName}
+            />
+          )}
+
+          {/* Sub-tab 2 & 3: Requests and Gateway Configuration */}
+          {waSubTab !== 'broadcast' && (
+            <div className="space-y-6">
+              {/* Banner */}
+              <div className="bg-amber-50 rounded-2xl border border-amber-200 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="space-y-1 text-left">
+                  <h3 className="font-extrabold text-amber-950 text-base flex items-center gap-1.5">
+                    Pusat Layanan WhatsApp & Permintaan Akun Wali Santri
+                  </h3>
+                  <p className="text-xs text-amber-850 max-w-2xl leading-relaxed">
+                    Pantau permintaan dari wali santri yang lupa kredensial login, dan otomatisasi pemberitahuan akad/rekening pembayaran yang telah diverifikasi Bendahara. Seluruh pengiriman menggunakan direct gateway interaktif WhatsApp untuk kenyamanan wali santri.
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <span className="px-3 py-1 bg-amber-200 border border-amber-300 text-amber-950 rounded-lg text-xs font-bold uppercase tracking-wide">
+                    {forgotRequests.filter(r => r.status === 'Pending').length} Permintaan Aktif
+                  </span>
+                </div>
+              </div>
 
           {/* Card Panduan & Konfigurasi Pengiriman WhatsApp (Direct vs Gateway Otomatis) */}
           <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-6 space-y-4 text-left">
@@ -9384,6 +9565,8 @@ export default function AdminDashboard({
               </p>
             </div>
           </div>
+            </div>
+          )}
         </div>
       )}
 

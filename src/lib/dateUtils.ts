@@ -2,10 +2,47 @@
  * Date utility functions for Pesantren Portal and PPDB schedules
  */
 
+/**
+ * Normalizes any date string into standard ISO 'YYYY-MM-DD'
+ * Handles:
+ * - 'YYYY-MM-DD' -> 'YYYY-MM-DD'
+ * - 'DD-MM-YYYY' or 'DD/MM/YYYY' -> 'YYYY-MM-DD'
+ * - 'YYYY/MM/DD' -> 'YYYY-MM-DD'
+ * - ISO string with time '2026-10-20T...' -> '2026-10-20'
+ */
+export function normalizeDateToYMD(dateStr?: string): string {
+  if (!dateStr || !dateStr.trim()) return '';
+  const clean = dateStr.trim();
+  
+  // Cut time if present
+  const withoutTime = clean.split('T')[0].split(' ')[0];
+
+  // Pattern DD-MM-YYYY or DD/MM/YYYY (Day 1-31, Month 1-12, Year 4 digits)
+  const dmyMatch = withoutTime.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  // Pattern YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = withoutTime.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = ymdMatch[1];
+    const month = ymdMatch[2].padStart(2, '0');
+    const day = ymdMatch[3].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return withoutTime;
+}
+
 export function formatIndonesianDate(dateStr?: string): string {
   if (!dateStr || !dateStr.trim()) return '';
   try {
-    const parts = dateStr.trim().split('-');
+    const normalized = normalizeDateToYMD(dateStr);
+    const parts = normalized.split('-');
     if (parts.length !== 3) return dateStr;
     const year = parts[0];
     const month = parseInt(parts[1], 10);
@@ -15,7 +52,10 @@ export function formatIndonesianDate(dateStr?: string): string {
       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
     const monthName = months[month - 1] || parts[1];
-    return `${day} ${monthName} ${year}`;
+    if (!isNaN(day) && monthName && year) {
+      return `${day} ${monthName} ${year}`;
+    }
+    return dateStr;
   } catch {
     return dateStr;
   }
@@ -41,14 +81,19 @@ export function getTodayDateString(): string {
   return `${year}-${month}-${day}`;
 }
 
-export function autoAdjustPpdbSettings<T extends { ppdbOpen?: boolean; ppdbEndDate?: string }>(settings: T): T {
+/**
+ * Ensures PPDB settings preserve user-configured start and end dates.
+ * It will not wipe or shift dates.
+ */
+export function autoAdjustPpdbSettings<T extends { ppdbOpen?: boolean; ppdbStartDate?: string; ppdbEndDate?: string }>(settings: T): T {
   if (!settings) return settings;
-  const todayStr = getTodayDateString();
-  const end = settings.ppdbEndDate?.trim() || '';
-  if (end && todayStr > end && settings.ppdbOpen) {
-    return { ...settings, ppdbOpen: false };
-  }
-  return settings;
+  const start = settings.ppdbStartDate ? normalizeDateToYMD(settings.ppdbStartDate) : '';
+  const end = settings.ppdbEndDate ? normalizeDateToYMD(settings.ppdbEndDate) : '';
+  return {
+    ...settings,
+    ppdbStartDate: start,
+    ppdbEndDate: end,
+  };
 }
 
 /**

@@ -2030,7 +2030,9 @@ export async function pushSettingsToSupabase(s: PortalSettings): Promise<void> {
         logo_url: s.logoUrl,
         accent_color: s.accentColor,
         rekening_list: s.rekeningList,
-        ppdb_open: s.ppdbOpen
+        ppdb_open: s.ppdbOpen,
+        ppdb_start_date: s.ppdbStartDate || '',
+        ppdb_end_date: s.ppdbEndDate || ''
       });
     }
   } catch (err) {

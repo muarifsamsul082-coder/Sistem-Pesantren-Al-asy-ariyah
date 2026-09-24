@@ -448,14 +448,13 @@ export default function Navbar({
   const menuItems = [
     { id: 'home', label: 'Beranda' },
     { id: 'profile', label: 'Profil' },
-    { id: 'gallery', label: 'Galeri Foto' },
     { id: 'news', label: 'Berita' },
     { id: 'announcements', label: 'Pengumuman' },
     ...(ppdbStatus.isActive ? [{ id: 'ppdb', label: 'Pendaftaran PCSB', highlight: true }] : []),
   ];
 
   const handleNavClick = (viewId: string) => {
-    if (['home', 'profile', 'gallery', 'news', 'announcements'].includes(viewId)) {
+    if (['home', 'profile', 'news', 'announcements'].includes(viewId)) {
       setView('home');
       setTimeout(() => {
         if (viewId === 'home') {

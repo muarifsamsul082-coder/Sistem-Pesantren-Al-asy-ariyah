@@ -86,7 +86,8 @@ import {
   pushMasterClassesToSupabase,
   pushSettingsToSupabase,
   pushPpdbToSupabase,
-  subscribeToSupabaseRealtime
+  subscribeToSupabaseRealtime,
+  isLocalDataRecentlyChanged
 } from './lib/supabase';
 
 export default function App() {
@@ -421,12 +422,22 @@ export default function App() {
     // Dedicated server-level sync for settings, PPDB, and students across all devices
     const syncServerSettings = async () => {
       try {
+        const currentLocal = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
+        if (isLocalDataRecentlyChanged('settings')) {
+          // If locally changed recently, push local settings to server rather than overwriting
+          fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(currentLocal)
+          }).catch(e => console.warn('Push recent local settings to server error:', e));
+          return;
+        }
+
         const res = await fetch('/api/settings');
         if (res.ok) {
           const json = await res.json();
           if (json && json.success && json.settings) {
             const remoteSettings = json.settings;
-            const currentLocal = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
             const mergedSettings: PortalSettings = {
               ...currentLocal,
               ...remoteSettings,
@@ -674,26 +685,28 @@ export default function App() {
         }
 
         const currentLocalSettings = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
-        const remoteSettings = await syncSettingsWithSupabase(currentLocalSettings);
-        if (remoteSettings) {
-          const mergedSettings: PortalSettings = {
-            ...currentLocalSettings,
-            ...remoteSettings,
-            ppdbOpen: typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : currentLocalSettings.ppdbOpen,
-            ppdbStartDate: remoteSettings.ppdbStartDate !== undefined ? remoteSettings.ppdbStartDate : (currentLocalSettings.ppdbStartDate || ''),
-            ppdbEndDate: remoteSettings.ppdbEndDate !== undefined ? remoteSettings.ppdbEndDate : (currentLocalSettings.ppdbEndDate || ''),
-          };
-          const adjusted = autoAdjustPpdbSettings(mergedSettings);
-          setSettings(adjusted);
-          localStorage.setItem('pesantren_settings', JSON.stringify(adjusted));
+        if (!isLocalDataRecentlyChanged('settings')) {
+          const remoteSettings = await syncSettingsWithSupabase(currentLocalSettings);
+          if (remoteSettings) {
+            const mergedSettings: PortalSettings = {
+              ...currentLocalSettings,
+              ...remoteSettings,
+              ppdbOpen: typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : currentLocalSettings.ppdbOpen,
+              ppdbStartDate: remoteSettings.ppdbStartDate !== undefined ? remoteSettings.ppdbStartDate : (currentLocalSettings.ppdbStartDate || ''),
+              ppdbEndDate: remoteSettings.ppdbEndDate !== undefined ? remoteSettings.ppdbEndDate : (currentLocalSettings.ppdbEndDate || ''),
+            };
+            const adjusted = autoAdjustPpdbSettings(mergedSettings);
+            setSettings(adjusted);
+            localStorage.setItem('pesantren_settings', JSON.stringify(adjusted));
 
-          if (Array.isArray(adjusted.availableFormalClasses) && adjusted.availableFormalClasses.length > 0) {
-            setAvailableFormalClasses(adjusted.availableFormalClasses);
-            localStorage.setItem('pesantren_available_formal_classes', JSON.stringify(adjusted.availableFormalClasses));
-          }
-          if (Array.isArray(adjusted.availableMadrasahClasses) && adjusted.availableMadrasahClasses.length > 0) {
-            setAvailableMadrasahClasses(adjusted.availableMadrasahClasses);
-            localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(adjusted.availableMadrasahClasses));
+            if (Array.isArray(adjusted.availableFormalClasses) && adjusted.availableFormalClasses.length > 0) {
+              setAvailableFormalClasses(adjusted.availableFormalClasses);
+              localStorage.setItem('pesantren_available_formal_classes', JSON.stringify(adjusted.availableFormalClasses));
+            }
+            if (Array.isArray(adjusted.availableMadrasahClasses) && adjusted.availableMadrasahClasses.length > 0) {
+              setAvailableMadrasahClasses(adjusted.availableMadrasahClasses);
+              localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(adjusted.availableMadrasahClasses));
+            }
           }
         }
 
