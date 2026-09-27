@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { Student, SecurityLog, DisciplineLog, HealthLog, UserSession } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
-import { isSupabaseConfigured, pushAllStudentsToSupabase, pushStaffConfigToSupabase, markLocalDataChanged } from '../lib/supabase';
+import { isSupabaseConfigured, pushAllStudentsToSupabase, pushStaffConfigToSupabase, pushAllStaffUsersToSupabase, markLocalDataChanged } from '../lib/supabase';
 
 const getCityFromAddress = (addr: string) => {
   if (!addr) return 'Jawa Tengah';
@@ -233,12 +233,12 @@ export default function StaffDashboard({
       let fallbackText = '';
       if (type === 'izin') {
         if (points > 10) {
-          fallbackText = `🤖 [REKOMENDASI AI: TOLAK]\n\nSantri ${student?.fullName || 'ybs'} memiliki total ${points} poin pelanggaran aktif. Berdasarkan SOP Pesantren, perizinan keluar sebaiknya DITOLAK atau diberikan catatan pembinaan khusus.`;
+          fallbackText = `[REKOMENDASI AI: TOLAK]\n\nSantri ${student?.fullName || 'ybs'} memiliki total ${points} poin pelanggaran aktif. Berdasarkan SOP Pesantren, perizinan keluar sebaiknya DITOLAK atau diberikan catatan pembinaan khusus.`;
         } else {
-          fallbackText = `🤖 [REKOMENDASI AI: SETUJU]\n\nSantri ${student?.fullName || 'ybs'} memiliki ${points} poin pelanggaran aktif (di bawah ambang batas 10 poin). Permohonan izin keluar teridentifikasi aman dan layak disetujui.`;
+          fallbackText = `[REKOMENDASI AI: SETUJU]\n\nSantri ${student?.fullName || 'ybs'} memiliki ${points} poin pelanggaran aktif (di bawah ambang batas 10 poin). Permohonan izin keluar teridentifikasi aman dan layak disetujui.`;
         }
       } else {
-        fallbackText = `🤖 [ASISTEN AI PESANTREN]\n\nData santri ${student?.fullName || 'ybs'} (Kelas ${student?.class || '-'}) telah ditinjau. Sistem merekomendasikan penanganan administrasi sesuai standar operasional pondok.`;
+        fallbackText = `[ASISTEN AI PESANTREN]\n\nData santri ${student?.fullName || 'ybs'} (Kelas ${student?.class || '-'}) telah ditinjau. Sistem merekomendasikan penanganan administrasi sesuai standar operasional pondok.`;
       }
       setAiOutput(prev => ({ ...prev, [studentId]: fallbackText }));
     } finally {
@@ -259,6 +259,7 @@ export default function StaffDashboard({
   // 4. SKCK states (Keamanan)
   const [skckNis, setSkckNis] = React.useState('');
   const [skckReason, setSkckReason] = React.useState('Sebagai syarat sah administrasi kurban, mutasi pesantren formal, dan pendaftaran jenjang karir lanjutan.');
+  const [profileSaveSuccess, setProfileSaveSuccess] = React.useState<string>('');
 
   // Print slip layout trigger
   const [printSecurityLog, setPrintSecurityLog] = React.useState<SecurityLog | null>(null);
@@ -308,23 +309,23 @@ export default function StaffDashboard({
     const defaults = {
       keamanan: {
         name: accountName || 'Ustadz Junaidi Al-Anshori',
-        signature: '✍️ Junaidi',
-        seal: '🛡️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
+        signature: 'Junaidi',
+        seal: '️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
         letterTemplate1: 'Sehubungan dengan pelanggaran tertulis pedoman kedisplinan pondok pesantren, diberikan sanksi resmi kepada santri berikut:',
         letterTemplate2: '* Keterangan penting: Pelanggaran telah dicatatkan dalam server kesiswaan. Jika point melampaui batas toleransi (50 point), maka pihak pesantren berhak melakukan pemanggilan secara resmi kepada Wali Santri secara tertulis.',
         letterTemplate3: ''
       },
       ketertiban: {
         name: accountName || 'Ustadz Abdul Somad, S.Sy',
-        signature: '✒️ Abdul Somad',
-        seal: '📜 STEMPEL KETERTIBAN',
+        signature: 'Abdul Somad',
+        seal: 'STEMPEL KETERTIBAN',
         letterTemplate1: 'Diberikan izin kepada santri yang identitasnya tertera di bawah ini untuk meninggalkan area pondok pesantren sesuai rincian:',
         letterTemplate2: 'Sepanjang pengamatan lahiriah murni kami, yang bersangkutan selama berada di lingkungan Pondok Pesantren Al-Asy\'ariyah benar-benar Berkelakuan Baik, Taat Beribadah, serta bebas/bersih dari sanksi-sanksi pelanggaran berat hukum pondok pesantren.',
         letterTemplate3: 'Demikian surat keterangan catatan kelakuan baik ini dibuat untuk dapat dipergunakan sebagaimana mestinya dengan penuh rasa tanggung jawab.'
       },
       kesehatan: {
         name: accountName || 'Ustadzah dr. Fatimah Az-Zahra',
-        signature: '⚕️ Fatimah',
+        signature: 'dr. Fatimah',
         seal: '🩺 POSKESTREN AL-ASY\'ARIYAH',
         letterTemplate1: 'Menerangkan dengan ini bahwa santri yang tercantum di bawah ini sedang dalam perawatan kami:',
         letterTemplate2: '* Rekomendasi Medis: Diberikan dispensasi untuk beristirahat penuh dari kegiatan quranic, kelas diniyah, and sekolah umum selama proses pemulihan berlangsung. Mohon dijaga kebersihan makanan dan pola istirahatnya.',
@@ -411,6 +412,7 @@ export default function StaffDashboard({
     // Sinkronkan nama pengurus ke daftar akun pengurus terdaftar & menu persetujuan
     const userEmail = (session?.email || `${role}@alasyariyah.sch.id`).toLowerCase();
     localStorage.setItem('staff_custom_name_' + userEmail, deptName);
+    localStorage.setItem('staff_custom_name_' + role, deptName);
     try {
       const staffUsers = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
       let changed = false;
@@ -423,21 +425,26 @@ export default function StaffDashboard({
       });
       if (changed) {
         localStorage.setItem('pesantren_staff_users', JSON.stringify(updatedStaff));
-        window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+        if (isSupabaseConfigured()) {
+          pushAllStaffUsersToSupabase(updatedStaff).catch(() => {});
+        }
         fetch('/api/staff-users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: userEmail, fullName: deptName, name: deptName, role })
+          body: JSON.stringify(updatedStaff)
         }).catch(() => {});
       }
     } catch (e) {}
 
-    // Update session jika ada
+    // Update session jika ada (sessionStorage & localStorage)
     try {
-      const storedSess = localStorage.getItem('pesantren_session');
+      const storedSess = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
       if (storedSess) {
         const parsed = JSON.parse(storedSess);
         parsed.fullName = deptName;
+        parsed.name = deptName;
+        parsed.roleName = deptName;
+        sessionStorage.setItem('pesantren_session', JSON.stringify(parsed));
         localStorage.setItem('pesantren_session', JSON.stringify(parsed));
       }
     } catch (e) {}
@@ -455,7 +462,8 @@ export default function StaffDashboard({
     if (isSupabaseConfigured()) {
       pushStaffConfigToSupabase(role, { name: deptName, signature: deptSignature, seal: deptSeal }).catch(e => console.error(e));
     }
-    alert('Profil dan draf template surat berhasil diperbarui serta disinkronkan ke seluruh sistem!');
+    setProfileSaveSuccess('Nama profil dan template surat berhasil disimpan serta disinkronkan ke seluruh sistem!');
+    setTimeout(() => setProfileSaveSuccess(''), 4000);
   };
 
   // Helper to dynamically get any department configuration
@@ -464,23 +472,23 @@ export default function StaffDashboard({
     const defaults = {
       keamanan: {
         name: 'Ustadz Junaidi Al-Anshori',
-        signature: '✍️ Junaidi',
-        seal: '🛡️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
+        signature: 'Junaidi',
+        seal: '️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
         letterTemplate1: 'Sehubungan dengan pelanggaran tertulis pedoman kedisplinan pondok pesantren, diberikan sanksi resmi kepada santri berikut:',
         letterTemplate2: '* Keterangan penting: Pelanggaran telah dicatatkan dalam server kesiswaan. Jika point melampaui batas toleransi (50 point), maka pihak pesantren berhak melakukan pemanggilan secara resmi kepada Wali Santri secara tertulis.',
         letterTemplate3: ''
       },
       ketertiban: {
         name: 'Ustadz Abdul Somad, S.Sy',
-        signature: '✒️ Abdul Somad',
-        seal: '📜 STEMPEL KETERTIBAN',
+        signature: 'Abdul Somad',
+        seal: 'STEMPEL KETERTIBAN',
         letterTemplate1: 'Diberikan izin kepada santri yang identitasnya tertera di bawah ini untuk meninggalkan area pondok pesantren sesuai rincian:',
         letterTemplate2: 'Sepanjang pengamatan lahiriah murni kami, yang bersangkutan selama berada di lingkungan Pondok Pesantren Al-Asy\'ariyah benar-benar Berkelakuan Baik, Taat Beribadah, serta bebas/bersih dari sanksi-sanksi pelanggaran berat hukum pondok pesantren.',
         letterTemplate3: 'Demikian surat keterangan catatan kelakuan baik ini dibuat untuk dapat dipergunakan sebagaimana mestinya dengan penuh rasa tanggung jawab.'
       },
       kesehatan: {
         name: 'Ustadzah dr. Fatimah Az-Zahra',
-        signature: '⚕️ Fatimah',
+        signature: 'dr. Fatimah',
         seal: '🩺 POSKESTREN AL-ASY\'ARIYAH',
         letterTemplate1: 'Menerangkan dengan ini bahwa santri yang tercantum di bawah ini sedang dalam perawatan kami:',
         letterTemplate2: '* Rekomendasi Medis: Diberikan dispensasi untuk beristirahat penuh dari kegiatan quranic, kelas diniyah, and sekolah umum selama proses pemulihan berlangsung. Mohon dijaga kebersihan makanan dan pola istirahatnya.',
@@ -591,11 +599,11 @@ export default function StaffDashboard({
       const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
 
       if (customInputType === 'takzir') {
-        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan catatan kedisiplinan santri dari Pengurus Ketertiban & Keamanan *${schoolName}*:\n\n📌 *Pelanggaran:* ${violationType}\n⚠️ *Tingkat/Poin:* ${violationLevel} (${violationPoints} Poin)\n⚖️ *Bentuk Sanksi/Takzir:* ${violationConsequence || '-'}\n📅 *Tanggal:* ${new Date().toISOString().split('T')[0]}\n\nMohon kerja sama dan doa bapak/ibu wali santri untuk terus memotivasi ananda menjadi pribadi berakhlakul karimah.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Keamanan & Ketertiban ${schoolName}_`;
+        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan catatan kedisiplinan santri dari Pengurus Ketertiban & Keamanan *${schoolName}*:\n\n*Pelanggaran:* ${violationType}\n️ *Tingkat/Poin:* ${violationLevel} (${violationPoints} Poin)\n️ *Bentuk Sanksi/Takzir:* ${violationConsequence || '-'}\n*Tanggal:* ${new Date().toISOString().split('T')[0]}\n\nMohon kerja sama dan doa bapak/ibu wali santri untuk terus memotivasi ananda menjadi pribadi berakhlakul karimah.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Keamanan & Ketertiban ${schoolName}_`;
       } else if (customInputType === 'izin') {
-        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan bahwa ananda telah diberikan Surat Izin (${permitType}) oleh Pengurus Ketertiban & Perizinan *${schoolName}*:\n\n📋 *Keperluan/Tujuan:* ${permitDesc}\n📅 *Waktu Keluar:* ${new Date().toISOString().replace('T', ' ').substring(0, 16)}\n⏰ *Batas Kembali ke Pondok:* ${expectedReturn || '-'}\n\nMohon bantu memastikan ananda kembali ke pesantren tepat waktu sesuai jadwal perizinan.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Ketertiban & Perizinan ${schoolName}_`;
+        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan bahwa ananda telah diberikan Surat Izin (${permitType}) oleh Pengurus Ketertiban & Perizinan *${schoolName}*:\n\n*Keperluan/Tujuan:* ${permitDesc}\n*Waktu Keluar:* ${new Date().toISOString().replace('T', ' ').substring(0, 16)}\n⏰ *Batas Kembali ke Pondok:* ${expectedReturn || '-'}\n\nMohon bantu memastikan ananda kembali ke pesantren tepat waktu sesuai jadwal perizinan.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Ketertiban & Perizinan ${schoolName}_`;
       } else if (customInputType === 'kesehatan') {
-        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan kondisi kesehatan ananda dari Pos Kesehatan Pesantren (Poskestren) *${schoolName}*:\n\n🩺 *Keluhan:* ${complaint}\n📋 *Diagnosa:* ${diagnosis}\n💊 *Tindakan/Pengobatan:* ${treatment}\n🏥 *Status Saat Ini:* ${healthStatus}\n\nSaat ini ananda dalam penanganan dan pengawasan tim medis poskestren. Mohon sambung doa untuk kesembuhan ananda.\n\nWassalamu'alaikum Wr. Wb.\n_Tim Medis Poskestren ${schoolName}_`;
+        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan kondisi kesehatan ananda dari Pos Kesehatan Pesantren (Poskestren) *${schoolName}*:\n\n🩺 *Keluhan:* ${complaint}\n*Diagnosa:* ${diagnosis}\n*Tindakan/Pengobatan:* ${treatment}\n*Status Saat Ini:* ${healthStatus}\n\nSaat ini ananda dalam penanganan dan pengawasan tim medis poskestren. Mohon sambung doa untuk kesembuhan ananda.\n\nWassalamu'alaikum Wr. Wb.\n_Tim Medis Poskestren ${schoolName}_`;
       }
 
       if (waMsg) {
@@ -718,7 +726,7 @@ export default function StaffDashboard({
       const rawPhone = studentForNotice.parentPhone.replace(/[^0-9]/g, '');
       const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
       const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
-      const approveMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nSurat Izin Santri (${logForNotice.permitType}) telah *DISETUJUI & DIVERIFIKASI* oleh Pos Keamanan *${schoolName}*.\n\n📋 *Keperluan:* ${logForNotice.description}\n⏰ *Batas Waktu Kembali:* ${logForNotice.expectedReturnDate || '-'}\n\nMohon bantu memastikan ananda kembali ke pesantren tepat waktu.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Pos Keamanan_`;
+      const approveMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nSurat Izin Santri (${logForNotice.permitType}) telah *DISETUJUI & DIVERIFIKASI* oleh Pos Keamanan *${schoolName}*.\n\n*Keperluan:* ${logForNotice.description}\n⏰ *Batas Waktu Kembali:* ${logForNotice.expectedReturnDate || '-'}\n\nMohon bantu memastikan ananda kembali ke pesantren tepat waktu.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Pos Keamanan_`;
 
       fetch('/api/send-wa', {
         method: 'POST',
@@ -917,7 +925,7 @@ export default function StaffDashboard({
       
       {/* Sapaan Salam Friendly */}
       <div className="mb-6 font-sans text-left bg-gradient-to-r from-emerald-800 to-emerald-950 p-5 rounded-2xl border border-emerald-950 flex items-center gap-4 shadow-md text-white animate-fade-in">
-        <span className="text-3xl filter drop-shadow">💚</span>
+        
         <div>
           <h2 className="text-sm font-black tracking-wide uppercase">
             Assalamu'alaikum Wr. Wb. Selamat berkhidmah, <span className="text-amber-300 underline decoration-amber-400 decoration-2 font-black">{deptName || 'Ustadz Pengurus'}</span>!
@@ -937,9 +945,12 @@ export default function StaffDashboard({
             <Signature className="h-5 w-5 text-emerald-700" />
             <h2 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Pengaturan Profil & Draf Surat</h2>
           </div>
-          <p className="text-xs text-slate-500 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200/50 leading-relaxed">
-            * Silakan tentukan nama lengkap pengurus serta redaksi kata baku dalam surat resmi yang diterbitkan oleh bidang Anda.
-          </p>
+          {profileSaveSuccess && (
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-bold animate-fade-in flex items-center gap-2">
+              <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>{profileSaveSuccess}</span>
+            </div>
+          )}
           <form onSubmit={handleSaveProfile} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Nama Resmi Pengurus</label>
@@ -956,7 +967,7 @@ export default function StaffDashboard({
             {/* Custom Wording / Templates */}
             <div className="border-t border-dashed border-slate-200 pt-4 space-y-4">
               <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                📝 Edit Redaksi / Isi Kata dalam Surat
+                Edit Redaksi / Isi Kata dalam Surat
               </h3>
               <p className="text-[10px] text-slate-500">
                 Sesuaikan kata-kata baku yang dicantumkan pada surat resmi yang diterbitkan oleh bidang Anda.
@@ -1014,11 +1025,6 @@ export default function StaffDashboard({
                 : "Layanan Rekam Jejak Takzir & Kedisiplinan"}
             </h2>
           </div>
-          <p className="text-xs text-slate-500 leading-normal">
-            {activeSubTab === 'skck' 
-              ? "* Silakan ketik NIS/nama santri atau pilih langsung dari daftar untuk memverifikasi dan mencetak SKCK."
-              : "* Silakan ketik NIS/nama santri atau pilih langsung dari daftar untuk memverifikasi dan mencetak Surat Rekam Jejak Takzir Santri."}
-          </p>
 
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1064,13 +1070,13 @@ export default function StaffDashboard({
                 if (skckNis.trim()) {
                   return (
                     <div className="text-xs text-red-600 bg-red-50 p-3 rounded font-medium">
-                      ❌ Santri dengan NIS atau nama "{skckNis}" tidak ditemukan di basis data Pesantren.
+                      Santri dengan NIS atau nama "{skckNis}" tidak ditemukan di basis data Pesantren.
                     </div>
                   );
                 }
                 return (
                   <div className="text-xs text-slate-500 bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-center font-medium">
-                    🔍 Masukkan NIS santri di atas atau pilih santri dari menu pilihan untuk menampilkan surat.
+                    Masukkan NIS santri di atas atau pilih santri dari menu pilihan untuk menampilkan surat.
                   </div>
                 );
               }
@@ -1130,14 +1136,14 @@ export default function StaffDashboard({
                   {/* Editor helpful tip inside SKCK page */}
                   {(!hasActiveViolations || activeSubTab === 'takzir_letter') && (
                     <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-2.5 text-[11px] font-sans flex items-center gap-2">
-                      <span className="text-sm">💡</span>
+                      
                       <span><strong>Kolom Editor Surat Interaktif:</strong> Paragraf surat di bawah ini dapat diklik dan diedit kata-katanya secara langsung di layar sebelum dicetak / diunduh.</span>
                     </div>
                   )}
 
                   {activeSubTab === 'skck' && hasActiveViolations ? (
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-xs text-amber-950 font-sans space-y-3">
-                      <p className="font-extrabold text-sm flex items-center gap-1.5 text-amber-950">⚠️ PENERBITAN SKCK TERKUNCI (SANKSI BELUM SELESAI)</p>
+                      <p className="font-extrabold text-sm flex items-center gap-1.5 text-amber-950">️ PENERBITAN SKCK TERKUNCI (SANKSI BELUM SELESAI)</p>
                       <p>Santri <strong>{matchedStudent.fullName}</strong> saat ini tercatat memiliki {activeLogs.length} catatan pelanggaran yang <strong>belum diselesaikan (status: Belum Diurus atau Sedang Mengurus)</strong>.</p>
                       <p className="text-[11.5px] text-amber-900 leading-relaxed">Sesuai peraturan pesantren, Surat Keterangan Catatan Keamanan / Kelakuan Baik (SKCK) hanya dapat dicetak apabila seluruh bimbingan sanksi ta'zir santri telah dinyatakan <strong>Selesai</strong> oleh Bagian Keamanan.</p>
                       <p>Silakan selesaikan pengurusan sanksi terlebih dahulu atau cetak <strong>Surat Rekam Jejak Takzir</strong> untuk santri ini melalui menu Rekam Jejak Takzir.</p>
@@ -1333,7 +1339,7 @@ export default function StaffDashboard({
                               />
                             ) : (
                               <div className="border border-emerald-600 border-dashed rounded p-1 text-[8px] uppercase font-mono font-black text-emerald-800 rotate-[-6deg] max-w-[124px] leading-tight mb-2">
-                                {getStaffConfig('keamanan').seal || '🛡️ STEMPEL KEAMANAN'}
+                                {getStaffConfig('keamanan').seal || '️ STEMPEL KEAMANAN'}
                               </div>
                             )}
                           </div>
@@ -1349,7 +1355,7 @@ export default function StaffDashboard({
                                   referrerPolicy="no-referrer" 
                                 />
                               ) : (
-                                <span>{getStaffConfig('keamanan').signature || '✍️ M. Hasanuddin'}</span>
+                                <span>{getStaffConfig('keamanan').signature || 'M. Hasanuddin'}</span>
                               )}
                             </div>
                             <p className="text-[11px] font-bold text-slate-900 underline leading-none text-right">{deptName || getStaffConfig('keamanan').name || session?.fullName || 'Ustadz Pengurus Keamanan'}</p>
@@ -1428,7 +1434,7 @@ export default function StaffDashboard({
                       }}
                       className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 rounded-lg cursor-pointer"
                     >
-                      Unduh Berkas Offline 📥
+                      Unduh Berkas Offline
                     </button>
                   </div>
                     </>
@@ -1467,8 +1473,7 @@ export default function StaffDashboard({
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
                     staffSubTab === 'perizinan' ? 'bg-emerald-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
-                >
-                  🛡️ Riwayat Perizinan Santri ({allSecurityLogs.length})
+                >️ Riwayat Perizinan Santri ({allSecurityLogs.length})
                 </button>
                 <button
                   type="button"
@@ -1476,8 +1481,7 @@ export default function StaffDashboard({
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
                     staffSubTab === 'takzir' ? 'bg-indigo-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
-                >
-                  ⚖️ Riwayat Takzir & Sanksi Pelanggaran ({allDisciplineLogs.length})
+                >️ Riwayat Takzir & Sanksi Pelanggaran ({allDisciplineLogs.length})
                 </button>
               </div>
             ) : (
@@ -1488,8 +1492,7 @@ export default function StaffDashboard({
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
                     staffSubTab === 'perizinan' ? 'bg-emerald-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
-                >
-                  🛡️ Riwayat Perizinan Santri ({allSecurityLogs.length})
+                >️ Riwayat Perizinan Santri ({allSecurityLogs.length})
                 </button>
                 <button
                   type="button"
@@ -1497,8 +1500,7 @@ export default function StaffDashboard({
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
                     staffSubTab === 'takzir' ? 'bg-indigo-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
-                >
-                  ⚖️ Riwayat Takzir & Sanksi Pelanggaran ({allDisciplineLogs.length})
+                >️ Riwayat Takzir & Sanksi Pelanggaran ({allDisciplineLogs.length})
                 </button>
                 <button
                   type="button"
@@ -1565,14 +1567,14 @@ export default function StaffDashboard({
                                   onClick={() => handleApprovePermit(log.studentId, log.id)}
                                   className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[10px] font-bold rounded cursor-pointer transition shadow-3xs"
                                 >
-                                  ✓ Setujui
+                                  Setujui
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleRejectPermit(log.studentId, log.id)}
                                   className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded cursor-pointer transition shadow-3xs"
                                 >
-                                  ✕ Tolak
+                                  Tolak
                                 </button>
                               </div>
                             )}
@@ -1860,7 +1862,7 @@ export default function StaffDashboard({
           <div className="mb-8 p-6 bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-slate-200/80">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-dashed border-slate-200 pb-3 mb-5">
               <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
-                <span>📊</span> Visualisasi Tren & Statistik Real-Time ({theme.title.split('(')[0]})
+                 Visualisasi Tren & Statistik Real-Time ({theme.title.split('(')[0]})
               </h3>
               <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                 <div className="min-w-[120px]">
@@ -2149,9 +2151,9 @@ export default function StaffDashboard({
             'bg-emerald-50 bg-opacity-30 border-emerald-100/70'
           }`}>
             <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              {role === 'ketertiban' && <>🛡️ Input Surat Izin Baru (Ketertiban)</>}
+              {role === 'ketertiban' && <>️ Input Surat Izin Baru (Ketertiban)</>}
               {role === 'kesehatan' && <>🩺 Input Surat Keterangan Baru (Poskestren)</>}
-              {role === 'keamanan' && <>⚖️ Input Catatan Takzir / Pelanggaran Baru</>}
+              {role === 'keamanan' && <>️ Input Catatan Takzir / Pelanggaran Baru</>}
             </h3>
             <p className="text-[11px] text-slate-500 mb-4">
               {role === 'ketertiban' && 'Silakan pilih nama santri di bawah ini untuk menginput dan menerbitkan Surat Izin (Keluar/Sambang) secara cepat.'}
@@ -2252,8 +2254,8 @@ export default function StaffDashboard({
                       onChange={(e) => setCustomInputType(e.target.value as any)}
                       className="w-full h-9 px-2.5 border border-slate-200 rounded-lg text-xs font-bold bg-white text-slate-800 focus:ring-2 focus:ring-emerald-700 focus:outline-none"
                     >
-                      <option value="izin">🛡️ Surat Perizinan (Izin Keluar/Pulang)</option>
-                      <option value="takzir">⚖️ Catatan Takzir & Pelanggaran</option>
+                      <option value="izin">️ Surat Perizinan (Izin Keluar/Pulang)</option>
+                      <option value="takzir">️ Catatan Takzir & Pelanggaran</option>
                       <option value="kesehatan">🩺 Rekam Pelayanan Medis Poskestren</option>
                     </select>
                   </div>
@@ -2330,8 +2332,7 @@ export default function StaffDashboard({
                           setInputSelectedStudentId('');
                         }}
                         className="w-full py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-[11px] rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer shadow-3xs"
-                      >
-                        🛡️ + Surat Perizinan
+                      >️ + Surat Perizinan
                       </button>
                       <div className="grid grid-cols-2 gap-1.5">
                         <button
@@ -2345,8 +2346,7 @@ export default function StaffDashboard({
                             setInputSelectedStudentId('');
                           }}
                           className="py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 font-bold text-[10px] rounded-lg border border-indigo-200 transition cursor-pointer"
-                        >
-                          ⚖️ + Takzir
+                        >️ + Takzir
                         </button>
                         <button
                           type="button"
@@ -2392,8 +2392,7 @@ export default function StaffDashboard({
                   }}
                   className="p-1 rounded bg-emerald-900/60 hover:bg-emerald-900 text-teal-100 hover:text-white text-xs font-bold transition cursor-pointer"
                 >
-                  ✕
-                </button>
+                  </button>
               </div>
 
               {/* Tab Selector inside Modal */}
@@ -2404,8 +2403,7 @@ export default function StaffDashboard({
                   className={`py-1 rounded-lg transition cursor-pointer ${
                     customInputType === 'izin' ? 'bg-white text-emerald-900 font-extrabold shadow-3xs' : 'text-teal-100 hover:text-white'
                   }`}
-                >
-                  🛡️ Perizinan
+                >️ Perizinan
                 </button>
                 <button
                   type="button"
@@ -2413,8 +2411,7 @@ export default function StaffDashboard({
                   className={`py-1 rounded-lg transition cursor-pointer ${
                     customInputType === 'takzir' ? 'bg-white text-emerald-900 font-extrabold shadow-3xs' : 'text-teal-100 hover:text-white'
                   }`}
-                >
-                  ⚖️ Takzir
+                >️ Takzir
                 </button>
                 <button
                   type="button"
@@ -2564,7 +2561,7 @@ export default function StaffDashboard({
               {/* Toggle Notifikasi Otomatis via WhatsApp */}
               <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">📲</span>
+                  
                   <div>
                     <div className="text-xs font-bold text-emerald-950">Kirim Notifikasi WhatsApp Resmi ke Wali Santri</div>
                     <div className="text-[10px] text-emerald-700">Terkirim otomatis dari Nomor WhatsApp Pesantren</div>
@@ -2651,14 +2648,13 @@ export default function StaffDashboard({
               </button>
               <div className="text-[10px] bg-amber-50 text-amber-900 border border-amber-200 p-2.5 rounded mb-4 font-sans flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex-1">
-                  💡 Paragraf surat ini dapat diklik dan diedit langsung sebelum mencetak.
+                  Paragraf surat ini dapat diklik dan diedit langsung sebelum mencetak.
                 </div>
                 <button
                   onClick={() => setPrintSecurityLog(null)}
                   className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-black cursor-pointer shrink-0 transition"
                 >
-                  Kembali & Tutup ✕
-                </button>
+                  Kembali & Tutup </button>
               </div>
 
               {/* Printable Wrapper */}
@@ -2667,9 +2663,7 @@ export default function StaffDashboard({
                 <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 flex items-center">
                   {pesantrenSettings.logoUrl ? (
                     <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="h-14 w-14 bg-slate-50 rounded-full border border-slate-200 flex items-center justify-center text-xl mr-4 shrink-0 select-none">🕌</div>
-                  )}
+                  ) : null}
                   <div className="flex-1">
                     <h4 className="text-slate-900 font-black text-sm tracking-wide uppercase leading-tight">
                       {pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}
@@ -2740,39 +2734,41 @@ export default function StaffDashboard({
                   </p>
                 </div>
 
-               {/* Signature Area */}
+               {/* Signature Area: Sebelah kanan model rata kiri */}
               <div className="border-t border-dashed border-slate-200 pt-4 flex justify-end text-left text-xs">
-                <div className="w-[220px] relative font-sans space-y-0.5">
-                  <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  <p className="text-[10px] text-slate-800 font-bold">Mengetahui,</p>
-                  <p className="text-[10px] text-slate-900 font-extrabold uppercase tracking-wide">
-                    {role === 'ketertiban' ? 'Kepala Bidang Ketertiban & Keamanan' : role === 'keamanan' ? 'Kepala Bidang Keamanan' : 'Pengurus Pondok Pesantren'}
+                <div className="w-[280px] relative font-sans space-y-1">
+                  <p className="text-[11px] text-slate-600 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                  <p className="text-xs text-slate-900 font-bold uppercase tracking-wide">
+                    {role === 'ketertiban' ? 'Mengetahui, Kepala Bidang Ketertiban & Keamanan' : role === 'keamanan' ? 'Mengetahui, Kepala Bidang Keamanan' : 'Mengetahui, Pengurus Pondok Pesantren'}
                   </p>
                   
                   {/* TTD and overlapping Stempel */}
-                  <div className="h-10 w-full relative flex items-center justify-start select-none my-1">
+                  <div className="min-h-[88px] w-full relative flex items-center justify-start select-none py-1">
                     {/* TTD in background */}
-                    <div className="z-10 absolute inset-0 flex items-center justify-start">
+                    <div className="z-10 relative flex items-center justify-start">
                       {isImageUrl(config.signature) ? (
-                        <img src={config.signature} alt="Tanda Tangan" className="h-10 object-contain select-none" referrerPolicy="no-referrer" />
+                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
                       ) : (
-                        <span className="text-[10px] font-mono text-indigo-850 italic font-bold">{config.signature || '✒️ Syarifudin'}</span>
+                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'Syarifudin'}</span>
                       )}
                     </div>
 
                     {/* Overlapping Stempel */}
-                    <div className="z-20 absolute left-[30px] top-[-10px] pointer-events-none opacity-85">
+                    <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
                       {isImageUrl(config.seal) ? (
-                        <img src={config.seal} alt="Stempel Biro" className="h-14 w-14 object-contain select-none mix-blend-multiply rotate-[-6deg]" referrerPolicy="no-referrer" />
+                        <img src={config.seal} alt="Stempel Biro" className="h-24 w-24 object-contain select-none mix-blend-multiply rotate-[-6deg]" referrerPolicy="no-referrer" />
                       ) : (
-                        <div className="border border-indigo-600 border-double rounded h-8 w-8 flex items-center justify-center text-[5px] uppercase select-none font-bold text-indigo-800 rotate-[-6deg] leading-tight text-center bg-white/75">
+                        <div className="border border-indigo-600 border-double rounded h-16 w-16 flex items-center justify-center text-[7px] uppercase select-none font-bold text-indigo-800 rotate-[-6deg] leading-tight text-center bg-white/75">
                           TTD
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <p className="text-[11px] font-bold text-slate-900 underline leading-none">{config.name || 'Ustadz Ahmad Syarifudin, S.H.I'}</p>
+                  <div className="pt-1">
+                    <p className="font-black text-slate-950 underline text-xs leading-none uppercase">{config.name || 'Ustadz Ahmad Syarifudin, S.H.I'}</p>
+                    <p className="text-[10px] text-slate-600 font-medium mt-0.5">Kepala Bidang Keamanan & Perizinan</p>
+                  </div>
                 </div>
               </div>
               </div>
@@ -2787,8 +2783,7 @@ export default function StaffDashboard({
                     }}
                     className="w-full px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer text-center"
                   >
-                    Kembali & Tutup ✕
-                  </button>
+                    Kembali & Tutup </button>
                 ) : (
                   <>
                     <button
@@ -2803,8 +2798,7 @@ export default function StaffDashboard({
                       onClick={() => setPrintSecurityLog(null)}
                       className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer flex-1 text-center"
                     >
-                      Batal Print ✕
-                    </button>
+                      Batal Print </button>
                   </>
                 )}
               </div>
@@ -2836,14 +2830,13 @@ export default function StaffDashboard({
               </button>
               <div className="text-[10px] bg-amber-50 text-amber-900 border border-amber-200 p-2.5 rounded mb-4 font-sans flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex-1">
-                  💡 Paragraf surat ini dapat diklik dan diedit langsung sebelum mencetak.
+                  Paragraf surat ini dapat diklik dan diedit langsung sebelum mencetak.
                 </div>
                 <button
                   onClick={() => setPrintDisciplineLog(null)}
                   className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-black cursor-pointer shrink-0 transition"
                 >
-                  Kembali & Tutup ✕
-                </button>
+                  Kembali & Tutup </button>
               </div>
 
               {/* Printable Wrapper */}
@@ -2852,9 +2845,7 @@ export default function StaffDashboard({
                 <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 flex items-center">
                   {pesantrenSettings.logoUrl ? (
                     <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="h-14 w-14 bg-slate-50 rounded-full border border-slate-200 flex items-center justify-center text-xl mr-4 shrink-0 select-none">🕌</div>
-                  )}
+                  ) : null}
                   <div className="flex-1">
                     <h4 className="text-slate-900 font-black text-sm tracking-wide uppercase leading-tight">
                       {pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}
@@ -2900,36 +2891,39 @@ export default function StaffDashboard({
                 </p>
               </div>
 
-               {/* Signature Area */}
+               {/* Signature Area: Sebelah kanan model rata kiri */}
               <div className="border-t border-dashed border-slate-200 pt-4 flex justify-end text-left text-xs">
-                <div className="w-[200px] relative font-sans space-y-0.5">
-                  <p className="text-[10px] text-slate-400 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  <p className="text-[10px] text-emerald-955 font-extrabold uppercase tracking-wide">Mengetahui, Penguji Takzir</p>
+                <div className="w-[280px] relative font-sans space-y-1">
+                  <p className="text-[11px] text-slate-600 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                  <p className="text-xs text-slate-900 font-bold uppercase tracking-wide">Mengetahui, Penguji Takzir & Ketertiban</p>
                   
                   {/* TTD and overlapping Stempel */}
-                  <div className="h-10 w-full relative flex items-center justify-start select-none my-1">
+                  <div className="min-h-[88px] w-full relative flex items-center justify-start select-none py-1">
                     {/* TTD in background */}
-                    <div className="z-10 absolute inset-0 flex items-center justify-start">
+                    <div className="z-10 relative flex items-center justify-start">
                       {isImageUrl(config.signature) ? (
-                        <img src={config.signature} alt="Tanda Tangan" className="h-10 object-contain select-none" referrerPolicy="no-referrer" />
+                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
                       ) : (
-                        <span className="text-[10px] font-mono text-emerald-850 italic font-bold">{config.signature || '✍️ M. Hasanuddin'}</span>
+                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'M. Hasanuddin'}</span>
                       )}
                     </div>
 
                     {/* Overlapping Stempel */}
-                    <div className="z-20 absolute left-[30px] top-[-10px] pointer-events-none opacity-85">
+                    <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
                       {isImageUrl(config.seal) ? (
-                        <img src={config.seal} alt="Stempel Biro" className="h-14 w-14 object-contain select-none mix-blend-multiply rotate-[-5deg]" referrerPolicy="no-referrer" />
+                        <img src={config.seal} alt="Stempel Biro" className="h-24 w-24 object-contain select-none mix-blend-multiply rotate-[-5deg]" referrerPolicy="no-referrer" />
                       ) : (
-                        <div className="border border-emerald-600 border-double rounded h-8 w-8 flex items-center justify-center text-[5px] uppercase select-none font-bold text-emerald-800 rotate-[-5deg] leading-tight text-center bg-white/75">
+                        <div className="border border-emerald-600 border-double rounded h-16 w-16 flex items-center justify-center text-[7px] uppercase select-none font-bold text-emerald-800 rotate-[-5deg] leading-tight text-center bg-white/75">
                           TTD
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <p className="text-[11px] font-bold text-slate-900 underline leading-none">{config.name || deptName || session?.fullName || 'Ustadz Pengurus Pesantren'}</p>
+                  <div className="pt-1">
+                    <p className="font-black text-slate-950 underline text-xs leading-none uppercase">{config.name || deptName || session?.fullName || 'Ustadz M. Hasanuddin, S.Pd'}</p>
+                    <p className="text-[10px] text-slate-600 font-medium mt-0.5">Pengurus Lembaga Penegakan Disiplin</p>
+                  </div>
                 </div>
               </div>
               </div>
@@ -2944,8 +2938,7 @@ export default function StaffDashboard({
                     }}
                     className="w-full px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer text-center"
                   >
-                    Kembali & Tutup ✕
-                  </button>
+                    Kembali & Tutup </button>
                 ) : (
                   <>
                     <button
@@ -2960,8 +2953,7 @@ export default function StaffDashboard({
                       onClick={() => setPrintDisciplineLog(null)}
                       className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer flex-1 text-center"
                     >
-                      Batal Print ✕
-                    </button>
+                      Batal Print </button>
                   </>
                 )}
               </div>
@@ -2992,14 +2984,13 @@ export default function StaffDashboard({
               </button>
               <div className="text-[10px] bg-amber-50 text-amber-900 border border-amber-200 p-2.5 rounded mb-4 font-sans flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex-1">
-                  💡 Paragraf surat ini dapat diklik dan diedit langsung sebelum mencetak.
+                  Paragraf surat ini dapat diklik dan diedit langsung sebelum mencetak.
                 </div>
                 <button
                   onClick={() => setPrintHealthLog(null)}
                   className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-black cursor-pointer shrink-0 transition"
                 >
-                  Kembali & Tutup ✕
-                </button>
+                  Kembali & Tutup </button>
               </div>
 
               {/* Printable Wrapper */}
@@ -3008,9 +2999,7 @@ export default function StaffDashboard({
                 <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 flex items-center">
                   {pesantrenSettings.logoUrl ? (
                     <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="h-14 w-14 bg-slate-50 rounded-full border border-slate-200 flex items-center justify-center text-xl mr-4 shrink-0 select-none">🕌</div>
-                  )}
+                  ) : null}
                   <div className="flex-1">
                     <h4 className="text-slate-900 font-black text-sm tracking-wide uppercase leading-tight">
                       {pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}
@@ -3059,36 +3048,39 @@ export default function StaffDashboard({
                 </p>
               </div>
 
-               {/* Signature Area */}
+               {/* Signature Area: Sebelah kanan model rata kiri */}
               <div className="border-t border-dashed border-slate-200 pt-4 flex justify-end text-left text-xs">
-                <div className="w-[200px] relative font-sans space-y-0.5">
-                  <p className="text-[10px] text-rose-400 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  <p className="text-[10px] text-rose-955 font-extrabold uppercase tracking-wide">Mengetahui, Petugas Medis</p>
+                <div className="w-[280px] relative font-sans space-y-1">
+                  <p className="text-[11px] text-slate-600 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                  <p className="text-xs text-slate-900 font-bold uppercase tracking-wide">Mengetahui, Petugas Medis Poskestren</p>
                   
                   {/* TTD and overlapping Stempel */}
-                  <div className="h-10 w-full relative flex items-center justify-start select-none my-1">
+                  <div className="min-h-[88px] w-full relative flex items-center justify-start select-none py-1">
                     {/* TTD in background */}
-                    <div className="z-10 absolute inset-0 flex items-center justify-start">
+                    <div className="z-10 relative flex items-center justify-start">
                       {isImageUrl(config.signature) ? (
-                        <img src={config.signature} alt="Tanda Tangan" className="h-10 object-contain select-none" referrerPolicy="no-referrer" />
+                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
                       ) : (
-                        <span className="text-[10px] font-mono text-rose-800 italic font-bold">{config.signature || '⚕️ Fatimah'}</span>
+                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'dr. Fatimah'}</span>
                       )}
                     </div>
 
                     {/* Overlapping Stempel */}
-                    <div className="z-20 absolute left-[30px] top-[-10px] pointer-events-none opacity-85">
+                    <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
                       {isImageUrl(config.seal) ? (
-                        <img src={config.seal} alt="Stempel Biro" className="h-14 w-14 object-contain select-none mix-blend-multiply rotate-[-4deg]" referrerPolicy="no-referrer" />
+                        <img src={config.seal} alt="Stempel Biro" className="h-24 w-24 object-contain select-none mix-blend-multiply rotate-[-4deg]" referrerPolicy="no-referrer" />
                       ) : (
-                        <div className="border border-rose-600 border-double rounded h-8 w-8 flex items-center justify-center text-[5px] uppercase select-none font-bold text-rose-800 rotate-[-4deg] leading-tight text-center bg-white/75">
+                        <div className="border border-rose-600 border-double rounded h-16 w-16 flex items-center justify-center text-[7px] uppercase select-none font-bold text-rose-800 rotate-[-4deg] leading-tight text-center bg-white/75">
                           TTD
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <p className="text-[11px] font-bold text-slate-900 underline leading-none">{config.name || 'Ustadzah Fatimah, Amd.Kep'}</p>
+                  <div className="pt-1">
+                    <p className="font-black text-slate-950 underline text-xs leading-none uppercase">{config.name || 'Ustadzah dr. Fatimah Az-Zahra'}</p>
+                    <p className="text-[10px] text-slate-600 font-medium mt-0.5">Penanggung Jawab Medis Poskestren</p>
+                  </div>
                 </div>
               </div>
               </div>
@@ -3103,8 +3095,7 @@ export default function StaffDashboard({
                     }}
                     className="w-full px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer text-center"
                   >
-                    Kembali & Tutup ✕
-                  </button>
+                    Kembali & Tutup </button>
                 ) : (
                   <>
                     <button
@@ -3119,8 +3110,7 @@ export default function StaffDashboard({
                       onClick={() => setPrintHealthLog(null)}
                       className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer flex-1 text-center"
                     >
-                      Batal Print ✕
-                    </button>
+                      Batal Print </button>
                   </>
                 )}
               </div>
@@ -3135,7 +3125,7 @@ export default function StaffDashboard({
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-2">
-                  ✏️ Edit Isian Catatan ({editingLog.type === 'security' ? 'Keamanan' : editingLog.type === 'discipline' ? 'Ketertiban' : 'Kesehatan'})
+                  Edit Isian Catatan ({editingLog.type === 'security' ? 'Keamanan' : editingLog.type === 'discipline' ? 'Ketertiban' : 'Kesehatan'})
                 </h3>
                 <p className="text-[10px] text-teal-100 font-mono mt-0.5">ID: {editingLog.id}</p>
               </div>
@@ -3144,8 +3134,7 @@ export default function StaffDashboard({
                 onClick={() => setEditingLog(null)}
                 className="text-teal-100 hover:text-white p-1 rounded-lg transition cursor-pointer font-bold"
               >
-                ✕
-              </button>
+                </button>
             </div>
 
             <form
@@ -3251,9 +3240,9 @@ export default function StaffDashboard({
                       })}
                       className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-indigo-700 bg-white"
                     >
-                      <option value="Belum Diurus">Belum Diurus 🔴</option>
-                      <option value="Sedang Mengurus">Sedang Mengurus 🟡</option>
-                      <option value="Selesai">Selesai (Sudah Diputihkan) 🟢</option>
+                      <option value="Belum Diurus">Belum Diurus</option>
+                      <option value="Sedang Mengurus">Sedang Mengurus</option>
+                      <option value="Selesai">Selesai (Sudah Diputihkan)</option>
                     </select>
                   </div>
                 </>
@@ -3327,8 +3316,7 @@ export default function StaffDashboard({
                   type="submit"
                   className="px-5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow-md transition"
                 >
-                  Simpan Perubahan ✓
-                </button>
+                  Simpan Perubahan </button>
               </div>
             </form>
           </div>

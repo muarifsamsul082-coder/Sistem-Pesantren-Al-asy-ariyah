@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, CreditCard, Landmark, DollarSign, Calendar, Clock, AlertCircle, 
-  CheckCircle2, Bell, ShieldAlert, Sparkles, Send, UploadCloud, Check, Printer, IdCard, X, Download
+  CheckCircle2, Bell, ShieldAlert, Sparkles, Send, UploadCloud, Check, Printer, IdCard, X, Download, Info
 } from 'lucide-react';
 import { Student, Bill, Announcement, PortalSettings, SecurityLog, compressImage } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
@@ -355,7 +355,7 @@ export default function SantriDashboard({
 
             <div className="space-y-1.5 flex-1 text-center md:text-left z-10">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400 text-emerald-950 rounded-full text-[9px] font-extrabold uppercase font-mono tracking-wider shadow">
-                ✨ PORTAL RESMI WALI SANTRI
+                PORTAL RESMI WALI SANTRI
               </div>
               
               <h1 className="text-lg md:text-xl font-black text-white leading-tight">
@@ -385,7 +385,7 @@ export default function SantriDashboard({
       {/* Active Menu Indicator for Wali Santri */}
       <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 text-xs text-emerald-900 font-bold flex items-center justify-between">
         <span className="flex items-center gap-1.5">
-          <span>📌</span> LAYANAN AKTIF:
+          LAYANAN AKTIF:
           <span className="bg-emerald-800 text-white px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider ml-1">
             {activeSantriTab === 'tagihan' && 'Rincian Tagihan & SPP'}
             {activeSantriTab === 'pelanggaran' && 'Riwayat Pelanggaran & Takzir'}
@@ -451,7 +451,8 @@ export default function SantriDashboard({
                             onClick={() => setReceiptBill(b)}
                             className="px-3 py-1.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                           >
-                            📥 Cari Kwitansi
+                            <Printer className="h-3.5 w-3.5 text-emerald-700" />
+                            <span>Kwitansi</span>
                           </button>
                         ) : b.status === 'Konfirmasi Pembayaran' ? (
                           <span className="text-[10px] text-amber-600 italic font-medium">Menunggu Verifikasi</span>
@@ -459,9 +460,10 @@ export default function SantriDashboard({
                           <button
                             type="button"
                             onClick={() => setSelectedBill(b)}
-                            className="px-4 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                            className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
                           >
-                            Bayar Online
+                            <UploadCloud className="h-3.5 w-3.5" />
+                            <span>Unggah Bukti Resi</span>
                           </button>
                         )}
                       </div>
@@ -477,11 +479,11 @@ export default function SantriDashboard({
                     <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">
-                          💳
+                          <CreditCard className="h-4 w-4 text-emerald-800" />
                         </div>
                         <div>
                           <h4 className="font-extrabold text-emerald-950 text-sm">
-                            Bayar Online: {selectedBill.title}
+                            Konfirmasi Pembayaran: {selectedBill.title}
                           </h4>
                           <span className="text-[10px] text-slate-500 font-medium">Batas Pembayaran: {selectedBill.dueDate}</span>
                         </div>
@@ -497,10 +499,10 @@ export default function SantriDashboard({
 
                     {success ? (
                       <div className="p-5 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-xl space-y-2 text-center">
-                        <div className="text-3xl">🎉</div>
-                        <h5 className="font-extrabold text-sm text-emerald-900">Pembayaran Berhasil Diproses!</h5>
+                        <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto" />
+                        <h5 className="font-extrabold text-sm text-emerald-900">Bukti Transfer Berhasil Dikirim</h5>
                         <p className="text-xs text-emerald-700 leading-relaxed font-semibold">
-                          Transaksi pembayaran Anda telah dicatat ke sistem keuangan pesantren dan disinkronkan ke cloud.
+                          Bukti pembayaran Anda telah dikirimkan ke Bendahara Pesantren untuk diverifikasi.
                         </p>
                       </div>
                     ) : (
@@ -508,7 +510,7 @@ export default function SantriDashboard({
                         {/* Summary Tagihan */}
                         <div className="p-3.5 bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-xl flex items-center justify-between shadow-sm">
                           <div>
-                            <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-200 block">Total Pembayaran</span>
+                            <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-200 block">Total Tagihan</span>
                             <span className="text-lg font-black font-mono">Rp {selectedBill.amount.toLocaleString('id-ID')}</span>
                           </div>
                           <div className="text-right">
@@ -519,40 +521,61 @@ export default function SantriDashboard({
                           </div>
                         </div>
 
-                        {/* Opsi 1: Bayar Instan Otomatis */}
-                        <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2 text-left">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-black text-emerald-900 flex items-center gap-1.5">
-                              <span>⚡</span> Kanal 1: Bayar Online Instan (Gateway)
+                        {/* Rekening Resmi Pesantren Synchronized State */}
+                        {settings.rekeningList && settings.rekeningList.length > 0 ? (
+                          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-left">
+                            <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider block">
+                              Rekening Resmi Tujuan Transfer:
                             </span>
-                            <span className="text-[9px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">
-                              Lunas Otomatis
-                            </span>
+                            <div className="space-y-2">
+                              {settings.rekeningList.map((rek: any) => (
+                                <div key={rek.id} className="p-2.5 bg-white border border-emerald-100 rounded-lg flex items-center justify-between gap-2 shadow-2xs">
+                                  <div>
+                                    <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                                      <span>{rek.bankName}</span>
+                                      {rek.isMain && (
+                                        <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">
+                                          Utama
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="font-mono text-xs font-black text-emerald-900 mt-0.5 select-all">
+                                      {rek.accountNumber}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500">
+                                      a.n. {rek.accountName}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText(rek.accountNumber);
+                                      setBank(`Transfer ${rek.bankName}`);
+                                    }}
+                                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-md transition cursor-pointer"
+                                  >
+                                    Salin
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <p className="text-[11px] text-slate-600 leading-snug">
-                            Sistem akan langsung memvalidasi pembayaran tagihan secara real-time, menerbitkan kwitansi resmi, dan memperbarui buku kas.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={handleInstantOnlinePay}
-                            className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-black rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
-                          >
-                            <span>✓</span>
-                            <span>Proses Bayar Online Sekarang (Rp {selectedBill.amount.toLocaleString('id-ID')})</span>
-                          </button>
-                        </div>
+                        ) : (
+                          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5 text-left">
+                            <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs">
+                              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                              <span>Rekening Pesantren Belum Didaftarkan</span>
+                            </div>
+                            <p className="text-[11px] text-amber-800 leading-relaxed">
+                              Admin belum mendaftarkan nomor rekening resmi pesantren. Pembayaran sementara dapat dilakukan secara tunai langsung ke Bendahara Pesantren.
+                            </p>
+                          </div>
+                        )}
 
-                        {/* Divider */}
-                        <div className="relative flex py-1 items-center">
-                          <div className="flex-grow border-t border-slate-200"></div>
-                          <span className="flex-shrink mx-3 text-slate-400 text-[10px] uppercase font-bold tracking-wider">Atau Unggah Bukti Manual</span>
-                          <div className="flex-grow border-t border-slate-200"></div>
-                        </div>
-
-                        {/* Opsi 2: Transfer Bank & Kirim Bukti Manual */}
+                        {/* Form Pembayaran Manual & Unggah Resi */}
                         <form onSubmit={handlePaySimulate} className="space-y-3 text-left">
                           <div>
-                            <label className="text-[10px] text-slate-600 font-bold block mb-1">Pilih Rekening Tujuan Transfer</label>
+                            <label className="text-[10px] text-slate-600 font-bold block mb-1">Metode / Saluran Pembayaran</label>
                             <select
                               value={bank}
                               onChange={(e) => setBank(e.target.value)}
@@ -561,26 +584,18 @@ export default function SantriDashboard({
                               {settings.rekeningList && settings.rekeningList.length > 0 ? (
                                 settings.rekeningList.map((rek: any) => (
                                   <option key={rek.id} value={`Transfer ${rek.bankName}`}>
-                                    {rek.bankName} - {rek.accountNumber} a.n. {rek.accountName} {rek.isMain ? '(Kanal Utama)' : ''}
+                                    {rek.bankName} - {rek.accountNumber} a.n. {rek.accountName}
                                   </option>
                                 ))
-                              ) : (
-                                <>
-                                  <option value={`Transfer ${settings.pesantrenBankName || 'BSI'}`}>
-                                    {settings.pesantrenBankName || 'Bank Syariah Indonesia (BSI)'} - {settings.pesantrenBankAccountNumber || '718290182'} a.n. {settings.pesantrenBankAccountName || 'PONPES AL-ASYARIYAH'}
-                                  </option>
-                                  <option value="Transfer BRI (Virtual Account)">Transfer BRI (Virtual Account) - 88201982736</option>
-                                  <option value="Transfer BNI (Virtual Account)">Transfer BNI (Virtual Account) - 98201982747</option>
-                                </>
-                              )}
-                              <option value="Tunai ke Bendahara Pesantren">Bayar Tunai ke Bendahara Pesantren</option>
+                              ) : null}
+                              <option value="Tunai ke Bendahara Pesantren">Bayar Tunai Langsung ke Bendahara</option>
                             </select>
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             <div>
-                              <label className="text-[10px] text-slate-600 font-bold block mb-1">Unggah Struk / Bukti Transfer</label>
-                              <div className="flex items-center gap-2">
+                              <label className="text-[10px] text-slate-600 font-bold block mb-1">Unggah Struk / Bukti Resi</label>
+                              <div className="flex flex-col gap-1.5">
                                 <input
                                    type="file"
                                    accept="image/*"
@@ -608,8 +623,15 @@ export default function SantriDashboard({
                                    htmlFor="payment-proof-upload"
                                    className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 px-3 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-95 w-full text-center"
                                 >
-                                   <UploadCloud className="h-4 w-4 text-emerald-700" /> {proofUrl ? 'Foto Terpilih ✓' : 'Pilih Foto Resi'}
+                                   <UploadCloud className="h-4 w-4 text-emerald-700" /> 
+                                   <span>{proofUrl ? 'Resi Dipilih' : 'Pilih Foto Bukti Resi'}</span>
                                 </label>
+                                {proofUrl && (
+                                  <div className="mt-1 flex items-center gap-2">
+                                    <img src={proofUrl} alt="Bukti Resi" className="h-10 w-10 object-cover rounded border border-slate-200" />
+                                    <span className="text-[10px] text-emerald-700 font-semibold">Foto siap diunggah</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -617,7 +639,7 @@ export default function SantriDashboard({
                               <label className="text-[10px] text-slate-600 font-bold block mb-1">Bank Pengirim (Opsional)</label>
                               <input
                                 type="text"
-                                placeholder="Contoh: BCA / Mandiri / BSI"
+                                placeholder="Contoh: BCA / BRI / Mandiri"
                                 value={senderBank}
                                 onChange={(e) => setSenderBank(e.target.value)}
                                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-700 focus:outline-none"
@@ -627,9 +649,10 @@ export default function SantriDashboard({
 
                           <button
                             type="submit"
-                            className="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+                            className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
                           >
-                            Kirim Bukti Pembayaran ke Bendahara
+                            <UploadCloud className="h-4 w-4" />
+                            <span>Kirim Bukti Pembayaran ke Bendahara</span>
                           </button>
                         </form>
                       </div>
@@ -719,9 +742,9 @@ export default function SantriDashboard({
                                 log.status === 'Sedang Mengurus' ? 'bg-amber-100 text-amber-800' :
                                 'bg-rose-100 text-rose-800'
                               }`}>
-                                {log.status === 'Selesai' ? '✓ Selesai' :
-                                 log.status === 'Sedang Mengurus' ? '⏳ Sedang Mengurus' :
-                                 '⚡ Belum Diurus'}
+                                {log.status === 'Selesai' ? 'Selesai' :
+                                 log.status === 'Sedang Mengurus' ? 'Sedang Mengurus' :
+                                 'Belum Diurus'}
                               </span>
                             </td>
                           </tr>
@@ -849,14 +872,14 @@ export default function SantriDashboard({
 
                 <div className="pt-2">
                   <div className="p-2.5 mb-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 font-medium flex items-center gap-2">
-                    <span className="text-sm">ℹ️</span>
-                    <span>Pengajuan izin siap dikirim. Setelah mengeklik tombol di bawah, surat perizinan akan langsung dikirim & diajukan ke Pengurus Keamanan.</span>
+                    <Info className="h-4 w-4 text-emerald-700 shrink-0" />
+                    <span>Pengajuan izin siap dikirim ke Pengurus Keamanan.</span>
                   </div>
                   <button
                     type="submit"
                     className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-2 shadow-md uppercase tracking-wider active:scale-[0.98]"
                   >
-                    <span>🚀</span> Kirim & Ajukan Surat Perizinan
+                    Kirim & Ajukan Surat Perizinan
                   </button>
                 </div>
               </form>
@@ -950,7 +973,7 @@ export default function SantriDashboard({
                 onClick={() => setReceiptBill(null)}
                 className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-extrabold transition cursor-pointer flex items-center gap-1 shadow-sm"
               >
-                ✕ Keluar / Tutup Kwitansi
+                Keluar / Tutup Kwitansi
               </button>
             </div>
 
@@ -1022,40 +1045,40 @@ export default function SantriDashboard({
                   </span>
                 </div>
 
-                <div className="flex justify-center">
-                  {/* Column 1 (Left): Pengurus (with Stempel overlapping Signature) */}
-                  <div className="text-center space-y-0.5 relative w-64">
-                    <p className="text-[9px] text-gray-400 font-semibold">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
-                    <p className="text-[9px] text-emerald-900 font-extrabold uppercase tracking-wider">Mengetahui,</p>
+                <div className="flex justify-end">
+                  {/* Posisi Kanan Model Rata Kiri */}
+                  <div className="text-left space-y-1 relative w-[280px] pl-2 font-sans">
+                    <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
+                    <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, Bendahara Pesantren</p>
                     
-                    <div className="h-16 w-36 mx-auto relative flex items-center justify-center select-none">
+                    <div className="h-24 w-full relative flex items-center justify-start select-none py-1">
                       {/* Tanda tangan rendered in background */}
-                      <div className="z-10 absolute inset-0 flex items-center justify-center">
-                        {isImageUrl(settings.ttdPengurusUrl) ? (
-                          <img src={settings.ttdPengurusUrl} alt="TTD Pengurus" className="max-h-16 max-w-[120px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                      <div className="z-10 relative flex items-center justify-start">
+                        {isImageUrl(settings.ttdBendaharaUrl || settings.ttdPengurusUrl) ? (
+                          <img src={settings.ttdBendaharaUrl || settings.ttdPengurusUrl} alt="TTD Pengurus" className="h-20 max-w-[200px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                         ) : (
-                          <span className="text-[10px] font-mono text-emerald-800 italic font-extrabold tracking-wide">
-                            {settings.ttdPengurusUrl || '✍️ Ahmad Wildan'}
+                          <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
+                            {settings.ttdBendaharaUrl || settings.ttdPengurusUrl || 'Bendahara Pesantren'}
                           </span>
                         )}
                       </div>
 
                       {/* Stempel rendered on top overlapping */}
-                      {settings.stempelPesantrenUrl && (
-                        <div className="z-20 absolute left-[-15px] top-[-5px] pointer-events-none opacity-85">
-                          {isImageUrl(settings.stempelPesantrenUrl) ? (
-                            <img src={settings.stempelPesantrenUrl} alt="Stempel Pesantren" className="h-20 w-20 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                      {(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) && (
+                        <div className="z-20 absolute left-[65px] top-[-5px] pointer-events-none opacity-85">
+                          {isImageUrl(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) ? (
+                            <img src={settings.stempelBendaharaUrl || settings.stempelPesantrenUrl} alt="Stempel Pesantren" className="h-24 w-24 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
-                            <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-12deg] leading-tight text-center bg-white/75 shadow-xs">
-                              {settings.stempelPesantrenUrl}
+                            <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-18 w-18 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-12deg] leading-tight text-center bg-white/75 shadow-xs">
+                              {settings.stempelBendaharaUrl || settings.stempelPesantrenUrl}
                             </div>
                           )}
                         </div>
                       )}
                     </div>
 
-                    <p className="text-xs font-black text-gray-900 underline leading-none">{settings.namaPengurus || 'Ustadz Ahmad Wildan, M.Pd'}</p>
-                    <p className="text-[8.5px] text-gray-500 font-bold uppercase tracking-wider mt-1">Bendahara Pondok Pesantren</p>
+                    <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{settings.namaBendahara || settings.namaPengurus || 'Ustadzah Siti Aminah'}</p>
+                    <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Bendahara Pondok Pesantren</p>
                   </div>
                 </div>
               </div>
@@ -1214,7 +1237,7 @@ export default function SantriDashboard({
                             <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-9 max-w-[85px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
                             <span className="text-[7.5px] font-mono text-blue-900 italic font-extrabold">
-                              {"✒️ " + (settings.namaPengasuh || "KH. Ahmad Wildan")}
+                              {settings.namaPengasuh || "KH. Ahmad Wildan"}
                             </span>
                           )}
                         </div>
@@ -1237,11 +1260,6 @@ export default function SantriDashboard({
                     </div>
                   </div>
                 </div>
-
-                {/* Decorative Watermark background leaf */}
-                <div className="absolute -bottom-10 -right-10 opacity-[0.03] pointer-events-none text-emerald-900 select-none">
-                  <span className="text-9xl">🌿</span>
-                </div>
               </div>
             </div>
 
@@ -1260,7 +1278,7 @@ export default function SantriDashboard({
                 onClick={() => downloadPrintableHTML('santri-student-card-printable-area', `Kartu_Santri_${student.fullName}`)}
                 className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-sm"
               >
-                <Download className="h-3.5 w-3.5" /> Unduh HTML Offline 📥
+                <Download className="h-3.5 w-3.5" /> Unduh HTML Offline
               </button>
 
               <button

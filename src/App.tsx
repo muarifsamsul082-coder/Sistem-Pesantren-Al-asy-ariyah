@@ -48,25 +48,18 @@ export const DEFAULT_SETTINGS: PortalSettings = {
   ttdKetertibanUrl: "📜 A. Somad",
   stempelKetertibanUrl: "⚖️ STEMPEL DEPT KETERTIBAN",
   namaKesehatan: "Ustadzah dr. Fatimah Az-Zahra",
-  ttdKesehatanUrl: "🩺 dr. Fatimah",
-  stempelKesehatanUrl: "🏥 STEMPEL POSKESTREN",
+  ttdKesehatanUrl: "dr. Fatimah",
+  stempelKesehatanUrl: "STEMPEL POSKESTREN",
   namaAkademik: "Ustadz Dr. H. Muhaimin, M.A",
-  ttdAkademikUrl: "🎓 H. Muhaimin",
-  stempelAkademikUrl: "📚 STEMPEL DEPT AKADEMIK",
+  ttdAkademikUrl: "H. Muhaimin",
+  stempelAkademikUrl: "STEMPEL DEPT AKADEMIK",
   ppdbOpen: true,
   ppdbStartDate: "",
   ppdbEndDate: "",
-  pesantrenBankName: "Bank Syariah Indonesia (BSI)",
-  pesantrenBankAccountNumber: "718290182",
-  pesantrenBankAccountName: "BEND. PONPES AL-ASYARIYAH",
-  rekeningList: [
-    { id: 'rek-1', bankName: 'Bank Syariah Indonesia (BSI)', accountNumber: '718290182', accountName: 'BEND. PONPES AL-ASYARIYAH', isMain: true, type: 'bank' },
-    { id: 'rek-2', bankName: 'Bank Rakyat Indonesia (BRI)', accountNumber: '0029-01-000456-30-2', accountName: 'YAYASAN AL-ASYARIYAH', type: 'bank' },
-    { id: 'rek-3', bankName: 'Bank Central Asia (BCA)', accountNumber: '0312345678', accountName: 'AL-ASYARIYAH MUSA', type: 'bank' },
-    { id: 'rek-4', bankName: 'DANA E-Wallet', accountNumber: '081234567890', accountName: 'PONPES AL-ASYARIYAH DANA', type: 'ewallet' },
-    { id: 'rek-5', bankName: 'GoPay / OVO / ShopeePay', accountNumber: '081234567890', accountName: 'PONPES AL-ASYARIYAH', type: 'ewallet' },
-    { id: 'rek-6', bankName: 'QRIS All Payment', accountNumber: 'ID102030405060708', accountName: 'YAYASAN AL-ASYARIYAH (QRIS)', type: 'ewallet' }
-  ]
+  pesantrenBankName: "",
+  pesantrenBankAccountNumber: "",
+  pesantrenBankAccountName: "",
+  rekeningList: []
 };
 
 // Supabase Cloud Storage Sync
@@ -226,14 +219,41 @@ export default function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [currentView, adminTab, staffTab, santriTab]);
 
-  // Clean up localStorage session when window closes to enforce auto-logout across all devices
+  // Enforce automatic session cleanup on tab close (via sessionStorage) and inactivity timeout
   React.useEffect(() => {
-    const handleBeforeUnload = () => {
-      localStorage.removeItem('pesantren_session');
+    // Inactivity timer (25 minutes of no user activity)
+    const INACTIVITY_TIMEOUT_MS = 25 * 60 * 1000;
+
+    const recordActivity = () => {
+      sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    const checkInactivity = () => {
+      const stored = sessionStorage.getItem('pesantren_session');
+      if (!stored) return;
+
+      const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || '0', 10);
+      if (lastActivity > 0 && Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS) {
+        setSession(null);
+        sessionStorage.removeItem('pesantren_session');
+        sessionStorage.removeItem('pesantren_current_view');
+        sessionStorage.removeItem('pesantren_last_activity');
+        localStorage.removeItem('pesantren_session');
+        setView('home');
+      }
+    };
+
+    if (!sessionStorage.getItem('pesantren_last_activity')) {
+      recordActivity();
+    }
+
+    const activityEvents = ['mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    activityEvents.forEach(evt => window.addEventListener(evt, recordActivity, { passive: true }));
+    const intervalId = setInterval(checkInactivity, 30000);
+
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      activityEvents.forEach(evt => window.removeEventListener(evt, recordActivity));
+      clearInterval(intervalId);
     };
   }, []);
 
@@ -391,13 +411,20 @@ export default function App() {
 
     setBills(getOrSet('pesantren_bills', []));
     
-    // Ensure settings has bank & e-wallet accounts merged
+    // Synchronize rekening list: Only use real accounts saved by admin, never inject fake dummy accounts
     const loadedSettings = getOrSet('pesantren_settings', DEFAULT_SETTINGS);
-    const existingReks = loadedSettings.rekeningList || [];
+    let existingReks = Array.isArray(loadedSettings.rekeningList) ? loadedSettings.rekeningList : [];
+    // If existing accounts were the legacy unconfigured placeholder accounts, clear them
+    if (existingReks.length > 0 && existingReks.some((r: any) => r.id === 'rek-1' && r.accountNumber === '718290182' && r.accountName === 'BEND. PONPES AL-ASYARIYAH')) {
+      existingReks = [];
+      try {
+        localStorage.setItem('pesantren_settings', JSON.stringify({ ...loadedSettings, rekeningList: [] }));
+      } catch (e) {}
+    }
     const mergedSettings = {
       ...DEFAULT_SETTINGS,
       ...loadedSettings,
-      rekeningList: existingReks.length > 0 ? existingReks : DEFAULT_SETTINGS.rekeningList
+      rekeningList: existingReks
     };
     const adjustedSettings = autoAdjustPpdbSettings(mergedSettings);
     setSettings(adjustedSettings);
@@ -778,10 +805,22 @@ export default function App() {
     window.addEventListener('pesantren_settings_updated', handleStorageChange);
     window.addEventListener('focus', handleWindowFocus);
 
-    // Restore login session: use sessionStorage so closing window/Chrome automatically logs out
-    const storedSession = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
+    // Restore login session: use sessionStorage strictly so closing tab automatically logs out
+    const storedSession = sessionStorage.getItem('pesantren_session');
     if (storedSession) {
       try {
+        const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || '0', 10);
+        const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000;
+        if (lastActivity > 0 && Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS) {
+          sessionStorage.removeItem('pesantren_session');
+          sessionStorage.removeItem('pesantren_current_view');
+          sessionStorage.removeItem('pesantren_last_activity');
+          localStorage.removeItem('pesantren_session');
+          setSession(null);
+          setView('home');
+          return;
+        }
+
         const parsedSess = JSON.parse(storedSession);
         if (parsedSess.role === 'santri') {
           const studentId = parsedSess.studentId;
@@ -797,6 +836,7 @@ export default function App() {
         }
         setSession(parsedSess);
         sessionStorage.setItem('pesantren_session', JSON.stringify(parsedSess));
+        sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
 
         // CRITICAL: Preserve active menu on refresh! Do not force reset to overview/dashboard
         const savedView = sessionStorage.getItem('pesantren_current_view');
@@ -894,6 +934,7 @@ export default function App() {
   const handleLoginSuccess = (newSession: UserSession) => {
     setSession(newSession);
     sessionStorage.setItem('pesantren_session', JSON.stringify(newSession));
+    sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
     localStorage.setItem('pesantren_session', JSON.stringify(newSession));
     
     // Always open first/statistics tab on fresh login
@@ -915,6 +956,7 @@ export default function App() {
     setSession(null);
     sessionStorage.removeItem('pesantren_session');
     sessionStorage.removeItem('pesantren_current_view');
+    sessionStorage.removeItem('pesantren_last_activity');
     localStorage.removeItem('pesantren_session');
     setView('home');
   };
@@ -1212,7 +1254,7 @@ export default function App() {
       {/* Main Container */}
       <main className={`flex-grow flex flex-col transition-all duration-300 ${session && isAccountOpen ? 'lg:pl-64' : ''}`}>
         {currentView === 'home' && (
-          <div className="flex-grow flex flex-col bg-white">
+          <div className="flex-grow flex flex-col bg-emerald-950">
             <Hero 
               onJoinPCSB={() => setView('ppdb')} 
               schoolName={settings.schoolName}

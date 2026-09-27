@@ -71,9 +71,10 @@ export default function PublicPortal({
     : publicAnnouncements.filter(a => a.priority === annFilter);
 
   return (
-    <div className={`space-y-12 pb-16 flex flex-col ${className}`}>
-      
-      {/* 1. PROFIL SECTION */}
+    <div className={`flex flex-col min-h-full ${className}`}>
+      {/* Content wrapper with spacing */}
+      <div className="space-y-12 pb-12 flex-grow">
+        {/* 1. PROFIL SECTION */}
       {(currentView === 'home' || currentView === 'profile') && (
         <section id="profile" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch w-full">
           
@@ -477,9 +478,10 @@ export default function PublicPortal({
           </motion.div>
         </section>
       )}
+      </div>
 
       {/* FOOTER */}
-      <footer className="bg-gradient-to-r from-emerald-900 to-teal-950 text-white py-12 px-4 shadow-inner mt-auto w-full">
+      <footer className="bg-gradient-to-r from-emerald-900 via-teal-950 to-emerald-950 text-white pt-10 pb-6 px-4 shadow-inner mt-auto w-full">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 text-xs font-sans">
           
           <div className="space-y-3">
@@ -514,7 +516,7 @@ export default function PublicPortal({
           </div>
 
         </div>
-        <div className="border-t border-emerald-800/80 mt-8 pt-4 text-center text-emerald-300 text-[10px]">
+        <div className="border-t border-emerald-800/80 mt-8 pt-4 text-center text-emerald-300 text-[10px] pb-1">
           © 2026 {settings.schoolName}. Hak Cipta Dilindungi.
         </div>
       </footer>

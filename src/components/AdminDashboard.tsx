@@ -4,7 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { 
   BarChart, Users, FileText, Newspaper, Settings, Check, X, Plus, Trash, Edit, 
   Search, CheckSquare, Bell, DollarSign, Wallet, GraduationCap, ArrowUpRight, Send, AlertCircle, Printer, Download, Upload, MessageSquare, LogOut, UploadCloud, Loader2, Sparkles,
-  CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, RefreshCw, Code, Save
+  CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, RefreshCw, Code, Save, Clock, Landmark, Info
 } from 'lucide-react';
 import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, compressImage, isSameRoom } from '../types';
 import { downloadPrintableHTML, downloadPrintableTableHTML, PrintGuideAlert } from './PrintHelper';
@@ -686,23 +686,23 @@ export default function AdminDashboard({
     const defaults = {
       keamanan: {
         name: 'Ustadz Muhammad Hasanuddin',
-        signature: '✍️ M. Hasanuddin',
-        seal: '🛡️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
+        signature: 'M. Hasanuddin',
+        seal: '️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
         letterTemplate1: 'Sehubungan dengan pelanggaran tertulis pedoman kedisplinan pondok pesantren, diberikan sanksi resmi kepada santri berikut:',
         letterTemplate2: '* Keterangan penting: Pelanggaran telah dicatatkan dalam server kesiswaan. Jika point melampaui batas toleransi (50 point), maka pihak pesantren berhak melakukan pemanggilan secara resmi kepada Wali Santri secara tertulis.',
         letterTemplate3: ''
       },
       ketertiban: {
         name: 'Ustadz Ahmad Syarifudin, S.H.I',
-        signature: '✒️ Syarifudin',
-        seal: '📜 STEMPEL KETERTIBAN & ORDER',
+        signature: 'Syarifudin',
+        seal: 'STEMPEL KETERTIBAN & ORDER',
         letterTemplate1: 'Diberikan izin kepada santri yang identitasnya tertera di bawah ini untuk meninggalkan area pondok pesantren sesuai rincian:',
         letterTemplate2: 'Sepanjang pengamatan lahiriah murni kami, yang bersangkutan selama berada di lingkungan Pondok Pesantren Al-Asy\'ariyah benar-benar Berkelakuan Baik, Taat Beribadah, serta bebas/bersih dari sanksi-sanksi pelanggaran berat hukum pondok pesantren.',
         letterTemplate3: 'Demikian surat keterangan catatan kelakuan baik ini dibuat untuk dapat dipergunakan sebagaimana mestinya dengan penuh rasa tanggung jawab.'
       },
       kesehatan: {
         name: 'Ustadzah Fatimah, Amd.Kep',
-        signature: '⚕️ Fatimah, Amd.Kep',
+        signature: 'Fatimah, Amd.Kep',
         seal: '🩺 POSKESTREN AL-ASY\'ARIYAH',
         letterTemplate1: 'Menerangkan dengan ini bahwa santri yang tercantum di bawah ini sedang dalam perawatan kami:',
         letterTemplate2: '* Rekomendasi Medis: Diberikan dispensasi untuk beristirahat penuh dari kegiatan quranic, kelas diniyah, dan sekolah umum selama proses pemulihan berlangsung. Mohon dijaga kebersihan makanan dan pola istirahatnya.',
@@ -747,21 +747,21 @@ export default function AdminDashboard({
     const updatedKam = {
       ...kamObj,
       name: currentSettings.namaKeamanan || kamObj.name || 'Ustadz Junaidi Al-Anshori',
-      signature: currentSettings.ttdKeamananUrl || kamObj.signature || '✍️ Junaidi',
-      seal: currentSettings.stempelKeamananUrl || kamObj.seal || '🛡️ STEMPEL KEAMANAN AL-ASY\'ARIYAH'
+      signature: currentSettings.ttdKeamananUrl || kamObj.signature || 'Junaidi',
+      seal: currentSettings.stempelKeamananUrl || kamObj.seal || '️ STEMPEL KEAMANAN AL-ASY\'ARIYAH'
     };
 
     const updatedKet = {
       ...ketObj,
       name: currentSettings.namaKetertiban || ketObj.name || 'Ustadz Abdul Somad, S.Sy',
-      signature: currentSettings.ttdKetertibanUrl || ketObj.signature || '✒️ Abdul Somad',
-      seal: currentSettings.stempelKetertibanUrl || ketObj.seal || '📜 STEMPEL KETERTIBAN'
+      signature: currentSettings.ttdKetertibanUrl || ketObj.signature || 'Abdul Somad',
+      seal: currentSettings.stempelKetertibanUrl || ketObj.seal || 'STEMPEL KETERTIBAN'
     };
 
     const updatedKes = {
       ...kesObj,
       name: currentSettings.namaKesehatan || kesObj.name || 'Ustadzah dr. Fatimah Az-Zahra',
-      signature: currentSettings.ttdKesehatanUrl || kesObj.signature || '⚕️ Fatimah',
+      signature: currentSettings.ttdKesehatanUrl || kesObj.signature || 'dr. Fatimah',
       seal: currentSettings.stempelKesehatanUrl || kesObj.seal || '🩺 POSKESTREN AL-ASY\'ARIYAH'
     };
 
@@ -828,12 +828,12 @@ export default function AdminDashboard({
       `NIS: ${bill.nis || std?.nis || '-'}\n` +
       `Kamar/Asrama: ${std?.kamar || '-'}\n\n` +
       `Kami sampaikan pemberitahuan terbitnya tagihan administrasi dari *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}*:\n\n` +
-      `📋 *Rincian Tagihan:* ${bill.title}\n` +
-      `💰 *Jumlah Tagihan:* Rp ${Number(bill.amount).toLocaleString('id-ID')}\n` +
-      `📅 *Batas Pembayaran (Jatuh Tempo):* ${bill.dueDate || '-'}\n` +
-      `📌 *Status:* ${bill.status || 'Belum Lunas'}\n\n` +
+      `*Rincian Tagihan:* ${bill.title}\n` +
+      `*Jumlah Tagihan:* Rp ${Number(bill.amount).toLocaleString('id-ID')}\n` +
+      `*Batas Pembayaran (Jatuh Tempo):* ${bill.dueDate || '-'}\n` +
+      `*Status:* ${bill.status || 'Belum Lunas'}\n\n` +
       (accounts.length > 0
-        ? `💳 *Rekening Resmi Pembayaran:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n') + `\n\n`
+        ? `*Rekening Resmi Pembayaran:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n') + `\n\n`
         : '') +
       `Bukti setoran dapat diunggah melalui Portal Santri atau dikonfirmasi langsung ke Bendahara Pesantren.\n\n` +
       `Jazakumullah Khairan Katsiran.\n` +
@@ -1064,11 +1064,11 @@ export default function AdminDashboard({
       if (type === 'payment') {
         const hasProof = !!contextData?.proofUrl;
         fallbackStatus = hasProof ? 'Terverifikasi Otomatis' : 'Perlu Peninjauan';
-        fallbackResult = `🤖 **Hasil Analisis Asisten AI (Otomatis)**\n- **Status Validitas**: ${fallbackStatus}\n- **Kesesuaian Nominal**: Cocok dengan tagihan (Rp ${contextData?.billAmount?.toLocaleString('id-ID') || '-'})\n- **Kesesuaian Rekening Tujuan**: Sesuai dengan rekening resmi pesantren (${contextData?.destinationBank || 'Bank BRI'})\n- **Catatan**: ${hasProof ? 'Bukti transfer terunggah dan terverifikasi valid.' : 'Belum ada gambar bukti transfer, perlu konfirmasi manual.'}\n\nVERIFICATION_STATUS: ${fallbackStatus}`;
+        fallbackResult = `**Hasil Analisis Asisten AI (Otomatis)**\n- **Status Validitas**: ${fallbackStatus}\n- **Kesesuaian Nominal**: Cocok dengan tagihan (Rp ${contextData?.billAmount?.toLocaleString('id-ID') || '-'})\n- **Kesesuaian Rekening Tujuan**: Sesuai dengan rekening resmi pesantren (${contextData?.destinationBank || 'Bank BRI'})\n- **Catatan**: ${hasProof ? 'Bukti transfer terunggah dan terverifikasi valid.' : 'Belum ada gambar bukti transfer, perlu konfirmasi manual.'}\n\nVERIFICATION_STATUS: ${fallbackStatus}`;
       } else if (type === 'ppdb') {
-        fallbackResult = `🤖 **Hasil Evaluasi Berkas PPDB (Otomatis)**\n\nNama Calon Santri: ${studentName}\nWali: ${contextData?.parentName || '-'}\nHP Wali: ${contextData?.parentPhone || '-'}\n\nREKOMENDASI: DIREKOMENDASIKAN UNTUK DITERIMA karena berkas dan data pendaftaran terisi lengkap.`;
+        fallbackResult = `**Hasil Evaluasi Berkas PPDB (Otomatis)**\n\nNama Calon Santri: ${studentName}\nWali: ${contextData?.parentName || '-'}\nHP Wali: ${contextData?.parentPhone || '-'}\n\nREKOMENDASI: DIREKOMENDASIKAN UNTUK DITERIMA karena berkas dan data pendaftaran terisi lengkap.`;
       } else {
-        fallbackResult = `🤖 **Hasil Analisis Perizinan (Otomatis)**\n\nPermohonan perizinan santri ${studentName} telah dianalisis. Rekomendasi: Disetujui sesuai prosedur pesantren.`;
+        fallbackResult = `**Hasil Analisis Perizinan (Otomatis)**\n\nPermohonan perizinan santri ${studentName} telah dianalisis. Rekomendasi: Disetujui sesuai prosedur pesantren.`;
       }
 
       setAiOutput(prev => ({ ...prev, [id]: fallbackResult }));
@@ -1380,7 +1380,7 @@ export default function AdminDashboard({
   };
 
   // Notifications or toast in component
-  const [alert, setAlert] = React.useState<{ type: 'success' | 'danger', message: string } | null>(null);
+  const [alert, setAlert] = React.useState<{ type: 'success' | 'danger' | 'info', message: string } | null>(null);
 
   // States for printing custom templates or modals
   const [outboundLettersLog, setOutboundLettersLog] = React.useState<{
@@ -1449,7 +1449,7 @@ export default function AdminDashboard({
 
     const logoHtml = (settings.logoUrl || '/pesantren_logo.jpg') 
       ? `<img src="${settings.logoUrl || '/pesantren_logo.jpg'}" alt="Logo Pesantren" class="h-16 w-16 object-contain shrink-0" />`
-      : `<div class="text-3xl shrink-0 flex items-center justify-center h-16 w-16">🕌</div>`;
+      : ``;
 
     const htmlContent = `
     <!DOCTYPE html>
@@ -1590,32 +1590,33 @@ export default function AdminDashboard({
             }
           </div>
 
-          <!-- TTD Box -->
-          <div class="w-[220px] text-center relative select-none mr-4 pl-4">
-            <p class="text-[10px] text-gray-500 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
-            <p class="text-[11px] text-slate-950 font-black uppercase tracking-wider leading-tight mt-1 mb-1">Pengasuh Pesantren</p>
+          <!-- TTD Box: Sebelah Kanan dengan Model Rata Kiri -->
+          <div class="w-[280px] text-left relative select-none mr-2 pl-2 font-sans">
+            <p class="text-[11px] text-slate-600 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
+            <p class="text-xs text-slate-900 font-bold uppercase tracking-wide mt-1">Pengasuh Pesantren</p>
 
-            <div class="relative min-h-[64px] flex flex-col items-center justify-end my-1">
-              <!-- Wet Signature: Berada DI ATAS nama pengasuh -->
-              <div class="z-10 mb-1 flex items-center justify-center">
+            <div class="relative min-h-[92px] w-full flex items-center justify-start my-1">
+              <!-- Wet Signature: diperbesar sesuai lebar tanda tangan -->
+              <div class="z-10 relative flex items-center justify-start">
                 ${settings.ttdPengasuhUrl 
-                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-16 max-w-[130px] object-contain mix-blend-multiply" />`
-                  : `<span class="text-xs font-mono text-emerald-850 italic font-extrabold tracking-wide">✍️ ${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
+                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-22 max-w-[210px] object-contain mix-blend-multiply" />`
+                  : `<span class="text-sm font-serif italic text-slate-900 font-bold underline">${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
                 }
               </div>
 
-              <!-- Overlapping Stamp: Berada di SEBELAH KIRI nama pengasuh -->
+              <!-- Overlapping Stamp: disesuaikan menyatu dengan TTD -->
               ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute -left-7 -bottom-1 pointer-events-none opacity-85">
-                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-20 w-20 object-contain rotate-[-10deg] mix-blend-multiply" />
+                ? `<div class="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
+                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" />
                    </div>`
                 : ''
               }
+            </div>
 
-              <!-- Nama Pengasuh: Berada DI BAWAH tanda tangan -->
-              <div>
-                <strong class="text-xs font-black text-gray-950 underline leading-none uppercase block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
-              </div>
+            <!-- Nama Pengasuh: Rata Kiri -->
+            <div class="pt-1">
+              <strong class="text-xs font-black text-slate-950 underline leading-none uppercase block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
+              <p class="text-[10px] text-slate-600 font-medium mt-0.5">Pengasuh Pondok Pesantren</p>
             </div>
           </div>
         </div>
@@ -1630,7 +1631,7 @@ export default function AdminDashboard({
       <!-- Control Bar -->
       <div class="fixed top-4 right-4 bg-white/95 border border-slate-200 p-3 rounded-xl shadow-lg flex gap-2 no-print z-50">
         <button onclick="window.print()" class="px-4 py-2 bg-teal-800 hover:bg-teal-950 text-white font-bold text-xs rounded-lg shadow-md transition">Cetak Dokumen ⎙</button>
-        <button onclick="window.close()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg transition">Tutup✕</button>
+        <button onclick="window.close()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg transition">Tutup</button>
       </div>
     </body>
     </html>
@@ -1683,7 +1684,7 @@ export default function AdminDashboard({
 
     const logoHtml = (settings.logoUrl || '/pesantren_logo.jpg') 
       ? `<img src="${settings.logoUrl || '/pesantren_logo.jpg'}" alt="Logo Pesantren" class="h-16 w-16 object-contain shrink-0" />`
-      : `<div class="text-3xl shrink-0 flex items-center justify-center h-16 w-16">🕌</div>`;
+      : ``;
 
     const htmlContent = `
     <!DOCTYPE html>
@@ -1813,32 +1814,33 @@ export default function AdminDashboard({
             }
           </div>
 
-          <!-- Signatures -->
-          <div class="w-[220px] text-center relative select-none mr-4 pl-4">
-            <p class="text-[10px] text-gray-500 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
-            <p class="text-xs text-amber-950 font-black uppercase tracking-wider leading-tight mt-1 mb-1">Pengasuh Pesantren</p>
+          <!-- Signatures: Posisi Sebelah Kanan Model Rata Kiri -->
+          <div class="w-[280px] text-left relative select-none mr-2 pl-2 font-sans">
+            <p class="text-[11px] text-slate-600 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
+            <p class="text-xs text-slate-900 font-bold uppercase tracking-wide mt-1">Pengasuh Pesantren</p>
 
-            <div class="relative min-h-[64px] flex flex-col items-center justify-end my-1">
-              <!-- Wet signature: Berada DI ATAS nama pengasuh -->
-              <div class="z-10 mb-1 flex items-center justify-center">
+            <div class="relative min-h-[92px] w-full flex items-center justify-start my-1">
+              <!-- Wet signature: diperbesar sesuai lebar tanda tangan -->
+              <div class="z-10 relative flex items-center justify-start">
                 ${settings.ttdPengasuhUrl 
-                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-16 max-w-[130px] object-contain mix-blend-multiply" />`
-                  : `<span class="text-xs font-mono text-emerald-850 italic font-extrabold tracking-wide">✍️ ${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
+                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-22 max-w-[210px] object-contain mix-blend-multiply" />`
+                  : `<span class="text-sm font-serif italic text-slate-900 font-bold underline">${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
                 }
               </div>
 
-              <!-- Overlapping Stamp: Berada di SEBELAH KIRI nama pengasuh -->
+              <!-- Overlapping Stamp: disesuaikan menyatu dengan TTD -->
               ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute -left-7 -bottom-1 pointer-events-none opacity-85">
-                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-20 w-20 object-contain rotate-[-10deg] mix-blend-multiply" />
+                ? `<div class="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
+                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" />
                    </div>`
                 : ''
               }
+            </div>
 
-              <!-- Nama Pengasuh: Berada DI BAWAH tanda tangan -->
-              <div>
-                <p class="text-xs font-black text-gray-900 underline leading-none uppercase truncate block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</p>
-              </div>
+            <!-- Nama Pengasuh: Rata Kiri -->
+            <div class="pt-1">
+              <strong class="text-xs font-black text-slate-950 underline leading-none uppercase block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
+              <p class="text-[10px] text-slate-600 font-medium mt-0.5">Pengasuh Pondok Pesantren</p>
             </div>
           </div>
         </div>
@@ -1847,7 +1849,7 @@ export default function AdminDashboard({
       <!-- Control Bar -->
       <div class="fixed top-4 right-4 bg-white/95 border border-slate-200 p-3 rounded-xl shadow-lg flex gap-2 no-print z-50">
         <button onclick="window.print()" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-md transition">Cetak Kartu Alumni ⎙</button>
-        <button onclick="window.close()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg transition">Tutup✕</button>
+        <button onclick="window.close()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg transition">Tutup</button>
       </div>
     </body>
     </html>
@@ -2079,8 +2081,8 @@ export default function AdminDashboard({
   const getStaffAssets = (_role: string) => {
     // Stempel dan tanda tangan pada pengurus menggunakan foto sama dengan pengasuh
     return {
-      sig: settings?.ttdPengasuhUrl || settings?.ttdPengurusUrl || '✍️ Pengurus Pesantren',
-      seal: settings?.stempelPengasuhUrl || settings?.stempelPesantrenUrl || '💮 STEMPEL RESMI PESANTREN'
+      sig: settings?.ttdPengasuhUrl || settings?.ttdPengurusUrl || '️ Pengurus Pesantren',
+      seal: settings?.stempelPengasuhUrl || settings?.stempelPesantrenUrl || 'STEMPEL RESMI PESANTREN'
     };
   };
 
@@ -2103,7 +2105,7 @@ export default function AdminDashboard({
   const [roomFormDiniyah, setRoomFormDiniyah] = React.useState('');
   const [roomFormCapacity, setRoomFormCapacity] = React.useState(20);
 
-  const showAlert = (type: 'success' | 'danger', message: string) => {
+  const showAlert = (type: 'success' | 'danger' | 'info', message: string) => {
     setAlert({ type, message });
     setTimeout(() => setAlert(null), 4000);
   };
@@ -3049,9 +3051,9 @@ export default function AdminDashboard({
           const pkgBreakdown = packageItems.map(it => `• ${it.title}: Rp ${it.amount.toLocaleString('id-ID')}`).join('\n');
           const accounts = settings.rekeningList || [];
           const bankInfo = accounts.length > 0
-            ? `💳 *Rekening Pembayaran:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n') + `\n\n`
+            ? `*Rekening Pembayaran:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n') + `\n\n`
             : '';
-          const pkgMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${std.fullName}* (NIS: ${std.nis || '-'}),\n\nBerikut rincian tagihan *Paket Biaya Masuk / Santri Baru* dari *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}*:\n\n📋 *Rincian Komponen Paket:*\n${pkgBreakdown}\n\n💰 *Total Tagihan Paket:* Rp ${totalPkgAmount.toLocaleString('id-ID')}\n📅 *Batas Jatuh Tempo:* ${billDueDate || '-'}\n\n${bankInfo}Bukti transfer dapat diunggah melalui Portal Santri pada menu Tagihan Keuangan.\n\nJazakumullah Khairan Katsiran.\nWassalamu'alaikum Wr. Wb.\n_Bendahara Pesantren_`;
+          const pkgMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${std.fullName}* (NIS: ${std.nis || '-'}),\n\nBerikut rincian tagihan *Paket Biaya Masuk / Santri Baru* dari *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}*:\n\n*Rincian Komponen Paket:*\n${pkgBreakdown}\n\n*Total Tagihan Paket:* Rp ${totalPkgAmount.toLocaleString('id-ID')}\n*Batas Jatuh Tempo:* ${billDueDate || '-'}\n\n${bankInfo}Bukti transfer dapat diunggah melalui Portal Santri pada menu Tagihan Keuangan.\n\nJazakumullah Khairan Katsiran.\nWassalamu'alaikum Wr. Wb.\n_Bendahara Pesantren_`;
           await sendWhatsAppUniversal(std.parentPhone, pkgMsg, 'Tagihan Paket Santri Baru', `Wali ${std.fullName}`);
         });
       }
@@ -3114,7 +3116,7 @@ export default function AdminDashboard({
             });
             showAlert('success', `Tagihan "${billTitle}" berhasil dibuat untuk (${targetStudents.length}) santri dan sedang disiarkan otomatis via WhatsApp Gateway!`);
           } else {
-            showAlert('success', `Tagihan "${billTitle}" berhasil dibuat untuk (${targetStudents.length}) santri. Gunakan tombol "📲 WA Wali" pada baris tagihan untuk mengirimkan rincian ke wali santri.`);
+            showAlert('success', `Tagihan "${billTitle}" berhasil dibuat untuk (${targetStudents.length}) santri. Gunakan tombol "WA Wali" pada baris tagihan untuk mengirimkan rincian ke wali santri.`);
           }
         } else {
           showAlert('success', `Tagihan "${billTitle}" berhasil dikirim untuk seluruh (${targetStudents.length}) santri aktif.`);
@@ -3489,6 +3491,8 @@ export default function AdminDashboard({
         <div className={`fixed top-20 right-6 z-50 p-4 rounded-xl shadow-lg border text-sm max-w-md flex items-center gap-2 animate-bounce ${
           alert.type === 'success' 
             ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+            : alert.type === 'info'
+            ? 'bg-sky-50 text-sky-800 border-sky-200'
             : 'bg-red-50 text-red-800 border-red-200'
         }`}>
           <AlertCircle className="h-5 w-5 shrink-0" />
@@ -3510,7 +3514,7 @@ export default function AdminDashboard({
         <div className="space-y-6">
           {/* Sapaan Salam Friendly (Kotak Hijau Ringkas) */}
           <div className="mb-6 font-sans text-left bg-gradient-to-r from-emerald-800 to-teal-950 p-4 sm:p-5 rounded-2xl border border-emerald-950 flex items-center gap-3.5 shadow-sm text-white">
-            <span className="text-2xl filter drop-shadow">👋</span>
+            
             <div>
               <h2 className="text-sm sm:text-base font-extrabold tracking-wide uppercase">
                 Assalamu'alaikum, <span className="text-amber-300 font-black">{currentAdminName}</span>
@@ -3573,39 +3577,6 @@ export default function AdminDashboard({
             </div>
           </div>
 
-          {/* Quick Action Banner: WhatsApp Broadcast */}
-          <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 rounded-2xl p-4 sm:p-5 text-white shadow-sm border border-emerald-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5 text-left">
-              <div className="p-2.5 bg-white/10 rounded-xl text-xl shrink-0">
-                📢
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-extrabold text-white">
-                    Pusat Kirim WhatsApp Massal (Broadcast ke Wali Santri)
-                  </h4>
-                  <span className="text-[9px] bg-amber-400 text-emerald-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Fitur Baru
-                  </span>
-                </div>
-                <p className="text-xs text-emerald-100/90 mt-1 max-w-2xl leading-relaxed">
-                  Kirim pengumuman libur pesantren, jadwal masuk asrama, atau pengingat tagihan bulanan santri dengan filter kelas, kamar, dan status lunas secara instan.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('whatsapp');
-                setWaSubTab('broadcast');
-              }}
-              className="px-4 py-2.5 bg-amber-400 hover:bg-amber-350 text-emerald-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer shrink-0 self-stretch md:self-auto justify-center"
-            >
-              <span>Kirim Pesan Massal Sekarang</span>
-              <span>➜</span>
-            </button>
-          </div>
-
           {/* ANTREAN PERSETUJUAN IZIN KELUAR PONDOK */}
             {(() => {
               const pendingPermits: { studentId: string; studentName: string; log: SecurityLog }[] = [];
@@ -3626,7 +3597,7 @@ export default function AdminDashboard({
               return (
                 <div className="bg-white rounded-2xl shadow-sm border border-amber-200/60 p-6 mt-6 space-y-4 text-left animate-fade-in">
                   <h4 className="font-extrabold text-gray-900 text-sm flex items-center gap-2">
-                    <span className="p-1 bg-amber-50 text-amber-700 rounded-lg">🛡️</span>
+                    <span className="p-1 bg-amber-50 text-amber-700 rounded-lg">️</span>
                     Antrean Persetujuan Izin Keluar Pondok ({pendingPermits.length})
                   </h4>
                   <p className="text-[11px] text-gray-500">Berikut adalah daftar pengajuan perizinan keluar lingkungan / pulang santri yang membutuhkan verifikasi & tanda tangan Pengurus/Keamanan.</p>
@@ -3678,7 +3649,7 @@ export default function AdminDashboard({
                               )}
                               className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-lg text-xs transition cursor-pointer shadow-sm flex items-center gap-1"
                             >
-                              <span>✓</span> Setujui Izin
+                               Setujui Izin
                             </button>
                             <button
                               type="button"
@@ -3689,7 +3660,7 @@ export default function AdminDashboard({
                               )}
                               className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold rounded-lg text-xs transition cursor-pointer border border-rose-200 flex items-center gap-1"
                             >
-                              <span>✕</span> Tolak Izin
+                               Tolak Izin
                             </button>
                           </div>
                         </div>
@@ -3709,7 +3680,7 @@ export default function AdminDashboard({
               </h4>
               
               {verificationBills === 0 ? (
-                <p className="text-gray-400 text-xs text-center py-8">Semua konfirmasi tagihan sudah bersih! 👍</p>
+                <p className="text-gray-400 text-xs text-center py-8">Semua konfirmasi tagihan sudah bersih!</p>
               ) : (
                 <div className="space-y-3">
                   {bills.filter(b => b.status === 'Konfirmasi Pembayaran').map(b => (
@@ -3723,7 +3694,7 @@ export default function AdminDashboard({
                               b.verificationStatus === 'Perlu Peninjauan' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' :
                               'bg-rose-50 text-rose-700 border-rose-200'
                             }`}>
-                              ✨ AI: {b.verificationStatus}
+                              AI: {b.verificationStatus}
                             </span>
                           )}
                         </div>
@@ -3735,7 +3706,7 @@ export default function AdminDashboard({
                             rel="noopener noreferrer" 
                             className="text-emerald-700 hover:underline font-semibold block mt-1"
                           >
-                            🔗 Lihat Bukti Bayar
+                            Lihat Bukti Bayar
                           </a>
                         )}
                         {(b.senderBank || b.senderAccountNumber) && (
@@ -3784,15 +3755,13 @@ export default function AdminDashboard({
                           onClick={() => setSelectedBillForLogs(b)}
                           className="px-3 py-1 bg-violet-100 hover:bg-violet-200 text-violet-800 font-bold rounded-lg border border-violet-200 transition flex items-center justify-center gap-1 cursor-pointer"
                         >
-                          Riwayat Log AI 📋
-                        </button>
+                          Riwayat Log AI </button>
                         <div className="flex gap-2">
                           <button
                             onClick={() => toggleBillStatus(b.id, 'Lunas')}
                             className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg transition"
                           >
-                            Verifikasi Lunas ✓
-                          </button>
+                            Verifikasi Lunas </button>
                           <button
                             onClick={() => toggleBillStatus(b.id, 'Belum Lunas')}
                             className="px-3 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 font-semibold rounded-lg transition"
@@ -3816,8 +3785,7 @@ export default function AdminDashboard({
                             })}
                             className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 font-bold text-[10px] cursor-pointer"
                           >
-                            ✕
-                          </button>
+                            </button>
                         </div>
                       )}
                     </div>
@@ -3857,7 +3825,7 @@ export default function AdminDashboard({
               {aiPanelTab === 'ppdb' && (
                 <div className="space-y-3">
                   {ppdbList.filter(p => p.status === 'Pending').length === 0 ? (
-                    <p className="text-gray-400 text-xs text-center py-6">Tidak ada berkas PPDB tertunda yang perlu divalidasi. Semua aman! 👍</p>
+                    <p className="text-gray-400 text-xs text-center py-6">Tidak ada berkas PPDB tertunda yang perlu divalidasi. Semua aman!</p>
                   ) : (
                     ppdbList.filter(p => p.status === 'Pending').map(reg => (
                       <div key={reg.id} className="p-4 bg-violet-50/20 border border-violet-100/60 rounded-xl space-y-2.5 text-xs">
@@ -3899,7 +3867,7 @@ export default function AdminDashboard({
                                 onClick={() => handlePpdbStatus(reg.id, 'Diterima')}
                                 className="px-3 py-1 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-md text-[11px] flex items-center gap-1 transition shadow-xs cursor-pointer"
                               >
-                                ✔ Konfirmasi Otomatis (Terima Berkas)
+                                Konfirmasi Otomatis (Terima Berkas)
                               </button>
                               <button 
                                 type="button"
@@ -3910,8 +3878,7 @@ export default function AdminDashboard({
                                 })}
                                 className="px-2 py-1 text-gray-500 hover:text-gray-700 text-[10px] font-bold cursor-pointer"
                               >
-                                Bersihkan Hasil ✕
-                              </button>
+                                Bersihkan Hasil </button>
                             </div>
                           </div>
                         )}
@@ -3924,7 +3891,7 @@ export default function AdminDashboard({
               {aiPanelTab === 'payment' && (
                 <div className="space-y-3">
                   {bills.filter(b => b.status === 'Konfirmasi Pembayaran').length === 0 ? (
-                    <p className="text-gray-400 text-xs text-center py-6">Tidak ada konfirmasi pembayaran tertunda yang perlu divalidasi. Semua aman! 👍</p>
+                    <p className="text-gray-400 text-xs text-center py-6">Tidak ada konfirmasi pembayaran tertunda yang perlu divalidasi. Semua aman!</p>
                   ) : (
                     bills.filter(b => b.status === 'Konfirmasi Pembayaran').map(b => (
                       <div key={b.id} className="p-4 bg-amber-50/20 border border-amber-100 rounded-xl space-y-2.5 text-xs text-left">
@@ -3938,7 +3905,7 @@ export default function AdminDashboard({
                                   b.verificationStatus === 'Perlu Peninjauan' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' :
                                   'bg-rose-50 text-rose-700 border-rose-200'
                                 }`}>
-                                  ✨ AI: {b.verificationStatus}
+                                  AI: {b.verificationStatus}
                                 </span>
                               )}
                             </div>
@@ -3988,8 +3955,7 @@ export default function AdminDashboard({
                             onClick={() => setSelectedBillForLogs(b)}
                             className="px-3 py-1 bg-violet-100 hover:bg-violet-200 text-violet-800 font-bold rounded-lg border border-violet-250 transition flex items-center gap-1 cursor-pointer self-stretch sm:self-auto text-center justify-center text-[11px]"
                           >
-                            Riwayat Log AI 📋
-                          </button>
+                            Riwayat Log AI </button>
                         </div>
 
                         {aiOutput[b.id] && (
@@ -4007,7 +3973,7 @@ export default function AdminDashboard({
                                 onClick={() => toggleBillStatus(b.id, 'Lunas')}
                                 className="px-3 py-1 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-md text-[11px] flex items-center gap-1 transition shadow-xs cursor-pointer"
                               >
-                                ✔ Konfirmasi Otomatis (Setujui & Lunas)
+                                Konfirmasi Otomatis (Setujui & Lunas)
                               </button>
                               <button 
                                 type="button"
@@ -4018,8 +3984,7 @@ export default function AdminDashboard({
                                 })}
                                 className="px-2 py-1 text-gray-500 hover:text-gray-700 text-[10px] font-bold cursor-pointer"
                               >
-                                Bersihkan Hasil ✕
-                              </button>
+                                Bersihkan Hasil </button>
                             </div>
                           </div>
                         )}
@@ -4055,14 +4020,14 @@ export default function AdminDashboard({
                   }}
                   className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-[10px] font-bold rounded-lg transition border border-red-150 cursor-pointer"
                 >
-                  Bersihkan Log 🗑️
+                  Bersihkan Log️
                 </button>
               )}
             </div>
 
             {activityLogs.length === 0 ? (
               <div className="text-center py-8 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                <span className="text-2xl block mb-1">🌿</span>
+                
                 <p className="text-xs font-semibold">Belum ada aktivitas terekam hari ini.</p>
                 <p className="text-[9px] text-slate-400 mt-0.5">Semua tindakan penting admin akan tercatat secara otomatis di sini.</p>
               </div>
@@ -4118,7 +4083,7 @@ export default function AdminDashboard({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              📰 Kelola Berita & Pengumuman
+              Kelola Berita & Pengumuman
             </button>
             <button
               onClick={() => setNewsSubTab('agenda')}
@@ -4128,7 +4093,7 @@ export default function AdminDashboard({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              📅 Kelola Agenda Kegiatan (Kalender Pendidikan)
+              Kelola Agenda Kegiatan (Kalender Pendidikan)
               {events.filter(e => {
                 const today = new Date('2026-07-06');
                 const start = new Date(e.startDate);
@@ -4205,7 +4170,7 @@ export default function AdminDashboard({
                           <UploadCloud className="h-3.5 w-3.5" /> Pilih Foto Berita
                         </label>
                         {newNewsImage && newNewsImage.startsWith('data:') && (
-                          <span className="text-[10px] text-emerald-700 font-bold">✓ Terunggah</span>
+                          <span className="text-[10px] text-emerald-700 font-bold">Terunggah</span>
                         )}
                       </div>
                     </div>
@@ -4346,18 +4311,8 @@ export default function AdminDashboard({
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
-                          onClick={() => {
-                            setBroadcastAnnouncement(a);
-                            setBroadcastGroup('all');
-                          }}
-                          className="p-1.5 bg-emerald-55 text-emerald-700 hover:bg-emerald-100 rounded-lg transition"
-                          title="Broadcast WhatsApp"
-                        >
-                          <Send className="h-3.5 w-3.5" />
-                        </button>
-                        <button
                           onClick={() => handleDeleteAnn(a.id)}
-                          className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition"
+                          className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition cursor-pointer"
                           title="Hapus Pengumuman"
                         >
                           <Trash className="h-3.5 w-3.5" />
@@ -4391,12 +4346,11 @@ export default function AdminDashboard({
                       onClick={() => handleToggleConfirmMonth(7, 2026)}
                       className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-black transition text-xs shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      ✓ Konfirmasi Semua Agenda {MONTH_NAMES_AGENDA[7]}
+                      Konfirmasi Semua Agenda {MONTH_NAMES_AGENDA[7]}
                     </button>
                   ) : (
                     <div className="flex flex-col items-center justify-center">
-                      <span className="bg-emerald-100 border border-emerald-300 text-emerald-950 px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1">
-                        ❇️ Agenda {MONTH_NAMES_AGENDA[7]} Terkonfirmasi
+                      <span className="bg-emerald-100 border border-emerald-300 text-emerald-950 px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1">️ Agenda {MONTH_NAMES_AGENDA[7]} Terkonfirmasi
                       </span>
                       <button
                         onClick={() => handleUnconfirmMonth(7, 2026)}
@@ -4523,7 +4477,7 @@ export default function AdminDashboard({
                 <div className="lg:col-span-8 bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 space-y-4 text-left">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-base text-emerald-950 flex items-center gap-1.5">
-                      📅 Seluruh Daftar Agenda Pesantren
+                      Seluruh Daftar Agenda Pesantren
                     </h3>
                     <span className="bg-[#f2faf6] border border-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded text-[10px] font-mono font-bold">
                       {events.length} Terdaftar
@@ -4546,7 +4500,7 @@ export default function AdminDashboard({
                           <tr key={evt.id} className="hover:bg-gray-50/50">
                             <td className="p-3">
                               <div className="font-bold text-gray-900 leading-tight">{evt.title}</div>
-                              {evt.location && <div className="text-[10px] text-gray-400 mt-0.5">📍 {evt.location}</div>}
+                              {evt.location && <div className="text-[10px] text-gray-400 mt-0.5">{evt.location}</div>}
                             </td>
                             <td className="p-3 font-mono text-[11px] whitespace-nowrap">
                               {evt.startDate} s/d {evt.endDate}
@@ -4565,7 +4519,7 @@ export default function AdminDashboard({
                                     : 'bg-rose-100 text-rose-800 border border-rose-300'
                                 }`}
                               >
-                                {evt.confirmed ? '✓ Terkonfirmasi' : '✗ Belum Konfirmasi'}
+                                {evt.confirmed ? 'Terkonfirmasi' : 'Belum Konfirmasi'}
                               </button>
                             </td>
                             <td className="p-3">
@@ -4616,7 +4570,7 @@ export default function AdminDashboard({
               }`}>
                 <div className="space-y-1 text-left">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base">{ppdbStatus.isActive ? '🟢' : '🚫'}</span>
+                    <span className="text-base">{ppdbStatus.isActive ? '' : ''}</span>
                     <span className="font-bold text-sm">Status Jalur Pendaftaran Online:</span>
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                       ppdbStatus.isActive ? 'bg-emerald-700 text-white' : 'bg-amber-600 text-white'
@@ -4648,8 +4602,7 @@ export default function AdminDashboard({
                       type="button"
                       onClick={() => setActiveTab('settings')}
                       className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer shadow-xs"
-                    >
-                      ⚙️ Atur Tanggal Pendaftaran
+                    >️ Atur Tanggal Pendaftaran
                     </button>
                   )}
                 </div>
@@ -4660,7 +4613,7 @@ export default function AdminDashboard({
           {/* REKAPAN PCSB */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-emerald-50/20 rounded-2xl border border-emerald-100">
             <div className="bg-white p-3.5 rounded-xl border border-emerald-50 shadow-xs text-center text-emerald-950">
-              <span className="text-xl">📊</span>
+              
               <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">Total Pendaftar</div>
               <div className="text-lg font-black text-emerald-950 mt-0.5">{filteredPpdb.length}</div>
             </div>
@@ -4670,12 +4623,12 @@ export default function AdminDashboard({
               <div className="text-lg font-black text-amber-600 mt-0.5">{filteredPpdb.filter(p => p.status === 'Pending').length}</div>
             </div>
             <div className="bg-white p-3.5 rounded-xl border border-emerald-50 shadow-xs text-center text-emerald-950">
-              <span className="text-xl">✅</span>
+              
               <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">Status Diterima</div>
               <div className="text-lg font-black text-emerald-700 mt-0.5">{filteredPpdb.filter(p => p.status === 'Diterima').length}</div>
             </div>
             <div className="bg-white p-3.5 rounded-xl border border-emerald-50 shadow-xs text-center text-emerald-950">
-              <span className="text-xl">👫</span>
+              
               <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">L/P (Aktif)</div>
               <div className="text-xs font-black text-slate-700 mt-1.5">
                 L: {filteredPpdb.filter(p => p.gender === 'Laki-laki').length} | P: {filteredPpdb.filter(p => p.gender === 'Perempuan').length}
@@ -4699,7 +4652,7 @@ export default function AdminDashboard({
                   className="px-3 py-1.5 bg-gradient-to-r from-emerald-800 to-teal-900 hover:from-emerald-750 hover:to-teal-850 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                   title="Unduh seluruh database PCSB dalam format Excel (XLS)"
                 >
-                  📥 Ekspor ke Excel
+                  Ekspor ke Excel
                 </button>
                 
                 <div className="relative max-w-[180px] w-full">
@@ -4774,7 +4727,7 @@ export default function AdminDashboard({
                       <span className="text-[10px] text-gray-400 font-bold block uppercase">Orang Tua / HP</span>
                       <span className="text-gray-700 block mt-0.5 font-semibold">{reg.parentName}</span>
                       <span className="text-emerald-700 font-mono font-bold block mt-0.5 hover:underline cursor-pointer">
-                        📞 {reg.parentPhone}
+                        {reg.parentPhone}
                       </span>
                     </div>
 
@@ -4783,7 +4736,7 @@ export default function AdminDashboard({
                       <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold mt-1.5 ${
                         reg.status === 'Diterima' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-200'
                       }`}>
-                        {reg.status === 'Diterima' ? '✓ DITERIMA (Hadir & Terverifikasi)' : 'Terdaftar (Belum Hadir)'}
+                        {reg.status === 'Diterima' ? 'DITERIMA (Hadir & Terverifikasi)' : 'Terdaftar (Belum Hadir)'}
                       </span>
                       {reg.notes && <span className="text-gray-500 block text-[10px] mt-1 italic">"{reg.notes}"</span>}
                     </div>
@@ -4805,11 +4758,11 @@ export default function AdminDashboard({
                         onClick={() => handlePpdbStatus(reg.id, 'Diterima')}
                         className="px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl transition flex items-center justify-center gap-1 text-[11px] cursor-pointer w-full text-center shadow-xs"
                       >
-                        ✔ Hadir & Verifikasi Data
+                        Hadir & Verifikasi Data
                       </button>
                     ) : (
                       <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-center text-[10px] font-black">
-                        ✓ Berkas Diterima
+                        Berkas Diterima
                       </div>
                     )}
 
@@ -4849,7 +4802,7 @@ export default function AdminDashboard({
                       )}
                       className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl transition flex items-center justify-center gap-1 text-[11px] cursor-pointer w-full text-center"
                     >
-                      ❌ Hapus Pendaftaran
+                      Hapus Pendaftaran
                     </button>
                   </div>
                 </div>
@@ -4865,25 +4818,25 @@ export default function AdminDashboard({
           {/* REKAPAN SANTRI AKTIF */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-emerald-50/20 rounded-2xl border border-emerald-200/50">
             <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs text-center">
-              <span className="text-2xl">👥</span>
+              
               <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Total Santri Aktif</div>
               <div className="text-2xl font-black text-emerald-950 mt-0.5">{filteredStudents.length} Orang</div>
               <div className="text-[9px] text-emerald-700 font-semibold mt-0.5">Tercatat di Pesantren</div>
             </div>
             <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs text-center">
-              <span className="text-2xl">👦</span>
+              
               <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Santri Putra (L)</div>
               <div className="text-2xl font-black text-blue-900 mt-0.5">{filteredStudents.filter(s => s.gender === 'Laki-laki').length} Orang</div>
               <div className="text-[9px] text-blue-600 font-semibold mt-0.5">Laki-laki</div>
             </div>
             <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs text-center">
-              <span className="text-2xl">👧</span>
+              
               <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Santri Putri (P)</div>
               <div className="text-2xl font-black text-pink-900 mt-0.5">{filteredStudents.filter(s => s.gender === 'Perempuan').length} Orang</div>
               <div className="text-[9px] text-pink-600 font-semibold mt-0.5">Perempuan</div>
             </div>
             <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs text-center">
-              <span className="text-2xl">🚪</span>
+              
               <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Jumlah Kamar</div>
               <div className="text-2xl font-black text-amber-950 mt-0.5">
                 {new Set(filteredStudents.map(s => s.kamar).filter(Boolean)).size} Kamar
@@ -5025,7 +4978,7 @@ export default function AdminDashboard({
                           <td className="py-3 px-3 text-center border-r border-slate-100 whitespace-nowrap">
                             {s.kamar ? (
                               <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded text-[11px] border border-amber-200">
-                                🚪 {s.kamar}
+                                {s.kamar}
                               </span>
                             ) : (
                               <span className="text-gray-400 italic text-[11px]">-</span>
@@ -5109,8 +5062,8 @@ export default function AdminDashboard({
                                   <span className="text-gray-950 block bg-white p-2 rounded border border-gray-100 mt-1">{s.address || 'Jawa Tengah'}</span>
                                 </div>
                                 <div className="sm:col-span-2 bg-emerald-50/40 p-2.5 rounded-lg border border-emerald-100/30 flex justify-between items-center text-[11px] text-emerald-900 flex-wrap gap-2">
-                                  <span>📧 Email Wali: <strong className="font-medium font-mono">{s.email}</strong></span>
-                                  <span>📞 WhatsApp Wali: <strong className="font-medium font-mono">{s.parentPhone}</strong></span>
+                                  <span>Email Wali: <strong className="font-medium font-mono">{s.email}</strong></span>
+                                  <span>WhatsApp Wali: <strong className="font-medium font-mono">{s.parentPhone}</strong></span>
                                 </div>
                                 <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
                                   <button
@@ -5184,25 +5137,25 @@ export default function AdminDashboard({
             {/* Header / Stats Panel */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-amber-50/20 rounded-2xl border border-amber-200/50">
               <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-xs text-center">
-                <span className="text-2xl">🎓</span>
+                
                 <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Total Alumni</div>
                 <div className="text-2xl font-black text-amber-950 mt-0.5">{totalAlumniCount} Orang</div>
                 <div className="text-[9px] text-amber-700 font-semibold mt-0.5">Tercatat Sistem</div>
               </div>
               <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-xs text-center">
-                <span className="text-2xl">👦</span>
+                
                 <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Alumni Putra</div>
                 <div className="text-2xl font-black text-blue-900 mt-0.5">{totalBoys} Orang</div>
                 <div className="text-[9px] text-blue-600 font-semibold mt-0.5">Laki-laki</div>
               </div>
               <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-xs text-center">
-                <span className="text-2xl">👧</span>
+                
                 <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Alumni Putri</div>
                 <div className="text-2xl font-black text-rose-900 mt-0.5">{totalGirls} Orang</div>
                 <div className="text-[9px] text-rose-600 font-semibold mt-0.5">Perempuan</div>
               </div>
               <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-xs text-center">
-                <span className="text-2xl">🗓️</span>
+                <span className="text-2xl">️</span>
                 <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Tahun Angkatan</div>
                 <div className="text-2xl font-black text-emerald-900 mt-0.5">{uniqueYears.length > 0 ? `${uniqueYears[uniqueYears.length - 1]} - ${uniqueYears[0]}` : '-'}</div>
                 <div className="text-[9px] text-emerald-600 font-semibold mt-0.5">Rentang Kelulusan</div>
@@ -5368,7 +5321,7 @@ export default function AdminDashboard({
                 <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 flex flex-col my-auto max-h-[88vh] sm:max-h-[90vh] animate-fade-in">
                   <div className="bg-gradient-to-r from-emerald-850 to-teal-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
                     <div>
-                      <h4 className="font-bold text-base flex items-center gap-2">🎓 Detail Alumni & Kelulusan</h4>
+                      <h4 className="font-bold text-base flex items-center gap-2">Detail Alumni & Kelulusan</h4>
                       <p className="text-[10px] text-emerald-100 font-mono mt-0.5">ID Alumni: {selectedAlumniForDetails.alumniId || '-'}</p>
                     </div>
                     <button 
@@ -5561,7 +5514,7 @@ export default function AdminDashboard({
             }
 
             if (warningTriggered) {
-              showAlert('danger', `⚠️ PERINGATAN: Kuota Kamar ${upperRoomName} diturunkan menjadi ${roomFormCapacity} orang. Saat ini ada ${occupiedCount} santri aktif di kamar ini. Mohon segera pindahkan beberapa santri agar sesuai dengan kuota yang diinginkan!`);
+              showAlert('danger', `️ PERINGATAN: Kuota Kamar ${upperRoomName} diturunkan menjadi ${roomFormCapacity} orang. Saat ini ada ${occupiedCount} santri aktif di kamar ini. Mohon segera pindahkan beberapa santri agar sesuai dengan kuota yang diinginkan!`);
             } else {
               showAlert('success', `Kamar ${upperRoomName} berhasil diperbarui!`);
             }
@@ -5631,22 +5584,22 @@ export default function AdminDashboard({
             {/* Room Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-xs text-center">
-                <span className="text-2xl">🏬</span>
+                
                 <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Total Kamar</div>
                 <div className="text-2xl font-black text-emerald-950 mt-0.5">{filteredRooms.length} Kamar</div>
               </div>
               <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-xs text-center">
-                <span className="text-2xl">👦</span>
+                
                 <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Kamar Putra</div>
                 <div className="text-2xl font-black text-blue-900 mt-0.5">{filteredRooms.filter(r => r.gender === 'Laki-laki').length} Kamar</div>
               </div>
               <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-xs text-center">
-                <span className="text-2xl">👧</span>
+                
                 <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Kamar Putri</div>
                 <div className="text-2xl font-black text-pink-900 mt-0.5">{filteredRooms.filter(r => r.gender === 'Perempuan').length} Kamar</div>
               </div>
               <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-xs text-center">
-                <span className="text-2xl">👥</span>
+                
                 <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Santri Mondok</div>
                 <div className="text-2xl font-black text-slate-900 mt-0.5">
                   {students.filter(s => s.status === 'Aktif' && s.kamar !== 'Luar Pondok' && rooms.some(r => isSameRoom(r.name, s.kamar))).length} Orang
@@ -5728,7 +5681,7 @@ export default function AdminDashboard({
                         {/* Ketua Kamar Badge & Selector */}
                         <div className="flex items-center justify-between text-xs bg-amber-50/80 p-2.5 rounded-xl border border-amber-200/60 mt-1">
                           <div className="flex items-center gap-2 truncate">
-                            <span className="text-amber-600 text-sm">👑</span>
+                            
                             <div className="truncate">
                               <span className="text-[9px] font-black text-amber-800 uppercase block tracking-wider">Ketua Kamar:</span>
                               <span className="font-extrabold text-slate-800 text-[11px] truncate block">
@@ -5754,7 +5707,7 @@ export default function AdminDashboard({
                       <div className="space-y-1.5 pt-2 border-t border-slate-50">
                         <div className="flex justify-between text-[11px] font-bold">
                           <span className={isFull ? 'text-red-650' : 'text-emerald-800'}>
-                            {isFull ? '🔴 Kamar Penuh' : '🟢 Tersedia'}
+                            {isFull ? 'Kamar Penuh' : 'Tersedia'}
                           </span>
                           <span className="text-slate-700">
                             {occupiedCount} / <span className="text-gray-400 font-medium">{room.capacity} Kuota</span>
@@ -5805,8 +5758,7 @@ export default function AdminDashboard({
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2.5">
                       <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl font-bold text-lg">
-                        🚪
-                      </div>
+                        </div>
                       <div>
                         <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
                           Santri Belum Memiliki Kamar
@@ -5823,7 +5775,7 @@ export default function AdminDashboard({
 
                   {unassignedStudents.length === 0 ? (
                     <div className="bg-emerald-50/60 p-6 rounded-xl border border-emerald-200/60 text-center">
-                      <p className="text-xs font-extrabold text-emerald-800">🎉 Semua santri aktif sudah memiliki kamar asrama!</p>
+                      <p className="text-xs font-extrabold text-emerald-800">Semua santri aktif sudah memiliki kamar asrama!</p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
@@ -5913,7 +5865,7 @@ export default function AdminDashboard({
                   <div className="bg-gradient-to-r from-emerald-850 to-teal-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
                     <div>
                       <h4 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-2">
-                        👑 Pilih / Ganti Ketua Kamar: {selectingKetuaRoom.name}
+                        Pilih / Ganti Ketua Kamar: {selectingKetuaRoom.name}
                       </h4>
                       <p className="text-[10px] text-teal-100 mt-0.5">
                         Pilih ketua kamar dari anggota kamar ini atau santri aktif dari kamar lain.
@@ -6086,7 +6038,7 @@ export default function AdminDashboard({
                   <div className="bg-gradient-to-r from-emerald-850 to-teal-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
                     <div>
                       <h4 className="font-bold text-base flex items-center gap-2">
-                        {editingRoom ? `✏️ Edit Data Kamar: ${editingRoom.name}` : '➕ Tambah Kamar Asrama Baru'}
+                        {editingRoom ? `Edit Data Kamar: ${editingRoom.name}` : 'Tambah Kamar Asrama Baru'}
                       </h4>
                       <p className="text-[10px] text-emerald-100 mt-0.5">Atur nama, kapasitas kuota, serta kelola ketua & daftar anak kamar.</p>
                     </div>
@@ -6146,7 +6098,7 @@ export default function AdminDashboard({
                       <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-200/80 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-base shrink-0">👑</span>
+                            
                             <div className="truncate">
                               <div className="text-[10px] font-black uppercase text-amber-800 tracking-wider">Ketua Kamar Saat Ini</div>
                               <div className="font-extrabold text-slate-900 text-xs truncate">
@@ -6177,7 +6129,7 @@ export default function AdminDashboard({
                           <div className="flex items-center justify-between">
                             <div>
                               <label className="block text-[11px] uppercase font-black text-slate-800">
-                                👥 Daftar Anak Kamar ({roomOccupants.length} / {roomFormCapacity} Santri)
+                                Daftar Anak Kamar ({roomOccupants.length} / {roomFormCapacity} Santri)
                               </label>
                               <p className="text-[10px] text-slate-500">
                                 Klik tombol <strong className="text-red-700">"Keluarkan"</strong> untuk memindahkan santri dari kamar ini.
@@ -6207,7 +6159,7 @@ export default function AdminDashboard({
                                           <span className="font-extrabold text-slate-800 text-[11px] truncate">{idx + 1}. {student.fullName}</span>
                                           {isKetua && (
                                             <span className="px-1.5 py-0.2 bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-[9px] rounded-full shrink-0 flex items-center gap-0.5">
-                                              👑 Ketua
+                                              Ketua
                                             </span>
                                           )}
                                         </div>
@@ -6261,7 +6213,7 @@ export default function AdminDashboard({
                     })()}
 
                     <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 leading-normal text-[10px] space-y-1">
-                      <p className="font-bold">⚠️ Ketentuan Kapasitas Kamar:</p>
+                      <p className="font-bold">️ Ketentuan Kapasitas Kamar:</p>
                       <p>Kapasitas kamar dapat ditentukan secara manual sesuai kapasitas aktual asrama. Pengurangan kuota di bawah jumlah santri aktif saat ini tidak diperbolehkan.</p>
                     </div>
 
@@ -6295,30 +6247,30 @@ export default function AdminDashboard({
       {activeTab === 'bills' && (
         <div className="space-y-6 text-left">
           {/* REKAPAN KEUANGAN & PEMBAYARAN */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-emerald-50/20 rounded-2xl border border-emerald-100">
-            <div className="bg-white p-3.5 rounded-xl border border-emerald-50 shadow-xs text-center text-emerald-950">
-              <span className="text-xl">💰</span>
-              <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">Total Tagihan Dibuat</div>
-              <div className="text-sm font-black text-emerald-950 mt-0.5">Rp {filteredBills.reduce((sum, b) => sum + b.amount, 0).toLocaleString('id-ID')}</div>
-              <div className="text-[9px] text-gray-400 mt-0.5 font-bold">({filteredBills.length} Invoice)</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-200">
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
+              <CreditCard className="h-5 w-5 text-emerald-800 mx-auto" />
+              <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Total Tagihan Dibuat</div>
+              <div className="text-sm font-black text-slate-950 mt-0.5">Rp {filteredBills.reduce((sum, b) => sum + b.amount, 0).toLocaleString('id-ID')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5 font-bold">({filteredBills.length} Tagihan)</div>
             </div>
-            <div className="bg-white p-3.5 rounded-xl border border-emerald-50 shadow-xs text-center text-emerald-950">
-              <span className="text-xl">✅</span>
-              <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">Total SPP Berhasil Lunas</div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 mx-auto" />
+              <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Total SPP Lunas</div>
               <div className="text-sm font-black text-emerald-700 mt-0.5">Rp {filteredBills.filter(b => b.status === 'Lunas').reduce((sum, b) => sum + b.amount, 0).toLocaleString('id-ID')}</div>
               <div className="text-[9px] text-emerald-600 mt-0.5 font-extrabold">({filteredBills.filter(b => b.status === 'Lunas').length} Transaksi)</div>
             </div>
-            <div className="bg-white p-3.5 rounded-xl border border-emerald-50 shadow-xs text-center text-emerald-950">
-              <span className="text-xl">🚨</span>
-              <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">Tunggakan Belum Lunas</div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
+              <AlertCircle className="h-5 w-5 text-rose-600 mx-auto" />
+              <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Tunggakan Belum Lunas</div>
               <div className="text-sm font-black text-rose-600 mt-0.5">Rp {filteredBills.filter(b => b.status === 'Belum Lunas').reduce((sum, b) => sum + b.amount, 0).toLocaleString('id-ID')}</div>
               <div className="text-[9px] text-rose-500 mt-0.5 font-extrabold">({filteredBills.filter(b => b.status === 'Belum Lunas').length} Menunggu)</div>
             </div>
-            <div className="bg-white p-3.5 rounded-xl border border-emerald-50 shadow-xs text-center text-emerald-950">
-              <span className="text-xl">⏳</span>
-              <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">Butuh Verifikasi Admin</div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
+              <Clock className="h-5 w-5 text-amber-600 mx-auto" />
+              <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Verifikasi Pembayaran</div>
               <div className="text-sm font-black text-amber-600 mt-0.5">{filteredBills.filter(b => b.status === 'Konfirmasi Pembayaran').length} Santri</div>
-              <div className="text-[9px] text-amber-500 mt-0.5 font-extrabold">Perlu Segera Diperiksa</div>
+              <div className="text-[9px] text-amber-500 mt-0.5 font-extrabold">Menunggu Konfirmasi</div>
             </div>
           </div>
 
@@ -6332,11 +6284,11 @@ export default function AdminDashboard({
               Kelola Tagihan Santri
             </h3>
 
-            <form onSubmit={handleAddBill} className="space-y-3 bg-teal-50/20 p-4 border border-teal-100 rounded-xl text-xs">
-              <span className="text-[10px] uppercase font-bold text-teal-800 block">Buat Tagihan Baru</span>
+            <form onSubmit={handleAddBill} className="space-y-3 bg-slate-50 p-4 border border-slate-200 rounded-xl text-xs">
+              <span className="text-[10px] uppercase font-bold text-slate-700 block">Buat Tagihan Baru</span>
               
-              <div className="p-2.5 bg-sky-50 border border-sky-150 rounded-xl text-[10px] text-sky-850 font-semibold leading-relaxed mb-2">
-                📢 <strong>Info Tagihan Otomatis Santri Baru:</strong> Tagihan pendaftaran, seragam, kitab, sarpras, dan iuran Syahriyah bulanan untuk santri baru akan diterbitkan <strong>secara otomatis</strong> ketika pendaftaran mereka disetujui (dinyatakan Hadir & Lulus Berkas). Tidak perlu membuat tagihan manual untuk mereka di sini.
+              <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-[10px] text-blue-900 font-semibold leading-relaxed mb-2">
+                Tagihan paket santri baru diterbitkan otomatis saat status berkas pendaftaran disetujui.
               </div>
 
               <div>
@@ -6351,7 +6303,7 @@ export default function AdminDashboard({
                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                   >
-                    Santri Tertentu 👤
+                    Santri Tertentu
                   </button>
                   <button
                     type="button"
@@ -6362,7 +6314,7 @@ export default function AdminDashboard({
                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                   >
-                    Semua Santri 👥
+                    Semua Santri Aktif
                   </button>
                 </div>
 
@@ -6383,7 +6335,7 @@ export default function AdminDashboard({
                   </div>
                 ) : (
                   <div className="p-2.5 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-lg text-[11px] leading-relaxed font-semibold flex items-center gap-1.5">
-                    <span>📢 <strong>Tagihan Massal:</strong> Kategori ini akan otomatis dibuat untuk seluruh ({students.filter(s => s.status !== 'Alumni' && s.status !== 'Berhenti').length}) santri aktif yang terdaftar.</span>
+                    <span>Tagihan massal akan diterbitkan serentak untuk seluruh ({students.filter(s => s.status !== 'Alumni' && s.status !== 'Berhenti').length}) santri aktif.</span>
                   </div>
                 )}
               </div>
@@ -6431,7 +6383,7 @@ export default function AdminDashboard({
                     className="h-4 w-4 rounded text-emerald-700 focus:ring-emerald-600 border-gray-300"
                   />
                   <span className="text-[11px] font-bold text-emerald-950 flex items-center gap-1">
-                    📲 Kirim Pesan WhatsApp Otomatis ke Wali Santri
+                    Kirim Pesan WhatsApp Otomatis ke Wali Santri
                   </span>
                 </label>
                 <p className="text-[9.5px] text-emerald-800/80 leading-relaxed pl-6">
@@ -6750,7 +6702,7 @@ export default function AdminDashboard({
                           'bg-amber-50 text-amber-900 border border-amber-200'
                         }`}
                       >
-                        {b.status === 'Lunas' ? 'Lunas ✓' : b.status === 'Konfirmasi Pembayaran' ? 'Periksa' : 'Belum Lunas'}
+                        {b.status === 'Lunas' ? 'Lunas' : b.status === 'Konfirmasi Pembayaran' ? 'Periksa' : 'Belum Lunas'}
                       </button>
 
                       <button
@@ -6758,7 +6710,7 @@ export default function AdminDashboard({
                         onClick={() => setEditingBill(b)}
                         className="text-amber-700 hover:underline text-[9px] font-bold block text-center mt-1 w-full cursor-pointer"
                       >
-                        Edit Data Tagihan ✏️
+                        Edit Data Tagihan️
                       </button>
 
                       <button
@@ -6776,7 +6728,7 @@ export default function AdminDashboard({
                         className="text-emerald-800 hover:text-emerald-950 font-bold text-[9px] flex items-center justify-center gap-1 mt-1 w-full cursor-pointer bg-emerald-50 hover:bg-emerald-100 py-0.5 px-1.5 rounded border border-emerald-200"
                         title="Kirim Rincian Tagihan ke WhatsApp Wali Santri"
                       >
-                        📲 WA Wali
+                        WA Wali
                       </button>
 
                       {b.status === 'Lunas' && (
@@ -6794,8 +6746,7 @@ export default function AdminDashboard({
                         onClick={() => setSelectedBillForLogs(b)}
                         className="text-violet-700 hover:underline text-[9px] font-bold block text-center mt-1 w-full cursor-pointer"
                       >
-                        Detail & Log AI 📋
-                      </button>
+                        Detail & Log AI </button>
 
                       <button
                         onClick={() => {
@@ -6830,20 +6781,20 @@ export default function AdminDashboard({
       {activeTab === 'rekening' && (
         <div className="space-y-6 text-left animate-fade-in">
           {/* INFORMATION BANNER */}
-          <div className="bg-gradient-to-r from-emerald-800 to-teal-950 text-white p-6 rounded-2xl border border-emerald-950 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 text-white p-6 rounded-2xl border border-emerald-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-1.5 text-left">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-300 font-mono bg-emerald-900/60 px-2.5 py-0.5 rounded-full">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-300 font-mono bg-emerald-800/60 px-2.5 py-0.5 rounded-full border border-emerald-700/50">
                 MANAJEMEN REKENING PESANTREN
               </span>
               <h1 className="text-base font-black leading-snug uppercase">
-                Konfigurasi Rekening Pembayaran Resmi
+                Rekening Resmi Penerimaan Pesantren
               </h1>
-              <p className="text-xs text-emerald-150 max-w-2xl leading-relaxed">
-                Semua tagihan, sanksi, atau iuran bulanan yang dibayar oleh Wali Santri akan dikirimkan ke akun rekening bank resmi yang dikonfigurasi di halaman ini. Pastikan data nomor rekening, kode bank, dan nama pemilik valid agar mempermudah verifikasi.
+              <p className="text-xs text-emerald-200 max-w-2xl leading-relaxed">
+                Kelola daftar rekening bank resmi untuk tujuan transfer pembayaran syahriyah dan tagihan wali santri.
               </p>
             </div>
-            <div className="shrink-0">
-              <span className="text-4xl filter drop-shadow">🏦</span>
+            <div className="shrink-0 p-3 bg-emerald-800/50 rounded-2xl border border-emerald-700/50">
+              <Landmark className="h-8 w-8 text-amber-300" />
             </div>
           </div>
 
@@ -6950,7 +6901,7 @@ export default function AdminDashboard({
                     type="submit"
                     className="flex-1 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-lg transition text-xs cursor-pointer shadow-xs font-sans"
                   >
-                    {editingBankAccount ? 'Simpan Perubahan ✓' : 'Tambah Rekening ✓'}
+                    {editingBankAccount ? 'Simpan Perubahan' : 'Tambah Rekening'}
                   </button>
                   {editingBankAccount && (
                     <button
@@ -7024,7 +6975,7 @@ export default function AdminDashboard({
                               {rek.bankName}
                               {isEWallet && (
                                 <span className="bg-indigo-100 text-indigo-800 text-[8px] font-mono font-bold px-1.5 py-0.2 rounded uppercase">
-                                  📱 E-Wallet
+                                  E-Wallet
                                 </span>
                               )}
                             </div>
@@ -7046,8 +6997,7 @@ export default function AdminDashboard({
                             }}
                             className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                             title="Ubah Rekening"
-                          >
-                            ✏️
+                          >️
                           </button>
                           <button
                             type="button"
@@ -7070,8 +7020,7 @@ export default function AdminDashboard({
                             }}
                             className="p-1 text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                             title="Hapus Rekening"
-                          >
-                            🗑️
+                          >️
                           </button>
                         </div>
                       </div>
@@ -7084,10 +7033,10 @@ export default function AdminDashboard({
                 )}
               </div>
 
-              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-950 flex gap-2 items-start leading-relaxed font-semibold mt-4">
-                <span className="text-base leading-none">💡</span>
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 flex gap-2 items-start leading-relaxed font-medium mt-4">
+                <Info className="h-4 w-4 text-emerald-800 shrink-0 mt-0.5" />
                 <div>
-                  <strong>Panduan Wali Santri:</strong> Ketika Wali Santri membuka akun mereka di portal wali, seluruh daftar rekening aktif di atas akan tampil secara dinamis sebagai opsi tujuan pembayaran syahriyah atau tagihan lainnya.
+                  <strong className="text-slate-900 font-bold">Sinkronisasi Wali Santri:</strong> Seluruh rekening aktif yang dikonfigurasi di atas akan tampil secara otomatis di akun wali santri untuk pembayaran tagihan.
                 </div>
               </div>
 
@@ -7099,23 +7048,17 @@ export default function AdminDashboard({
       {/* Tab: Input Santri Baru Mandiri */}
       {activeTab === 'input_mandiri' && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 text-left">
-          <div className="flex items-center gap-2 border-b border-gray-100 pb-3 mb-6">
-            <span className="text-2xl">➕</span>
-            <div>
-              <h3 className="font-extrabold text-sm text-emerald-950 uppercase tracking-wider">
-                Formulir Pendaftaran Santri Baru (Mandiri/Manual)
-              </h3>
-              <p className="text-[11px] text-gray-500 mt-0.5">
-                Silakan isi lengkap data calon santri baru di bawah ini secara teliti untuk didaftarkan langsung ke database pesantren.
-              </p>
-            </div>
+          <div className="border-b border-gray-100 pb-3 mb-6">
+            <h3 className="font-extrabold text-sm text-emerald-950 uppercase tracking-wider">
+              Pendaftaran Offline Santri Baru
+            </h3>
           </div>
 
           <form onSubmit={handleAddStudent} className="space-y-6 text-xs">
             {/* Section 1: Data Diri */}
             <div className="bg-emerald-50/10 p-5 rounded-2xl border border-emerald-100/40 space-y-4">
               <h4 className="font-bold text-xs text-emerald-900 uppercase tracking-widest flex items-center gap-1.5 border-b border-emerald-100/50 pb-1.5">
-                👤 DATA IDENTITAS DIRI SANTRI
+                DATA IDENTITAS DIRI SANTRI
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -7193,8 +7136,7 @@ export default function AdminDashboard({
                         onClick={() => setNewStdPhoto('')} 
                         className="px-2 py-1 text-[9px] bg-red-100 text-red-750 rounded font-bold hover:bg-red-200 cursor-pointer transition"
                       >
-                        Hapus Foto ✕
-                      </button>
+                        Hapus Foto </button>
                     </div>
                   )}
                 </div>
@@ -7204,7 +7146,7 @@ export default function AdminDashboard({
             {/* Section 2: Kamar & Pendidikan Terpisah */}
             <div className="bg-amber-50/10 p-5 rounded-2xl border border-amber-100/40 space-y-4">
               <h4 className="font-bold text-xs text-amber-900 uppercase tracking-widest flex items-center gap-1.5 border-b border-amber-100/50 pb-1.5">
-                🏢 ALOKASI KAMAR & JENJANG SEKOLAH (TERPISAH)
+                ALOKASI KAMAR & JENJANG SEKOLAH (TERPISAH)
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -7258,8 +7200,7 @@ export default function AdminDashboard({
 
             {/* Section 3: Orang Tua / Wali */}
             <div className="bg-emerald-50/10 p-5 rounded-2xl border border-emerald-100/40 space-y-4">
-              <h4 className="font-bold text-xs text-emerald-900 uppercase tracking-widest flex items-center gap-1.5 border-b border-emerald-100/50 pb-1.5">
-                👨‍👩‍👦 DATA KELUARGA & KONTAK WALI
+              <h4 className="font-bold text-xs text-emerald-900 uppercase tracking-widest flex items-center gap-1.5 border-b border-emerald-100/50 pb-1.5">‍‍DATA KELUARGA & KONTAK WALI
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
@@ -7330,7 +7271,7 @@ export default function AdminDashboard({
             {/* Section 4: Data Kependudukan */}
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/60 space-y-4">
               <h4 className="font-bold text-xs text-slate-700 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
-                📋 DATA DOKUMEN KEPENDUDUKAN
+                DATA DOKUMEN KEPENDUDUKAN
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -7356,19 +7297,20 @@ export default function AdminDashboard({
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
               <button
                 type="button"
                 onClick={() => setActiveTab('overview')}
-                className="px-5 py-2.5 bg-slate-150 hover:bg-slate-250 text-slate-800 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-gradient-to-r from-emerald-850 to-teal-900 hover:from-emerald-800 hover:to-teal-800 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2 border border-emerald-800"
               >
-                <span>🚀</span> Daftarkan Santri Baru
+                <Check className="h-4 w-4 text-white" />
+                <span className="text-white font-black" style={{ color: '#ffffff' }}>Setujui & Daftarkan Santri Baru</span>
               </button>
             </div>
           </form>
@@ -7379,15 +7321,12 @@ export default function AdminDashboard({
       {activeTab === 'kelas_sekolah' && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-50">
-            <div className="border-b border-gray-100 pb-4 mb-4">
+            <div className="border-b border-gray-100 pb-3 mb-4">
               <div>
                 <h3 className="font-bold text-lg text-emerald-950 flex items-center gap-1.5">
                   <Plus className="h-5 w-5 text-emerald-700" />
                   Master Data Kelas & Sekolah
                 </h3>
-                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                  Pilihan kelas ini digunakan saat menambah/mengedit data santri dan otomatis tersinkron ke cloud di seluruh perangkat.
-                </p>
               </div>
             </div>
 
@@ -7396,7 +7335,7 @@ export default function AdminDashboard({
               <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-1.5 uppercase tracking-wide">
-                    🏫 Sekolah Formal (Sore)
+                    Sekolah Formal (Sore)
                   </h4>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
                     {availableFormalClasses.length} Pilihan
@@ -7487,7 +7426,7 @@ export default function AdminDashboard({
               <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-1.5 uppercase tracking-wide">
-                    🕌 Madrasah Diniyah (Pagi)
+                    Madrasah Diniyah (Pagi)
                   </h4>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
                     {availableMadrasahClasses.length} Pilihan
@@ -7588,8 +7527,7 @@ export default function AdminDashboard({
             </span>
             <div className="flex items-center gap-2">
               {isSettingsDirty && (
-                <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-200">
-                  ⚠️ Belum disimpan
+                <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-200">️ Belum disimpan
                 </span>
               )}
               <button
@@ -7611,7 +7549,7 @@ export default function AdminDashboard({
                 ) : (
                   <>
                     <Save className="h-3.5 w-3.5" />
-                    <span>✓ Konfirmasi & Simpan Pengaturan Portal</span>
+                    <span>Konfirmasi & Simpan Pengaturan Portal</span>
                   </>
                 )}
               </button>
@@ -7809,8 +7747,7 @@ export default function AdminDashboard({
               {/* Input Foto Tanda Tangan Pengasuh */}
               <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/80">
                 <div className="mb-2">
-                  <label className="block text-xs font-bold text-emerald-900 uppercase">
-                    ✍️ Foto Tanda Tangan Pengasuh
+                  <label className="block text-xs font-bold text-emerald-900 uppercase">️ Foto Tanda Tangan Pengasuh
                   </label>
                 </div>
 
@@ -7890,7 +7827,7 @@ export default function AdminDashboard({
               <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/80">
                 <div className="mb-2">
                   <label className="block text-xs font-bold text-emerald-900 uppercase">
-                    💮 Foto Stempel Resmi Pengasuh
+                    Foto Stempel Resmi Pengasuh
                   </label>
                 </div>
 
@@ -8040,7 +7977,7 @@ export default function AdminDashboard({
             {/* PPDB Schedule Settings */}
             <div className="border-t border-emerald-100 pt-6 mt-6 text-left">
               <h4 className="font-bold text-sm text-emerald-950 flex items-center gap-1.5 mb-2">
-                📅 Pengaturan Jadwal & Status Pendaftaran Calon Santri Baru (PCSB)
+                Pengaturan Jadwal & Status Pendaftaran Calon Santri Baru (PCSB)
               </h4>
               <p className="text-gray-500 mb-4 text-[11px] leading-relaxed">
                 Tentukan apakah pendaftaran calon santri baru jalur online sedang dibuka, serta atur tanggal dibuka dan ditutup. Kolom tanggal dikosongkan secara default sampai Anda memilih tanggal. Jika tanggal diatur, pendaftaran hanya aktif dalam rentang waktu tersebut dan otomatis ditutup jika di luar tanggal.
@@ -8112,7 +8049,7 @@ export default function AdminDashboard({
               {/* Instant Persistence Indicator */}
               <div className="mt-2.5 flex items-center justify-between text-[11px] text-emerald-800 bg-emerald-100/50 px-3 py-1.5 rounded-lg border border-emerald-200">
                 <span className="flex items-center gap-1.5 font-medium">
-                  <span>🔒</span> Tanggal pendaftaran tersimpan otomatis & tersinkronisasi realtime ke server dan cloud setiap kali Anda memilih tanggal.
+                   Tanggal pendaftaran tersimpan otomatis & tersinkronisasi realtime ke server dan cloud setiap kali Anda memilih tanggal.
                 </span>
                 <button
                   type="button"
@@ -8121,7 +8058,7 @@ export default function AdminDashboard({
                   }}
                   className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-bold text-[10px] transition cursor-pointer shrink-0"
                 >
-                  ✓ Simpan Permanen
+                  Simpan Permanen
                 </button>
               </div>
 
@@ -8139,7 +8076,7 @@ export default function AdminDashboard({
                       : 'bg-amber-50 text-amber-950 border-amber-200'
                   }`}>
                     <div className="flex items-center gap-2">
-                      <span className="text-base">{liveStatus.isActive ? '🟢' : '🚫'}</span>
+                      <span className="text-base">{liveStatus.isActive ? '' : ''}</span>
                       <div>
                         <p className="font-bold text-xs">
                           Status Sistem Pendaftaran: <span className="underline">{liveStatus.badgeText}</span>
@@ -8159,7 +8096,7 @@ export default function AdminDashboard({
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6 border-t border-emerald-100 mt-6 bg-slate-50/80 p-4 rounded-xl border border-slate-200">
               <div>
                 <p className="font-bold text-xs text-emerald-950">
-                  {isSettingsDirty ? '⚠️ Ada perubahan pengaturan portal yang belum disimpan.' : '✔️ Semua pengaturan portal telah tersimpan.'}
+                  {isSettingsDirty ? '️ Ada perubahan pengaturan portal yang belum disimpan.' : '️ Semua pengaturan portal telah tersimpan.'}
                 </p>
                 <p className="text-[11px] text-gray-500 mt-0.5">
                   Klik tombol simpan untuk menerapkan seluruh perubahan secara permanen agar data tidak kembali lagi (mental).
@@ -8184,7 +8121,7 @@ export default function AdminDashboard({
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    <span>✓ Konfirmasi & Simpan Pengaturan Portal</span>
+                    <span>Konfirmasi & Simpan Pengaturan Portal</span>
                   </>
                 )}
               </button>
@@ -8204,11 +8141,11 @@ export default function AdminDashboard({
                       Integrasi Cloud Database Supabase
                       {isSupabaseConfigured() ? (
                         <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-400/40">
-                          🟢 Terhubung ke Supabase Cloud
+                          Terhubung ke Supabase Cloud
                         </span>
                       ) : (
                         <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-amber-500/30 text-amber-300 border border-amber-400/40">
-                          🟡 Belum Terhubung (Lokal & Server Mode)
+                          Belum Terhubung (Lokal & Server Mode)
                         </span>
                       )}
                     </h4>
@@ -8224,7 +8161,7 @@ export default function AdminDashboard({
                     onClick={() => setShowSqlModal(true)}
                     className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow border border-emerald-600/70 cursor-pointer"
                   >
-                    <Code className="h-4 w-4" /> 📋 Skrip SQL Supabase (PCSB & Semua Tabel)
+                    <Code className="h-4 w-4" /> Skrip SQL Supabase (PCSB & Semua Tabel)
                   </button>
                   {missingTablesInfo && missingTablesInfo.missingTables.length > 0 && (
                     <span className="px-2.5 py-1 bg-amber-500 text-slate-950 font-black rounded-lg text-[10px] animate-pulse">
@@ -8255,7 +8192,7 @@ export default function AdminDashboard({
                     className="w-full px-3 py-2 bg-slate-950/80 border border-emerald-800 rounded-xl text-emerald-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-slate-600"
                   />
                   <p className="text-[10px] text-emerald-400/80 mt-1 font-mono">
-                    💡 Format lengkap: <span className="text-amber-300 font-bold">https://[id-proyek].supabase.co</span>
+                    Format lengkap: <span className="text-amber-300 font-bold">https://[id-proyek].supabase.co</span>
                   </p>
                 </div>
 
@@ -8456,7 +8393,7 @@ export default function AdminDashboard({
                   <span className={`text-xs font-bold px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${
                     supabaseTestStatus.success ? 'bg-emerald-950 text-emerald-300 border-emerald-700' : 'bg-red-950 text-red-300 border-red-800'
                   }`}>
-                    {supabaseTestStatus.success ? '✅' : '❌'} {String(supabaseTestStatus.message)}
+                    {supabaseTestStatus.success ? '' : ''} {String(supabaseTestStatus.message)}
                   </span>
                 )}
               </div>
@@ -8467,14 +8404,14 @@ export default function AdminDashboard({
                     <p className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${
                       supabasePushStatus.success ? 'bg-teal-950/80 text-teal-300 border-teal-700' : 'bg-red-950/80 text-red-300 border-red-800'
                     }`}>
-                      {supabasePushStatus.success ? '✅' : '❌'} {supabasePushStatus.message}
+                      {supabasePushStatus.success ? '' : ''} {supabasePushStatus.message}
                     </p>
                   )}
                   {supabasePullStatus.message && (
                     <p className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${
                       supabasePullStatus.success ? 'bg-blue-950/80 text-blue-300 border-blue-700' : 'bg-red-950/80 text-red-300 border-red-800'
                     }`}>
-                      {supabasePullStatus.success ? '✅' : '❌'} {supabasePullStatus.message}
+                      {supabasePullStatus.success ? '' : ''} {supabasePullStatus.message}
                     </p>
                   )}
                 </div>
@@ -8482,7 +8419,7 @@ export default function AdminDashboard({
 
               <div className="bg-slate-950/60 p-3.5 rounded-xl border border-emerald-900/60 text-[11px] text-emerald-200/90 leading-relaxed space-y-1">
                 <p className="font-bold text-white flex items-center gap-1">
-                  📌 Catatan Pengaturan Vercel & Domain Custom:
+                  Catatan Pengaturan Vercel & Domain Custom:
                 </p>
                 <p>
                   Saat mendeploy proyek ini ke <strong>Vercel</strong> atau hosting domain Anda, tambahkan 2 Environment Variables berikut di dashboard Vercel (Project Settings -&gt; Environment Variables):
@@ -8581,88 +8518,60 @@ export default function AdminDashboard({
       {/* Tab: Dedicated Pengurus & Account Approval Management */}
       {activeTab === 'pengurus' && (
         <div className="space-y-6 text-left animate-fade-in">
-          {/* Header Banner */}
-          <div className="bg-gradient-to-r from-emerald-900 to-teal-900 text-white rounded-2xl p-6 shadow-md border border-emerald-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h3 className="font-extrabold text-amber-300 text-lg">
-                Persetujuan & Manajemen Akun Pengurus / Admin
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-base">
+                Persetujuan & Akun Pengurus
               </h3>
-              <p className="text-xs text-emerald-100/90 max-w-2xl leading-relaxed">
-                Setujui pendaftaran pengurus baru, kelola hak akses biro (Keamanan, Ketertiban, Kesehatan), dan atur konfirmasi pendaftaran akun pengurus pesantren secara terpusat.
-              </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div>
               {staffUsers.filter(u => !u.isConfirmed).length > 0 ? (
-                <span className="px-3.5 py-1.5 bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider animate-bounce shadow-sm">
-                  {staffUsers.filter(u => !u.isConfirmed).length} Akun Menunggu Persetujuan
+                <span className="px-3 py-1 bg-amber-100 text-amber-900 rounded-full text-xs font-bold border border-amber-200">
+                  {staffUsers.filter(u => !u.isConfirmed).length} Akun Menunggu
                 </span>
               ) : (
-                <span className="px-3 py-1 bg-emerald-800/80 border border-emerald-700/60 text-emerald-200 rounded-xl text-xs font-bold">
-                  ✓ Semua Akun Terkonfirmasi
+                <span className="px-3 py-1 bg-emerald-50 text-emerald-800 rounded-full text-xs font-semibold border border-emerald-100">
+                  Semua Akun Aktif
                 </span>
               )}
             </div>
           </div>
 
-          {/* Pending Approval Notice Banner / Section */}
-          <div className="bg-amber-50/90 border-2 border-amber-300 p-5 rounded-2xl space-y-4 shadow-sm">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 text-amber-950 font-black text-sm">
-                <div>
-                  <h4 className="font-extrabold text-sm text-amber-950 uppercase tracking-wider">
-                    Persetujuan Akun Pengurus Baru (Status: Pending)
-                  </h4>
-                  <p className="text-[11px] text-amber-900 font-normal mt-0.5">
-                    Kelola dan tinjau pendaftaran pengurus baru. Klik tombol <strong>Setujui</strong> untuk mengaktifkan akun atau <strong>Tolak</strong> untuk membatalkan akses.
-                  </p>
-                </div>
-              </div>
-              <span className="bg-amber-200 text-amber-950 px-3.5 py-1 rounded-full text-xs font-black shadow-2xs">
-                {staffUsers.filter(u => !u.isConfirmed).length} Permintaan Pending
-              </span>
-            </div>
-
-            {staffUsers.filter(u => !u.isConfirmed).length === 0 ? (
-              <div className="bg-white/90 border border-amber-200 rounded-xl p-6 text-center space-y-1">
-                <span className="text-2xl">✅</span>
-                <p className="text-xs font-bold text-slate-800">Tidak ada pendaftaran akun pengurus yang menanti persetujuan saat ini.</p>
-                <p className="text-[11px] text-slate-500">Seluruh pendaftaran pengurus telah diproses atau terkonfirmasi.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-amber-200 bg-white shadow-xs">
+          {/* Pending Approval Section */}
+          {staffUsers.filter(u => !u.isConfirmed).length > 0 && (
+            <div className="space-y-3 pt-1">
+              <h4 className="font-bold text-xs uppercase tracking-wider text-amber-900">
+                Persetujuan Akun Baru ({staffUsers.filter(u => !u.isConfirmed).length})
+              </h4>
+              <div className="overflow-x-auto rounded-xl border border-amber-100 bg-amber-50/20">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="bg-amber-100/80 text-amber-950 font-bold border-b border-amber-200">
-                      <th className="px-4 py-3">Nama Pengurus</th>
-                      <th className="px-4 py-3">Email Pengurus</th>
-                      <th className="px-4 py-3">Jabatan / Biro</th>
-                      <th className="px-4 py-3">Tanggal Daftar</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3 text-center">Tindakan Persetujuan</th>
+                    <tr className="bg-amber-100/60 text-amber-950 font-bold border-b border-amber-200">
+                      <th className="px-4 py-2.5">Nama Pengurus</th>
+                      <th className="px-4 py-2.5">Email Pengurus</th>
+                      <th className="px-4 py-2.5">Jabatan / Biro</th>
+                      <th className="px-4 py-2.5">Tanggal Daftar</th>
+                      <th className="px-4 py-2.5 text-center">Tindakan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-amber-100">
                     {staffUsers.filter(u => !u.isConfirmed).map((u) => (
                       <tr key={u.id} className="hover:bg-amber-50/60 transition">
-                        <td className="px-4 py-3 font-bold text-slate-900">{u.fullName}</td>
-                        <td className="px-4 py-3 font-mono text-slate-700">{u.email}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-2.5 font-bold text-slate-900">{u.fullName}</td>
+                        <td className="px-4 py-2.5 font-mono text-slate-700">{u.email}</td>
+                        <td className="px-4 py-2.5">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                            u.role === 'admin' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                            u.role === 'keamanan' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                            u.role === 'ketertiban' ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' :
-                            'bg-rose-100 text-rose-800 border border-rose-200'
+                            u.role === 'admin' ? 'bg-amber-100 text-amber-800' :
+                            u.role === 'keamanan' ? 'bg-emerald-100 text-emerald-800' :
+                            u.role === 'ketertiban' ? 'bg-indigo-100 text-indigo-800' :
+                            'bg-rose-100 text-rose-800'
                           }`}>
-                            {u.role === 'admin' ? 'Admin Pusat' : `Bid. ${u.role}`}
+                            {u.role === 'admin' ? 'Admin' : `Bid. ${u.role}`}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-slate-500 font-mono text-[11px]">{u.registeredAt || '-'}</td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full font-black animate-pulse">
-                            ⏳ Pending
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-2.5 text-slate-500 font-mono text-[11px]">{u.registeredAt || '-'}</td>
+                        <td className="px-4 py-2.5 text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
                               type="button"
@@ -8680,10 +8589,9 @@ export default function AdminDashboard({
                                   }
                                 );
                               }}
-                              className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-lg shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1"
+                              className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-lg shadow-xs transition active:scale-95 cursor-pointer"
                             >
-                              <span>✓</span>
-                              <span>Setujui</span>
+                              Setujui
                             </button>
                             <button
                               type="button"
@@ -8697,14 +8605,13 @@ export default function AdminDashboard({
                                     localStorage.setItem('pesantren_staff_users', JSON.stringify(updated));
                                     window.dispatchEvent(new Event('pesantren_staff_users_updated'));
                                     logAdminActivity('TOLAK_AKUN_PENGURUS', `Menolak pendaftaran akun pengurus: ${u.fullName} (${u.email})`, u.id, u.fullName);
-                                    showAlert('success', `Pendaftaran akun ${u.fullName} telah ditolak dan dihapus.`);
+                                    showAlert('success', `Pendaftaran akun ${u.fullName} telah ditolak.`);
                                   }
                                 );
                               }}
-                              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-lg shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1"
+                              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-xs transition active:scale-95 cursor-pointer"
                             >
-                              <span>✕</span>
-                              <span>Tolak</span>
+                              Tolak
                             </button>
                           </div>
                         </td>
@@ -8713,102 +8620,51 @@ export default function AdminDashboard({
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Form & Table for Registered Staff */}
-          <div className="bg-white border border-emerald-100 p-6 rounded-2xl space-y-6">
-            <div className="flex items-center gap-2 border-b border-emerald-50 pb-3">
-              <span className="text-xl">🛡️</span>
-              <div>
-                <h4 className="font-extrabold text-sm text-emerald-950 uppercase tracking-wider">
-                  Registrasi & Daftar Akun Pengurus Pesantren
-                </h4>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  Daftarkan atau setujui akun pengurus baru untuk biro Keamanan, Ketertiban, Kesehatan, atau Admin Tambahan.
-                </p>
-              </div>
-            </div>
-
-            {/* Simulated Email view if active */}
-            {simulatedEmailDetails && (
-              <div className="bg-slate-900 text-slate-100 p-5 rounded-xl font-sans border-l-4 border-amber-500 relative animate-fade-in text-xs max-w-2xl mx-auto">
-                <button 
-                  type="button"
-                  onClick={() => setSimulatedEmailDetails(null)}
-                  className="absolute top-3 right-3 text-slate-400 hover:text-white text-sm cursor-pointer"
-                  title="Tutup Simulasi Email"
-                >
-                  ✕
-                </button>
-                <div className="flex items-center gap-2 text-amber-450 font-bold mb-3">
-                  <span>✉️ SIMULASI KOTAK MASUK EMAIL PENGURUS: {simulatedEmailDetails.to}</span>
-                </div>
-                <div className="space-y-2 border-b border-slate-700 pb-3 mb-3 text-[11px]">
-                  <p><strong className="text-slate-400">Dari:</strong> Al-Asy'ariyah Portal System &lt;noreply@alasyariyah.sch.id&gt;</p>
-                  <p><strong className="text-slate-400">Kepada:</strong> {simulatedEmailDetails.name} &lt;{simulatedEmailDetails.to}&gt;</p>
-                  <p><strong className="text-slate-400">Subjek:</strong> Konfirmasi Aktivasi Akun Pengurus Bidang {simulatedEmailDetails.role.toUpperCase()}</p>
-                </div>
-                <div className="bg-slate-800 p-4 rounded-lg space-y-4 leading-relaxed text-slate-300 text-left">
-                  <p>Assalamu'alaikum Wr. Wb. Bapak/Ibu <strong>{simulatedEmailDetails.name}</strong>,</p>
-                  <p>
-                    Anda telah didaftarkan oleh Administrator Utama sebagai Pengurus Bidang <strong className="text-emerald-400 font-bold">{simulatedEmailDetails.role.toUpperCase()}</strong> di sistem Portal Online Pondok Pesantren Al-Asy'ariyah.
-                  </p>
-                  <p>
-                    Sebelum menggunakannya, Anda wajib melakukan verifikasi kepemilikan email aktif dan mengonfirmasi pembuatan password dengan mengeklik tautan konfirmasi aman di bawah ini:
-                  </p>
-                  <div className="my-5 text-center">
-                    <button
-                      type="button"
-                      onClick={() => handleConfirmStaffEmail(simulatedEmailDetails.to)}
-                      className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-lg shadow-md uppercase tracking-wider cursor-pointer transform active:scale-95 transition-all text-[11px]"
-                    >
-                      ✓ Klik Di Sini Untuk Mengonfirmasi & Mengaktifkan Akun
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Registration Form */}
-            <form onSubmit={handleRegisterStaff} className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100 space-y-4 text-xs">
-              <h5 className="font-bold text-xs text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
-                <Plus className="h-4 w-4 text-emerald-700" /> Form Tambah Akun Pengurus Langsung
+          <div className="space-y-6">
+          {/* Registration Form */}
+          <div className="pt-2">
+            <form onSubmit={handleRegisterStaff} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3 text-xs">
+              <h5 className="font-bold text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Plus className="h-4 w-4 text-emerald-700" /> Tambah Akun Pengurus Baru
               </h5>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-emerald-950 uppercase mb-1">Nama Lengkap Pengurus</label>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Nama Lengkap</label>
                   <input
                     type="text"
                     required
                     placeholder="Contoh: Ust. M. Ridwan, S.Pd.I"
                     value={newStaffName}
                     onChange={(e) => setNewStaffName(e.target.value)}
-                    className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-white text-xs focus:ring-2 focus:ring-emerald-700 focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs focus:ring-2 focus:ring-emerald-700 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-emerald-950 uppercase mb-1">Alamat Email Aktif Pengurus</label>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Alamat Email</label>
                   <input
                     type="email"
                     required
                     placeholder="pengurus@alasyariyah.sch.id"
                     value={newStaffEmail}
                     onChange={(e) => setNewStaffEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-white text-xs font-mono focus:ring-2 focus:ring-emerald-700 focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs font-mono focus:ring-2 focus:ring-emerald-700 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-emerald-950 uppercase mb-1">Bidang Tuntunan / Hak Akses</label>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Bidang / Akses</label>
                   <select
                     value={newStaffRole}
                     onChange={(e) => setNewStaffRole(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-white text-xs font-semibold focus:ring-2 focus:ring-emerald-700 focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs font-semibold focus:ring-2 focus:ring-emerald-700 focus:outline-none"
                   >
-                    <option value="admin">Administrator / Pengurus Pusat</option>
+                    <option value="admin">Administrator</option>
                     <option value="keamanan">Bagian Keamanan</option>
                     <option value="ketertiban">Bagian Ketertiban</option>
                     <option value="kesehatan">Bagian Kesehatan (Poskestren)</option>
@@ -8816,31 +8672,32 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-gradient-to-r from-emerald-800 to-teal-950 hover:from-emerald-700 hover:to-teal-850 text-white font-bold rounded-lg text-xs shadow-sm transition active:scale-95 cursor-pointer"
+                  className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-lg text-xs shadow-xs transition active:scale-95 cursor-pointer"
                 >
-                  + Tambahkan Akun Pengurus Baru
+                  + Tambahkan Akun
                 </button>
               </div>
             </form>
+          </div>
 
-            {/* List of Registered Accounts */}
-            <div className="space-y-2">
-              <h5 className="font-bold text-xs text-emerald-950 uppercase tracking-wider">Daftar Seluruh Akun Pengurus Terdaftar</h5>
-              <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-3xs">
-                <table className="w-full border-collapse text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-700 font-bold border-b border-gray-150">
-                      <th className="px-3 py-2.5">Nama Pengurus</th>
-                      <th className="px-3 py-2.5">Alamat Email</th>
-                      <th className="px-3 py-2.5">Bidang / Hak Akses</th>
-                      <th className="px-3 py-2.5">Status Akun</th>
-                      <th className="px-3 py-2.5">Tanggal Daftar</th>
-                      <th className="px-3 py-2.5 text-center">Tindakan</th>
-                    </tr>
-                  </thead>
+          {/* List of Registered Accounts */}
+          <div className="space-y-3 pt-2">
+            <h5 className="font-bold text-xs text-slate-800 uppercase tracking-wider">Daftar Akun Pengurus Terdaftar</h5>
+            <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-700 font-bold border-b border-gray-200">
+                    <th className="px-3 py-2.5">Nama Pengurus</th>
+                    <th className="px-3 py-2.5">Alamat Email</th>
+                    <th className="px-3 py-2.5">Bidang / Akses</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    <th className="px-3 py-2.5">Terdaftar</th>
+                    <th className="px-3 py-2.5 text-center">Tindakan</th>
+                  </tr>
+                </thead>
                   <tbody className="divide-y divide-gray-100">
                     {staffUsers.length === 0 ? (
                       <tr>
@@ -8893,8 +8750,7 @@ export default function AdminDashboard({
                                     }}
                                     className="text-[10px] text-emerald-800 hover:text-emerald-950 hover:underline flex items-center gap-0.5 cursor-pointer font-medium"
                                     title="Edit / Ubah Nama Pengurus"
-                                  >
-                                    ✏️ Ubah
+                                  >️ Ubah
                                   </button>
                                 </div>
                               )}
@@ -8933,7 +8789,7 @@ export default function AdminDashboard({
                                   className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded text-[10px] transition cursor-pointer"
                                   title="Ubah Nama"
                                 >
-                                  ✏️ Edit Nama
+                                  Edit Nama
                                 </button>
                               )}
                               {!user.isConfirmed && (
@@ -8954,7 +8810,7 @@ export default function AdminDashboard({
                                   }}
                                   className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded text-[10px] shadow-xs transition cursor-pointer"
                                 >
-                                  ✓ Setujui Akun
+                                  Setujui Akun
                                 </button>
                               )}
                               <button
@@ -8988,19 +8844,13 @@ export default function AdminDashboard({
 
       {/* Tab: WhatsApp Automation & Account Requests */}
       {activeTab === 'whatsapp' && (
-        <div className="space-y-6">
+        <div className="space-y-6 text-left">
           {/* Header Sub Tab Navigation */}
-          <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-emerald-100 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 pb-3">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-base">📢</span>
-                <h3 className="font-extrabold text-slate-900 text-base">
-                  Pusat Layanan WhatsApp & Broadcast Massal
-                </h3>
-              </div>
-              <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-                Kirim pengumuman libur pesantren, jadwal kedatangan, dan pengingat tagihan bulanan santri ke wali santri secara terarah dengan template resmi.
-              </p>
+              <h3 className="font-extrabold text-slate-900 text-base">
+                Broadcast WhatsApp
+              </h3>
             </div>
 
             {/* Sub-tab buttons */}
@@ -9014,13 +8864,7 @@ export default function AdminDashboard({
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                <span>📢</span>
-                <span>Kirim Pesan Massal</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-black uppercase ${
-                  waSubTab === 'broadcast' ? 'bg-amber-400 text-emerald-950' : 'bg-emerald-200 text-emerald-900'
-                }`}>
-                  Utama
-                </span>
+                <span>Broadcast WhatsApp</span>
               </button>
 
               <button
@@ -9032,7 +8876,6 @@ export default function AdminDashboard({
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                <span>📋</span>
                 <span>Pendaftaran Offline & Akun</span>
                 {forgotRequests.filter(r => r.status === 'Pending').length > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-400 text-amber-950 animate-pulse">
@@ -9050,7 +8893,6 @@ export default function AdminDashboard({
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                <span>⚙️</span>
                 <span>Gateway & Log ({waLogs.length})</span>
               </button>
             </div>
@@ -9075,66 +8917,21 @@ export default function AdminDashboard({
           {/* Sub-tab 2 & 3: Requests and Gateway Configuration */}
           {waSubTab !== 'broadcast' && (
             <div className="space-y-6">
-              {/* Banner */}
-              <div className="bg-amber-50 rounded-2xl border border-amber-200 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1 text-left">
-                  <h3 className="font-extrabold text-amber-950 text-base flex items-center gap-1.5">
-                    Pusat Layanan WhatsApp & Permintaan Akun Wali Santri
-                  </h3>
-                  <p className="text-xs text-amber-850 max-w-2xl leading-relaxed">
-                    Pantau permintaan dari wali santri yang lupa kredensial login, dan otomatisasi pemberitahuan akad/rekening pembayaran yang telah diverifikasi Bendahara. Seluruh pengiriman menggunakan direct gateway interaktif WhatsApp untuk kenyamanan wali santri.
-                  </p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <span className="px-3 py-1 bg-amber-200 border border-amber-300 text-amber-950 rounded-lg text-xs font-bold uppercase tracking-wide">
-                    {forgotRequests.filter(r => r.status === 'Pending').length} Permintaan Aktif
-                  </span>
-                </div>
-              </div>
-
-          {/* Card Panduan & Konfigurasi Pengiriman WhatsApp (Direct vs Gateway Otomatis) */}
-          <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-6 space-y-4 text-left">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-50 pb-3">
+          {/* Card Konfigurasi Pengiriman WhatsApp Gateway */}
+          <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4 text-left">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div>
-                <h4 className="font-extrabold text-sm text-emerald-950 flex items-center gap-2">
-                  <span>📱</span> Integrasi WhatsApp Notifikasi Tagihan & Informasi Pesantren
+                <h4 className="font-bold text-sm text-slate-900">
+                  Konfigurasi WhatsApp Gateway (Opsional)
                 </h4>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Panduan cara kerja pengiriman pesan ke nomor wali santri dan konfigurasi gateway otomatis.
-                </p>
               </div>
               <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shrink-0 w-fit ${
                 settings.waGatewayToken
                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                   : 'bg-slate-100 text-slate-700 border border-slate-200'
               }`}>
-                {settings.waGatewayToken ? '🟢 Gateway Aktif (100% Otomatis)' : '⚪ Mode Direct (wa.me)'}
+                {settings.waGatewayToken ? 'Gateway Aktif (Otomatis)' : 'Mode Direct (wa.me)'}
               </span>
-            </div>
-
-            {/* Penjelasan Sistem Pengiriman */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>1️⃣</span> Mode Direct Link (Bawaan / Tanpa Biaya)
-                </div>
-                <p className="text-slate-600 leading-relaxed text-[11px]">
-                  • <strong>Cara Kerja:</strong> Ketika tombol diklik, aplikasi membuka WhatsApp di HP/laptop admin dengan teks tagihan/info dan nomor wali yang telah terisi otomatis.<br/>
-                  • <strong>Nomor Pengirim:</strong> Terkirim melalui akun WhatsApp yang aktif di perangkat admin saat itu.<br/>
-                  • <strong>Kelebihan:</strong> Gratis 100%, tanpa perlu langganan API atau nomor server khusus.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200 space-y-2">
-                <div className="font-bold text-emerald-950 flex items-center gap-1.5">
-                  <span>2️⃣</span> Mode Gateway API (Langsung Otomatis Tanpa Mampir ke WA)
-                </div>
-                <p className="text-emerald-850 leading-relaxed text-[11px]">
-                  • <strong>Cara Kerja:</strong> Pesan dikirimkan oleh server/API di latar belakang (background) langsung ke nomor wali santri tanpa perlu membuka WhatsApp di perangkat admin.<br/>
-                  • <strong>Nomor Pengirim:</strong> Menggunakan nomor WhatsApp resmi pesantren yang didaftarkan pada WhatsApp Gateway (seperti Fonnte / Wablas).<br/>
-                  • <strong>Kelebihan:</strong> Praktis sekali klik langsung sampai, dan wali santri menerima pesan resmi dari nomor pesantren.
-                </p>
-              </div>
             </div>
 
             {/* Input Token Gateway */}
@@ -9215,13 +9012,12 @@ export default function AdminDashboard({
                   }}
                   className="text-[10px] text-rose-700 hover:underline font-bold cursor-pointer"
                 >
-                  Sapu Riwayat Selesai 🧹
-                </button>
+                  Sapu Riwayat Selesai </button>
               </div>
 
               {forgotRequests.length === 0 ? (
                 <div className="text-center py-12 space-y-2">
-                  <div className="text-3xl">🎉</div>
+                  
                   <p className="text-xs text-gray-400 font-bold">Tidak ada pendaftaran baru atau permintaan akun saat ini!</p>
                   <p className="text-[11px] text-gray-500">Semua pendaftaran offline telah diproses.</p>
                 </div>
@@ -9249,7 +9045,7 @@ export default function AdminDashboard({
                               </span>
                               {isOfflineReg ? (
                                 <span className="text-[9px] bg-amber-100 text-amber-900 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
-                                  📝 PPDB Offline
+                                  PPDB Offline
                                 </span>
                               ) : (
                                 <span className="text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono font-bold">
@@ -9273,11 +9069,11 @@ export default function AdminDashboard({
                             {!isOfflineReg && (
                               matchedStudent ? (
                                 <p className="text-[10px] text-emerald-800 bg-emerald-50 inline-block px-1.5 py-0.5 rounded font-bold mt-1">
-                                  ✓ Akun Terdaftar di Kelas {matchedStudent.class}
+                                  Akun Terdaftar di Kelas {matchedStudent.class}
                                 </p>
                               ) : (
                                 <p className="text-[10px] text-rose-600 bg-rose-50 inline-block px-1.5 py-0.5 rounded font-bold mt-1">
-                                  ⚠ NIS Tidak Ditemukan di Database!
+                                  NIS Tidak Ditemukan di Database!
                                 </p>
                               )
                             )}
@@ -9293,11 +9089,12 @@ export default function AdminDashboard({
                                 ? 'bg-amber-100 text-amber-800' 
                                 : 'bg-emerald-800 text-white'
                             }`}>
-                              {isPending ? '🔴 Menunggu Persetujuan' : '✓ Disetujui & Terbuat'}
+                              {isPending ? 'Menunggu Persetujuan' : 'Disetujui & Terbuat'}
                             </span>
 
                             {isPending && (
-                              <button
+                              <div className="flex items-center gap-2">
+                                <button
                                 onClick={() => {
                                   const stored = localStorage.getItem('pesantren_forgot_requests');
                                   let currentList: any[] = [];
@@ -9460,11 +9257,31 @@ export default function AdminDashboard({
                                   showAlert('success', `Akses info login disetujui! Akun berhasil dikonfigurasi & WhatsApp terkirim.`);
                                   window.dispatchEvent(new Event('forgot_requests_updated'));
                                 }}
-                                className="px-3 py-1.5 bg-gradient-to-r from-teal-800 to-emerald-900 hover:from-teal-700 hover:to-emerald-800 text-white rounded text-[11px] font-black shadow-md cursor-pointer transition flex items-center gap-1 active:scale-95"
+                                className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer transition flex items-center gap-1.5 active:scale-95 border border-emerald-800"
                               >
-                                <Send className="h-3 w-3" /> Setujui & Kirim via WA 📱
+                                <Send className="h-3.5 w-3.5 text-white" />
+                                <span className="text-white font-bold" style={{ color: '#ffffff' }}>Setujui & Kirim via WA</span>
                               </button>
-                            )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  triggerConfirm(
+                                    'Tolak / Hapus Pendaftaran',
+                                    `Yakin ingin membatalkan/menolak permohonan dari ${req.studentName}?`,
+                                    () => {
+                                      const updated = forgotRequests.filter(r => r.id !== req.id);
+                                      setForgotRequests(updated);
+                                      localStorage.setItem('pesantren_forgot_requests', JSON.stringify(updated));
+                                      showAlert('info', 'Permohonan telah dibatalkan.');
+                                    }
+                                  );
+                                }}
+                                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded text-[11px] border border-slate-300 transition cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          )}
                           </div>
                         </div>
                       </div>
@@ -9494,8 +9311,7 @@ export default function AdminDashboard({
                   }}
                   className="text-[10px] text-gray-400 hover:text-gray-600 font-bold cursor-pointer"
                 >
-                  Hapus Log 🗑
-                </button>
+                  Hapus Log </button>
               </h4>
 
               {/* Filter Search Input (as requested: "berikan filter di pencarian jika d perlukan") */}
@@ -9553,8 +9369,7 @@ export default function AdminDashboard({
 
                       <div className="text-[10px] text-emerald-800 font-bold flex items-center gap-1 pt-1 justify-end">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-600"></span>
-                        Direct WA Ready ✓
-                      </div>
+                        Direct WA Ready </div>
                     </div>
                   ))
                 )}
@@ -9576,7 +9391,7 @@ export default function AdminDashboard({
           {/* Controls Card */}
           <div className="bg-white p-6 rounded-2xl border border-emerald-50 shadow-sm space-y-4">
             <h3 className="font-extrabold text-emerald-950 text-base flex items-center gap-2">
-              <span>📅</span> Pengaturan Cetak Laporan Bulanan & Tahunan (Lintas-Sektoral)
+               Pengaturan Cetak Laporan Bulanan & Tahunan (Lintas-Sektoral)
             </h3>
             <p className="text-xs text-gray-500 leading-relaxed">
               Pusat pelaporan administrasi terpadu untuk pendaftaran santri baru (PCSB), catatan kesehatan poskestren, perizinan santri lewat/terlambat kembali (ketertiban), serta verifikasi pembayaran syahriyah (keuangan).
@@ -9862,9 +9677,7 @@ export default function AdminDashboard({
               <div className="flex gap-4 items-center">
                 {(settings.logoUrl || '/pesantren_logo.jpg') ? (
                   <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo Pesantren" className="h-16 w-16 object-contain" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="text-3xl shrink-0 flex items-center justify-center h-16 w-16">🕌</div>
-                )}
+                ) : null}
                 <div className="flex-1 text-left">
                   <h4 className="text-teal-950 font-black text-sm tracking-wide uppercase leading-tight">{settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h4>
                   <p className="text-[10px] italic font-sans text-teal-850 font-bold tracking-wide uppercase">PORTAL ADMINISTRASI PESANTREN LINTAS-SEKTORAL</p>
@@ -10013,7 +9826,7 @@ export default function AdminDashboard({
                                 onClick={() => setPrintHealthLog(item)}
                                 className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-850 rounded text-[10px] font-bold cursor-pointer transition flex items-center gap-1 mx-auto"
                               >
-                                👁️ Lihat Surat
+                                Lihat Surat
                               </button>
                             </td>
                           </tr>
@@ -10097,7 +9910,7 @@ export default function AdminDashboard({
                                       )}
                                       className="px-2 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[10px] font-bold cursor-pointer transition shadow-2xs"
                                     >
-                                      ✓ Setujui
+                                      Setujui
                                     </button>
                                     <button
                                       type="button"
@@ -10108,7 +9921,7 @@ export default function AdminDashboard({
                                       )}
                                       className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-bold cursor-pointer transition shadow-2xs"
                                     >
-                                      ✕ Tolak
+                                      Tolak
                                     </button>
                                   </>
                                 )}
@@ -10117,7 +9930,7 @@ export default function AdminDashboard({
                                   onClick={() => setPrintSecurityLog(item)}
                                   className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-850 rounded text-[10px] font-bold cursor-pointer transition flex items-center gap-1"
                                 >
-                                  👁️ Lihat Surat
+                                  Lihat Surat
                                 </button>
                               </div>
                             </td>
@@ -10198,7 +10011,7 @@ export default function AdminDashboard({
                                 onClick={() => setPrintDisciplineLog(item)}
                                 className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-850 rounded text-[10px] font-bold cursor-pointer transition flex items-center gap-1 mx-auto"
                               >
-                                👁️ Lihat Surat
+                                Lihat Surat
                               </button>
                             </td>
                           </tr>
@@ -10270,38 +10083,38 @@ export default function AdminDashboard({
                 <p className="text-gray-400 italic">Dokumen ini merupakan arsip digital resmi</p>
                 <p className="text-gray-400 text-[9px] font-mono mt-0.5">Sistem Verifikasi: AL-ASYARIYAH-SECURE-KEY-3000</p>
               </div>
-              <div className="text-left pl-8 relative ml-auto w-[240px]">
+              <div className="text-left relative ml-auto w-[280px]">
                 <div>
                   <p className="text-gray-650 font-medium">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   <p className="font-bold text-gray-900 leading-tight">Pengasuh Pondok Pesantren</p>
                 </div>
                 
-                {/* Overlapping Signature & Stamp Container - Full Height from Position to Name */}
-                <div className="h-28 w-60 relative flex items-center justify-start select-none my-0">
-                  {/* Tanda tangan (Full dari jabatan sampai nama di bawahnya) */}
+                {/* Overlapping Signature & Stamp Container */}
+                <div className="h-28 w-full relative flex items-center justify-start select-none my-0">
+                  {/* Tanda tangan */}
                   <div className="z-10 absolute inset-0 flex items-center justify-start">
                     {isImageUrl(settings.ttdPengasuhUrl) ? (
                       <img 
                         src={settings.ttdPengasuhUrl} 
                         alt="TTD Pengasuh" 
-                        className="h-full w-auto max-h-28 max-w-[210px] object-contain object-left mix-blend-multiply" 
+                        className="h-full w-auto max-h-28 max-w-[220px] object-contain object-left mix-blend-multiply" 
                         referrerPolicy="no-referrer" 
                       />
                     ) : (
-                      <span className="text-sm font-mono text-emerald-850 italic font-extrabold tracking-wide py-1">
-                        {settings.ttdPengasuhUrl || "✒️ " + (settings.namaPengasuh || "KH. Ahmad Wildan")}
+                      <span className="text-base font-serif text-slate-900 italic font-bold tracking-wide py-1 underline">
+                        {settings.ttdPengasuhUrl || (settings.namaPengasuh || "KH. Ahmad Wildan")}
                       </span>
                     )}
                   </div>
 
-                  {/* Stempel (Terletak di pinggir kiri tanda tangan dengan sistem tumpang tindih) */}
+                  {/* Stempel */}
                   {settings.stempelPengasuhUrl && (
-                    <div className="z-20 absolute -left-8 top-1/2 -translate-y-1/2 pointer-events-none opacity-90">
+                    <div className="z-20 absolute left-[70px] top-1/2 -translate-y-1/2 pointer-events-none opacity-90">
                       {isImageUrl(settings.stempelPengasuhUrl) ? (
                         <img 
                           src={settings.stempelPengasuhUrl} 
                           alt="Stempel Pengasuh" 
-                          className="h-24 w-24 sm:h-28 sm:w-28 object-contain rotate-[-8deg] mix-blend-multiply" 
+                          className="h-28 w-28 object-contain rotate-[-8deg] mix-blend-multiply" 
                           referrerPolicy="no-referrer" 
                         />
                       ) : (
@@ -10354,7 +10167,7 @@ export default function AdminDashboard({
                   }}
                   className="px-3 py-1.5 border border-rose-200 text-rose-650 hover:bg-rose-50 text-[10px] font-bold rounded-lg transition"
                 >
-                  Clear Log 🗑️
+                  Clear Log️
                 </button>
               </div>
             </div>
@@ -10456,8 +10269,7 @@ export default function AdminDashboard({
                             }}
                             className="p-1 text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                             title="Hapus Arsip"
-                          >
-                            🗑️
+                          >️
                           </button>
                         </td>
                       </tr>
@@ -10778,8 +10590,7 @@ export default function AdminDashboard({
                           onClick={() => setEditingStudent({ ...editingStudent, photoUrl: undefined })} 
                           className="px-1.5 py-0.5 text-[9px] bg-red-100 text-red-700 rounded font-bold hover:bg-red-200 cursor-pointer transition"
                         >
-                          Hapus Foto ✕
-                        </button>
+                          Hapus Foto </button>
                       </div>
                     )}
                   </div>
@@ -10788,7 +10599,7 @@ export default function AdminDashboard({
 
               {(editingStudent.status === 'Alumni' || editingStudent.status === 'Berhenti') && (
                 <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200/60 space-y-2 mt-2">
-                  <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">🎓 Informasi Keberhentian / Kelulusan</span>
+                  <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">Informasi Keberhentian / Kelulusan</span>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[9px] uppercase font-bold text-gray-500 mb-0.5">Tahun Keluar / Lulus</label>
@@ -10897,7 +10708,7 @@ export default function AdminDashboard({
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-red-200 text-xs text-left animate-fade-in my-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">
             <div className="bg-gradient-to-r from-red-800 to-rose-950 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
               <div>
-                <h4 className="font-extrabold text-sm uppercase tracking-wide">⚠️ Prosedur Penghapusan Ketat (Maksimal)</h4>
+                <h4 className="font-extrabold text-sm uppercase tracking-wide">️ Prosedur Penghapusan Ketat (Maksimal)</h4>
                 <p className="text-[10px] text-red-100">Langkah pengamanan ganda untuk mencegah kesalahan fatal penghapusan data santri.</p>
               </div>
               <button 
@@ -10933,10 +10744,10 @@ export default function AdminDashboard({
                     className="w-full px-3 py-2 border border-rose-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-red-600 font-bold text-slate-800"
                   />
                   {tightDeleteInputName && tightDeleteInputName !== tightDeleteStudent.fullName && (
-                    <p className="text-[9px] text-red-600 font-semibold mt-1">✕ Nama tidak cocok dengan data asli.</p>
+                    <p className="text-[9px] text-red-600 font-semibold mt-1">Nama tidak cocok dengan data asli.</p>
                   )}
                   {tightDeleteInputName === tightDeleteStudent.fullName && (
-                    <p className="text-[9px] text-emerald-600 font-bold mt-1">✓ Nama cocok.</p>
+                    <p className="text-[9px] text-emerald-600 font-bold mt-1">Nama cocok.</p>
                   )}
                 </div>
 
@@ -10952,10 +10763,10 @@ export default function AdminDashboard({
                     className="w-full px-3 py-2 border border-rose-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-red-600 font-mono font-black uppercase tracking-wider text-slate-800"
                   />
                   {tightDeleteInputCode && tightDeleteInputCode !== 'HAPUS-SANTRI-PERMANEN-ALASYARIYAH' && (
-                    <p className="text-[9px] text-red-600 font-semibold mt-1">✕ Kode keamanan belum sesuai.</p>
+                    <p className="text-[9px] text-red-600 font-semibold mt-1">Kode keamanan belum sesuai.</p>
                   )}
                   {tightDeleteInputCode === 'HAPUS-SANTRI-PERMANEN-ALASYARIYAH' && (
-                    <p className="text-[9px] text-emerald-600 font-bold mt-1">✓ Kode keamanan valid.</p>
+                    <p className="text-[9px] text-emerald-600 font-bold mt-1">Kode keamanan valid.</p>
                   )}
                 </div>
               </div>
@@ -10984,8 +10795,7 @@ export default function AdminDashboard({
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                Hapus Permanen ✕
-              </button>
+                Hapus Permanen </button>
             </div>
           </div>
         </div>
@@ -11004,7 +10814,7 @@ export default function AdminDashboard({
                 onClick={() => setReceiptBill(null)}
                 className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-extrabold transition cursor-pointer flex items-center gap-1 shadow-sm"
               >
-                ✕ Keluar / Tutup Kwitansi
+                Keluar / Tutup Kwitansi
               </button>
             </div>
 
@@ -11018,9 +10828,7 @@ export default function AdminDashboard({
               <div className="flex gap-4 items-center">
                 {(settings.logoUrl || '/pesantren_logo.jpg') ? (
                   <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo Pesantren" className="h-16 w-16 object-contain" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="text-3xl shrink-0 flex items-center justify-center h-16 w-16">🕌</div>
-                )}
+                ) : null}
                 <div className="flex-1 text-left">
                   <h4 className="text-emerald-900 font-black text-sm tracking-wide uppercase leading-tight">{settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h4>
                   <p className="text-[9px] text-gray-500 max-w-md leading-relaxed mt-0.5">
@@ -11082,29 +10890,29 @@ export default function AdminDashboard({
 
               <div className="flex justify-end">
                 {/* Column 1 (Right-aligned, left text): Bendahara (with Stempel overlapping Signature) */}
-                <div className="text-left space-y-0.5 relative w-64 pl-6">
-                  <p className="text-[9px] text-gray-400 font-semibold">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
-                  <p className="text-[9px] text-emerald-900 font-extrabold uppercase tracking-wider">Mengetahui,</p>
+                <div className="text-left space-y-1 relative w-[280px] pl-2 font-sans">
+                  <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
+                  <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, Bendahara Pesantren</p>
                   
-                  <div className="h-20 w-44 relative flex items-center justify-start select-none">
+                  <div className="h-24 w-full relative flex items-center justify-start select-none py-1">
                     {/* Tanda tangan rendered in background */}
-                    <div className="z-10 absolute inset-0 flex items-center justify-start">
+                    <div className="z-10 relative flex items-center justify-start">
                       {isImageUrl(settings.ttdBendaharaUrl) ? (
-                        <img src={settings.ttdBendaharaUrl} alt="TTD Bendahara" className="max-h-20 max-w-[150px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                        <img src={settings.ttdBendaharaUrl} alt="TTD Bendahara" className="h-20 max-w-[200px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                       ) : (
-                        <span className="text-[10px] font-mono text-emerald-800 italic font-extrabold tracking-wide">
-                          {settings.ttdBendaharaUrl || '✍️ Bendahara Pesantren'}
+                        <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
+                          {settings.ttdBendaharaUrl || 'Bendahara Pesantren'}
                         </span>
                       )}
                     </div>
 
                     {/* Stempel rendered on top overlapping */}
                     {settings.stempelBendaharaUrl && (
-                      <div className="z-20 absolute left-[25px] top-[-5px] pointer-events-none opacity-85">
+                      <div className="z-20 absolute left-[65px] top-[-5px] pointer-events-none opacity-85">
                         {isImageUrl(settings.stempelBendaharaUrl) ? (
                           <img src={settings.stempelBendaharaUrl} alt="Stempel Bendahara" className="h-24 w-24 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                         ) : (
-                          <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-12deg] leading-tight text-center bg-white/75 shadow-xs">
+                          <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-18 w-18 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-12deg] leading-tight text-center bg-white/75 shadow-xs">
                             {settings.stempelBendaharaUrl}
                           </div>
                         )}
@@ -11112,8 +10920,8 @@ export default function AdminDashboard({
                     )}
                   </div>
 
-                  <p className="text-xs font-black text-gray-900 underline leading-none">{settings.namaBendahara || "Ustadzah Siti Aminah"}</p>
-                  <p className="text-[8.5px] text-gray-500 font-bold uppercase tracking-wider mt-1">Bendahara Pondok Pesantren</p>
+                  <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{settings.namaBendahara || "Ustadzah Siti Aminah"}</p>
+                  <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Bendahara Pondok Pesantren</p>
                 </div>
               </div>
             </div>
@@ -11134,7 +10942,7 @@ export default function AdminDashboard({
                 onClick={() => downloadPrintableHTML('admin-receipt-printable-area', `Kwitansi_Bendahara_${receiptBill.studentName}_${receiptBill.title}`)}
                 className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-sm"
               >
-                <Download className="h-3.5 w-3.5" /> Unduh HTML Offline 📥
+                <Download className="h-3.5 w-3.5" /> Unduh HTML Offline
               </button>
 
               <button
@@ -11282,7 +11090,7 @@ export default function AdminDashboard({
                             <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-10 max-w-[80px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
                             <span className="text-[8px] font-mono text-blue-900 italic font-extrabold">
-                              {settings.ttdPengasuhUrl || "✒️ KH. Asy'ari"}
+                              {settings.ttdPengasuhUrl || "KH. Asy'ari"}
                             </span>
                           )}
                         </div>
@@ -11308,7 +11116,7 @@ export default function AdminDashboard({
 
                 {/* Decorative Watermark background leaf */}
                 <div className="absolute -bottom-10 -right-10 opacity-[0.03] pointer-events-none text-emerald-900 select-none">
-                  <span className="text-9xl">🌿</span>
+                  
                 </div>
               </div>
             </div>
@@ -11328,7 +11136,7 @@ export default function AdminDashboard({
                 onClick={() => downloadPrintableHTML('admin-student-card-printable-area', `Kartu_Santri_${selectedStudentForCard.fullName}`)}
                 className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-sm"
               >
-                <Download className="h-3.5 w-3.5" /> Unduh HTML Offline 📥
+                <Download className="h-3.5 w-3.5" /> Unduh HTML Offline
               </button>
 
               <button
@@ -11363,8 +11171,7 @@ export default function AdminDashboard({
                   onClick={() => setSelectedStudentForProfilePrint(null)}
                   className="px-3 py-2 bg-slate-200 hover:bg-slate-300 rounded-xl font-bold transition cursor-pointer"
                 >
-                  Tutup ✕
-                </button>
+                  Tutup </button>
               </div>
 
               {/* Printable Area Wrapper (Portrait Letter) */}
@@ -11403,9 +11210,7 @@ export default function AdminDashboard({
                   <div className="border-b-4 border-double border-slate-900 pb-3 mb-6 flex items-center justify-between gap-4">
                     {(settings.logoUrl || '/pesantren_logo.jpg') ? (
                       <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo Pesantren" className="h-16 w-16 object-contain shrink-0" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="text-3xl shrink-0 flex items-center justify-center h-16 w-16">🕌</div>
-                    )}
+                    ) : null}
                     
                     <div className="text-center flex-1">
                       <h3 className="text-[12px] font-bold text-slate-650 uppercase tracking-widest leading-none">{settings.namaYayasan || "YAYASAN AL-ASY'ARIYAH"}</h3>
@@ -11535,29 +11340,32 @@ export default function AdminDashboard({
                       )}
                     </div>
 
-                    <div className="text-center w-[220px] relative">
-                      <p className="text-[10px] text-slate-500 font-semibold">{getCityFromAddress(settings.address)}, {getIndonesianToday()}</p>
-                      <p className="font-bold text-slate-950 mt-1 uppercase leading-snug">Pengasuh Pesantren<br />Al-Asy'ariyah</p>
+                    <div className="text-left w-[260px] relative font-sans">
+                      <p className="text-[11px] text-slate-600 font-medium">{getCityFromAddress(settings.address)}, {getIndonesianToday()}</p>
+                      <p className="font-bold text-slate-900 mt-1 uppercase text-xs">Pengasuh Pesantren</p>
                       
-                      <div className="relative min-h-[64px] flex flex-col items-center justify-end my-1">
+                      <div className="relative min-h-[85px] w-full flex items-center justify-start my-1">
                         {/* Tanda tangan di atas nama pengasuh */}
-                        <div className="z-10 mb-1 flex items-center justify-center">
+                        <div className="z-10 relative flex items-center justify-start">
                           {isImageUrl(settings.ttdPengasuhUrl) ? (
-                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-14 max-w-[130px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-20 max-w-[190px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
-                            <span className="text-xs font-mono text-emerald-800 italic font-extrabold">✍️ {settings.namaPengasuh || "KH. Ahmad Wildan"}</span>
+                            <span className="text-xs font-serif italic text-slate-900 font-bold underline">{settings.namaPengasuh || "KH. Ahmad Wildan"}</span>
                           )}
                         </div>
 
-                        {/* Stempel di sebelah kiri nama pengasuh */}
+                        {/* Stempel disesuaikan menyatu dengan TTD */}
                         {isImageUrl(settings.stempelPengasuhUrl) && (
-                          <div className="z-20 absolute -left-7 -bottom-1 pointer-events-none opacity-85">
-                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 object-contain rotate-[-10deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          <div className="z-20 absolute left-[60px] -top-1 pointer-events-none opacity-85">
+                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-24 w-24 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                           </div>
                         )}
+                      </div>
 
-                        {/* Nama Pengasuh di bawah tanda tangan */}
+                      {/* Nama Pengasuh di bawah tanda tangan */}
+                      <div className="pt-1">
                         <strong className="text-slate-950 block underline text-xs leading-none uppercase">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
+                        <p className="text-[10px] text-slate-600 font-medium mt-0.5">Pengasuh Pondok Pesantren</p>
                       </div>
                     </div>
                   </div>
@@ -11586,7 +11394,7 @@ export default function AdminDashboard({
                   onClick={() => downloadPrintableHTML('admin-student-profile-printable-area', `Dokumen_Induk_Santri_${s.fullName}`)}
                   className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-sm"
                 >
-                  <Download className="h-3.5 w-3.5" /> Unduh HTML Offline 📥
+                  <Download className="h-3.5 w-3.5" /> Unduh HTML Offline
                 </button>
 
                 <button
@@ -11661,9 +11469,7 @@ export default function AdminDashboard({
                   <div className="border-b-[3px] border-double border-amber-800 pb-2 mb-1 flex gap-3 sm:gap-4 items-center shrink-0 text-left">
                     {(settings.logoUrl || '/pesantren_logo.jpg') ? (
                       <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo Pesantren" className="h-10 w-10 sm:h-12 sm:w-12 object-contain shrink-0" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="h-10 w-10 sm:h-12 sm:w-12 text-2xl shrink-0 flex items-center justify-center">🕌</div>
-                    )}
+                    ) : null}
                     <div className="flex-1 min-w-0 text-left">
                       <h4 className="text-[10px] sm:text-sm font-black tracking-wide uppercase text-amber-950 leading-tight truncate">{settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h4>
                       <p className="text-[7px] sm:text-[10px] text-slate-500 leading-normal truncate mt-0.5">
@@ -11781,39 +11587,40 @@ export default function AdminDashboard({
                       )}
                     </div>
 
-                    <div className="w-[140px] sm:w-[190px] text-center relative select-none mr-2">
-                      <p className="text-[7px] sm:text-[10px] text-gray-400 font-medium">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
-                      <p className="text-[8px] sm:text-xs text-amber-950 font-black uppercase tracking-wider leading-tight mt-0.5 sm:mt-1">Pengasuh Pesantren</p>
+                    <div className="w-[240px] sm:w-[280px] text-left relative select-none mr-2 font-sans">
+                      <p className="text-[9px] sm:text-[11px] text-slate-600 font-medium">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+                      <p className="text-[10px] sm:text-xs text-slate-900 font-bold uppercase tracking-wide mt-0.5 sm:mt-1">Pengasuh Pesantren</p>
 
-                      <div className="relative min-h-[44px] sm:min-h-[58px] flex flex-col items-center justify-end my-0.5">
+                      <div className="relative min-h-[70px] sm:min-h-[85px] w-full flex items-center justify-start my-1">
                         {/* Wet signature: Berada DI ATAS nama pengasuh */}
-                        <div className="z-10 mb-0.5 flex items-center justify-center">
+                        <div className="z-10 relative flex items-center justify-start">
                           {settings.ttdPengasuhUrl ? (
-                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-9 sm:max-h-12 max-w-[90px] sm:max-w-[120px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-16 sm:h-20 max-w-[180px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
-                            <span className="text-[8px] sm:text-xs font-mono text-emerald-800 italic font-extrabold tracking-wide">
-                              {"✒️ " + (settings.namaPengasuh || "KH. Ahmad Wildan")}
+                            <span className="text-[10px] sm:text-xs font-serif italic text-slate-900 font-bold underline">
+                              {settings.namaPengasuh || "KH. Ahmad Wildan"}
                             </span>
                           )}
                         </div>
 
                         {/* Overlapping Stamp: Berada di SEBELAH KIRI nama pengasuh */}
                         {settings.stempelPengasuhUrl && (
-                          <div className="z-20 absolute -left-4 sm:-left-6 -bottom-1 pointer-events-none opacity-85">
-                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-10 w-10 sm:h-14 sm:w-14 object-contain rotate-[-10deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          <div className="z-20 absolute left-[55px] sm:left-[65px] -top-1 pointer-events-none opacity-85">
+                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 sm:h-24 sm:w-24 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                           </div>
                         )}
+                      </div>
 
-                        <div>
-                          <p className="text-[8.5px] sm:text-xs font-black text-gray-900 underline leading-none truncate">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</p>
-                        </div>
+                      <div className="pt-0.5">
+                        <p className="text-[10px] sm:text-xs font-black text-slate-950 underline leading-none uppercase truncate">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</p>
+                        <p className="text-[9px] sm:text-[10px] text-slate-600 font-medium mt-0.5">Pengasuh Pondok Pesantren</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Decorative Watermark background badge */}
                   <div className="absolute -bottom-10 -right-10 opacity-[0.03] pointer-events-none text-amber-900 select-none">
-                    <span className="text-[150px]">🕌</span>
+                    
                   </div>
                 </div>
               </div>
@@ -11833,7 +11640,7 @@ export default function AdminDashboard({
                   onClick={() => handlePrintLetter('admin-alumni-card-printable-area', selectedAlumniForCard.id || selectedAlumniForCard.nis, 'Surat Keterangan Alumni', 'SKA', selectedAlumniForCard.fullName, `Surat Keterangan Alumni (${selectedAlumniForCard.alumniReason || 'Lulus'})`)}
                   className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-sm"
                 >
-                  <Download className="h-3.5 w-3.5" /> Unduh HTML Offline 📥
+                  <Download className="h-3.5 w-3.5" /> Unduh HTML Offline
                 </button>
 
                 <button
@@ -11865,9 +11672,7 @@ export default function AdminDashboard({
               <div className="flex gap-4 items-center">
                 {(settings.logoUrl || '/pesantren_logo.jpg') ? (
                   <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo Pesantren" className="h-16 w-16 object-contain" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="text-3xl shrink-0 flex items-center justify-center h-16 w-16">🕌</div>
-                )}
+                ) : null}
                 <div className="flex-1 text-left">
                   <h4 className="text-emerald-900 font-black text-sm tracking-wide uppercase leading-tight">{settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h4>
                   <p className="text-[9px] text-gray-500 max-w-md leading-relaxed mt-0.5">
@@ -11938,31 +11743,31 @@ export default function AdminDashboard({
 
             {/* footer with signature */}
             <div className="border-t border-dashed border-gray-200 pt-6 mt-6">
-              <div className="grid grid-cols-2 gap-4">
-                
-                {/* Column 1 (Left): Panitia Pelaksana (with Stempel overlapping Signature) */}
-                <div className="text-left pl-4 space-y-0.5 relative">
-                  <p className="text-[10px] text-emerald-900 font-extrabold uppercase tracking-wider leading-none">Panitia Pelaksana</p>
+              <div className="flex justify-end">
+                {/* Posisi Kanan Model Rata Kiri */}
+                <div className="text-left w-[280px] pl-2 space-y-1 relative font-sans">
+                  <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider leading-none">Mengetahui, Panitia Pelaksana PPDB</p>
                   
-                  <div className="h-20 w-40 relative flex items-center justify-center select-none my-1">
+                  <div className="h-24 w-full relative flex items-center justify-start select-none py-1">
                     {/* Tanda tangan rendered in background */}
-                    <div className="z-10 absolute inset-0 flex items-center justify-start">
+                    <div className="z-10 relative flex items-center justify-start">
                       {isImageUrl(settings.ttdKetuaPcsbUrl) ? (
-                        <img src={settings.ttdKetuaPcsbUrl} alt="TTD Ketua PCSB" className="max-h-20 max-w-[150px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                        <img src={settings.ttdKetuaPcsbUrl} alt="TTD Ketua PCSB" className="h-20 max-w-[200px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                       ) : (
-                        <span className="text-[10px] font-mono text-emerald-800 italic font-extrabold tracking-wide">
-                          {settings.ttdKetuaPcsbUrl || '✒️ Panitia Santri Baru'}
+                        <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
+                          {settings.ttdKetuaPcsbUrl || 'Panitia Santri Baru'}
                         </span>
                       )}
                     </div>
 
                     {/* Stempel rendered on top overlapping */}
                     {settings.stempelPcsbUrl && (
-                      <div className="z-20 absolute left-[5px] top-[-5px] pointer-events-none opacity-85">
+                      <div className="z-20 absolute left-[60px] top-[-5px] pointer-events-none opacity-85">
                         {isImageUrl(settings.stempelPcsbUrl) ? (
-                          <img src={settings.stempelPcsbUrl} alt="Stempel PCSB" className="h-20 w-20 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          <img src={settings.stempelPcsbUrl} alt="Stempel PCSB" className="h-24 w-24 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                         ) : (
-                          <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-14 w-14 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-12deg] leading-tight text-center bg-white/75 shadow-xs">
+                          <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-18 w-18 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-12deg] leading-tight text-center bg-white/75 shadow-xs">
                             {settings.stempelPcsbUrl}
                           </div>
                         )}
@@ -11970,12 +11775,9 @@ export default function AdminDashboard({
                     )}
                   </div>
 
-                  <p className="text-xs font-black text-gray-900 underline leading-none">Panitia Santri Baru</p>
+                  <p className="text-xs font-black text-slate-950 underline leading-none uppercase">Panitia Santri Baru</p>
+                  <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Lembaga Penerimaan Santri Baru</p>
                 </div>
-
-                {/* Column 2 (Right): Empty/Removed */}
-                <div />
-
               </div>
               <div className="text-gray-400 text-[8px] italic mt-6 text-center">
                 Dicetak oleh administrator via Al-Asy'ariyah Portal Resmi.
@@ -11999,7 +11801,7 @@ export default function AdminDashboard({
                 onClick={() => downloadPrintableHTML('admin-ppdb-slip-printable-area', `Slip_PCSB_${selectedPpdbForSlip.fullName}`)}
                 className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-sm"
               >
-                <Download className="h-3.5 w-3.5" /> Unduh HTML Offline 📥
+                <Download className="h-3.5 w-3.5" /> Unduh HTML Offline
               </button>
 
               <button
@@ -12036,7 +11838,7 @@ export default function AdminDashboard({
             {ppdbConfirmStep === 1 && (
               <div className="space-y-4 py-2">
                 <div className="text-center space-y-2">
-                  <span className="text-4xl">🤝</span>
+                  
                   <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider">Konfirmasi Kehadiran Fisik</h4>
                   <p className="text-xs text-gray-500 leading-relaxed">
                     Harap pastikan bahwa calon santri bernama <strong>{ppdbConfirmData.name}</strong> telah hadir secara langsung di lokasi pondok pesantren untuk melakukan pencocokan identitas.
@@ -12068,8 +11870,7 @@ export default function AdminDashboard({
                     onClick={() => setPpdbConfirmStep(2)}
                     className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs transition cursor-pointer text-center"
                   >
-                    Lanjut ke Dokumen ➜
-                  </button>
+                    Lanjut ke Dokumen </button>
                 </div>
               </div>
             )}
@@ -12085,15 +11886,14 @@ export default function AdminDashboard({
                     <div className="lg:col-span-5 flex flex-col justify-between space-y-4 lg:max-h-[62vh] overflow-y-auto pr-1">
                       <div className="space-y-3.5 flex-1">
                         <div className="text-center lg:text-left space-y-1">
-                          <span className="text-3xl block lg:inline-block">📂</span>
+                          
                           <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider inline-block lg:block lg:ml-0 ml-2">Verifikasi Berkas Fisik & Online</h4>
                           <p className="text-[11px] text-gray-500 leading-relaxed">
                             Sesuai peraturan, Anda wajib memeriksa pindaian (softcopy) berkas online pendaftar sebelum menyetujui berkas fisik:
                           </p>
                         </div>
 
-                        <div className="p-3 bg-amber-50/75 border border-amber-150 rounded-xl text-[10px] text-amber-800 font-semibold leading-normal">
-                          ⚠️ <strong>PEMBERITAHUAN:</strong> Kotak centang verifikasi hanya akan terbuka setelah Anda mengklik <strong>"Tinjau Berkas"</strong> di bawah ini untuk memicu pemuatan dokumen langsung di sebelah kanan.
+                        <div className="p-3 bg-amber-50/75 border border-amber-150 rounded-xl text-[10px] text-amber-800 font-semibold leading-normal">️ <strong>PEMBERITAHUAN:</strong> Kotak centang verifikasi hanya akan terbuka setelah Anda mengklik <strong>"Tinjau Berkas"</strong> di bawah ini untuk memicu pemuatan dokumen langsung di sebelah kanan.
                         </div>
 
                         <div className="space-y-3">
@@ -12101,7 +11901,7 @@ export default function AdminDashboard({
                           <div className={`p-3 rounded-xl border transition-all ${step2ActiveTab === 'kk' ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500/20' : 'bg-slate-50 border-slate-150 hover:bg-slate-100/60'}`}>
                             <div className="flex items-center justify-between">
                               <span className="text-[10.5px] font-extrabold text-slate-800 flex items-center gap-1.5 truncate max-w-[150px]">
-                                📋 KK_{activeReg.fullName.replace(/\s+/g, '_')}.pdf
+                                KK_{activeReg.fullName.replace(/\s+/g, '_')}.pdf
                               </span>
                               <span className="text-[9px] font-mono text-slate-400">1.4 MB</span>
                             </div>
@@ -12117,8 +11917,7 @@ export default function AdminDashboard({
                                     ? 'bg-emerald-800 text-white border border-emerald-850'
                                     : 'bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-50'
                                 }`}
-                              >
-                                👁️ {step2ActiveTab === 'kk' ? 'Sedang Ditinjau' : 'Tinjau Berkas KK'}
+                              >️ {step2ActiveTab === 'kk' ? 'Sedang Ditinjau' : 'Tinjau Berkas KK'}
                               </button>
                             </div>
                             <label className={`flex items-center gap-2 p-1.5 mt-1.5 bg-white rounded-lg border transition ${
@@ -12139,7 +11938,7 @@ export default function AdminDashboard({
                           <div className={`p-3 rounded-xl border transition-all ${step2ActiveTab === 'akta' ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500/20' : 'bg-slate-50 border-slate-150 hover:bg-slate-100/60'}`}>
                             <div className="flex items-center justify-between">
                               <span className="text-[10.5px] font-extrabold text-slate-800 flex items-center gap-1.5 truncate max-w-[150px]">
-                                📋 Akta_{activeReg.fullName.replace(/\s+/g, '_')}.jpg
+                                Akta_{activeReg.fullName.replace(/\s+/g, '_')}.jpg
                               </span>
                               <span className="text-[9px] font-mono text-slate-400">920 KB</span>
                             </div>
@@ -12155,8 +11954,7 @@ export default function AdminDashboard({
                                     ? 'bg-emerald-800 text-white border border-emerald-850'
                                     : 'bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-50'
                                 }`}
-                              >
-                                👁️ {step2ActiveTab === 'akta' ? 'Sedang Ditinjau' : 'Tinjau Berkas Akta'}
+                              >️ {step2ActiveTab === 'akta' ? 'Sedang Ditinjau' : 'Tinjau Berkas Akta'}
                               </button>
                             </div>
                             <label className={`flex items-center gap-2 p-1.5 mt-1.5 bg-white rounded-lg border transition ${
@@ -12177,7 +11975,7 @@ export default function AdminDashboard({
                           <div className={`p-3 rounded-xl border transition-all ${step2ActiveTab === 'ijazah' ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500/20' : 'bg-slate-50 border-slate-150 hover:bg-slate-100/60'}`}>
                             <div className="flex items-center justify-between">
                               <span className="text-[10.5px] font-extrabold text-slate-800 flex items-center gap-1.5 truncate max-w-[150px]">
-                                📋 Ijazah_{activeReg.fullName.replace(/\s+/g, '_')}.pdf
+                                Ijazah_{activeReg.fullName.replace(/\s+/g, '_')}.pdf
                               </span>
                               <span className="text-[9px] font-mono text-slate-400">2.6 MB</span>
                             </div>
@@ -12193,8 +11991,7 @@ export default function AdminDashboard({
                                     ? 'bg-emerald-800 text-white border border-emerald-850'
                                     : 'bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-50'
                                 }`}
-                              >
-                                👁️ {step2ActiveTab === 'ijazah' ? 'Sedang Ditinjau' : 'Tinjau Berkas Ijazah'}
+                              >️ {step2ActiveTab === 'ijazah' ? 'Sedang Ditinjau' : 'Tinjau Berkas Ijazah'}
                               </button>
                             </div>
                             <label className={`flex items-center gap-2 p-1.5 mt-1.5 bg-white rounded-lg border transition ${
@@ -12217,7 +12014,7 @@ export default function AdminDashboard({
                     {/* RIGHT COLUMN: Real-Time High-Fidelity Document Viewer */}
                     <div className="lg:col-span-7 bg-slate-100 p-4 rounded-2xl border border-slate-200 flex flex-col justify-start max-h-[62vh] overflow-y-auto">
                       <div className="bg-emerald-800/10 text-emerald-800 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider mb-3 self-start">
-                        📡 Live Viewer: Dokumen {step2ActiveTab === 'kk' ? 'Kartu Keluarga (KK)' : step2ActiveTab === 'akta' ? 'Akta Kelahiran' : 'Ijazah Kelulusan / SKL'}
+                        Live Viewer: Dokumen {step2ActiveTab === 'kk' ? 'Kartu Keluarga (KK)' : step2ActiveTab === 'akta' ? 'Akta Kelahiran' : 'Ijazah Kelulusan / SKL'}
                       </div>
 
                       {/* KK (KARTU KELUARGA) */}
@@ -12409,8 +12206,7 @@ export default function AdminDashboard({
                       onClick={() => setPpdbConfirmStep(3)}
                       className="w-full sm:w-2/3 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition cursor-pointer text-center shadow-xs"
                     >
-                      Lanjut ke Langkah 3 (Rincian Tagihan) ➜
-                    </button>
+                      Lanjut ke Langkah 3 (Rincian Tagihan) </button>
                   </div>
                 </div>
               );
@@ -12453,7 +12249,7 @@ export default function AdminDashboard({
               return (
                 <div className="space-y-4 py-2 animate-fade-in">
                   <div className="text-center space-y-1">
-                    <span className="text-4xl">💳</span>
+                    
                     <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider">Rincian Tagihan Santri Baru</h4>
                     <p className="text-xs text-gray-500 leading-relaxed">
                       Berikut rincian tagihan keuangan yang akan otomatis diterbitkan di akun wali santri setelah dinyatakan aktif:
@@ -12522,8 +12318,7 @@ export default function AdminDashboard({
                       onClick={() => setPpdbConfirmStep(4)}
                       className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs transition cursor-pointer text-center"
                     >
-                      Lanjut ke Foto Santri ➜
-                    </button>
+                      Lanjut ke Foto Santri </button>
                   </div>
                 </div>
               );
@@ -12533,7 +12328,7 @@ export default function AdminDashboard({
             {ppdbConfirmStep === 4 && (
               <div className="space-y-4 py-2">
                 <div className="text-center space-y-1">
-                  <span className="text-4xl">📸</span>
+                  
                   <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider">Pas Foto Santri Baru</h4>
                   <p className="text-xs text-gray-500 leading-relaxed">
                     Sila ambil atau unggah pas foto resmi (3x4 latar merah/biru) milik santri baru untuk melengkapi pangkalan data:
@@ -12560,7 +12355,7 @@ export default function AdminDashboard({
                   ) : (
                     <div className="text-center space-y-2">
                       <label className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold inline-block cursor-pointer transition">
-                        📁 Unggah Pas Foto Santri (3x4)
+                        Unggah Pas Foto Santri (3x4)
                         <input
                           type="file"
                           accept="image/*"
@@ -12584,8 +12379,7 @@ export default function AdminDashboard({
                   )}
                 </div>
 
-                <div className="p-2 bg-amber-50 border border-amber-100 rounded-lg text-[10px] text-amber-800 leading-normal font-semibold">
-                  ⚠️ MENYETUJUI AKAN: Membuat NIS 4-angka otomatis, mengarsipkan berkas PPDB, dan memicu tagihan biaya pendaftaran, biaya lain-lain, dan iuran syahriyah.
+                <div className="p-2 bg-amber-50 border border-amber-100 rounded-lg text-[10px] text-amber-800 leading-normal font-semibold">️ MENYETUJUI AKAN: Membuat NIS 4-angka otomatis, mengarsipkan berkas PPDB, dan memicu tagihan biaya pendaftaran, biaya lain-lain, dan iuran syahriyah.
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-1 text-xs font-semibold">
@@ -12601,8 +12395,7 @@ export default function AdminDashboard({
                     onClick={() => executePpdbAccept(ppdbConfirmData.id)}
                     className="w-full py-2.5 bg-gradient-to-r from-emerald-850 to-teal-900 hover:from-emerald-800 hover:to-teal-850 text-white font-extrabold rounded-xl text-xs transition shadow cursor-pointer text-center"
                   >
-                    Terima Santri & Cetak NIS ✅
-                  </button>
+                    Terima Santri & Cetak NIS </button>
                 </div>
               </div>
             )}
@@ -12615,7 +12408,7 @@ export default function AdminDashboard({
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm font-sans">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-slate-100 text-left space-y-4 animate-fade-in my-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 text-red-650">
-              <span className="text-2xl">⚠️</span>
+              <span className="text-2xl">️</span>
               <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wide">{confirmDialog.title}</h3>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed font-semibold">
@@ -12630,7 +12423,7 @@ export default function AdminDashboard({
                 }}
                 className="px-4 py-2.5 bg-emerald-750 hover:bg-emerald-800 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer flex-1 text-center shadow-md transition border border-emerald-600 flex items-center justify-center gap-1.5"
               >
-                <span>✓</span>
+                
                 <span>Konfirmasi & Lanjutkan</span>
               </button>
               <button
@@ -12866,7 +12659,7 @@ export default function AdminDashboard({
                 }}
                 className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-black rounded-lg cursor-pointer flex-1 text-center shadow transition flex items-center justify-center gap-1.5"
               >
-                <span>✅ Setujui & Validasi Berkas</span>
+                <span>Setujui & Validasi Berkas</span>
               </button>
               <button
                 type="button"
@@ -12888,9 +12681,7 @@ export default function AdminDashboard({
           <div className="border-b-[3px] border-double border-slate-900 pb-3 mb-4 flex gap-4 items-center shrink-0 text-left">
             {(settings.logoUrl || '/pesantren_logo.jpg') ? (
               <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo Pesantren" className="h-14 w-14 object-contain shrink-0" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="text-3xl shrink-0 flex items-center justify-center h-14 w-14">🕌</div>
-            )}
+            ) : null}
             <div className="flex-1 min-w-0 text-left">
               <h4 className="text-base font-black tracking-wide uppercase text-slate-900 leading-tight truncate">{settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h4>
               <p className="text-xs text-slate-500 leading-normal truncate mt-0.5">
@@ -12964,7 +12755,7 @@ export default function AdminDashboard({
             {/* Header Sticky Bar */}
             <div className="p-4 bg-emerald-900 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🛡️</span>
+                <span className="text-xl">️</span>
                 <div>
                   <h3 className="text-sm font-extrabold uppercase tracking-wider">Preview & Cetak Surat Izin</h3>
                   <p className="text-[10px] text-emerald-100 font-mono">ID: {printSecurityLog.id}</p>
@@ -12994,7 +12785,7 @@ export default function AdminDashboard({
 
               {/* Information Note */}
               <div className="mx-auto max-w-2xl mb-4 bg-amber-50 border border-amber-200 text-amber-950 p-2.5 rounded-xl text-[11px] font-sans flex items-center gap-2">
-                <span className="text-sm">💡</span>
+                
                 <span><strong>Pratinjau Surat Resmi:</strong> Surat ini sudah diformat dengan standar kepengasuhan dan dapat langsung dicetak. Gunakan mode Portrait saat print.</span>
               </div>
 
@@ -13011,9 +12802,7 @@ export default function AdminDashboard({
                   <div className="flex gap-4 items-center">
                     {(settings.logoUrl || '/pesantren_logo.jpg') ? (
                       <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo Pesantren" className="h-16 w-16 object-contain" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="text-3xl shrink-0 flex items-center justify-center h-16 w-16">🕌</div>
-                    )}
+                    ) : null}
                     <div className="flex-1 text-left font-sans">
                       <h4 className="text-slate-900 font-black text-sm tracking-wide uppercase leading-tight">{settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h4>
                       <p className="text-[10px] italic text-slate-500 font-bold tracking-wide uppercase">Biro Keamanan & Ketertiban Pengurus Pondok Pesantren</p>
@@ -13121,31 +12910,30 @@ export default function AdminDashboard({
 
                   {/* Signatures Row */}
                   <div className="mt-12 flex justify-end text-xs text-left">
-                    <div className="w-[220px] relative font-sans space-y-0.5">
-                      <p className="text-slate-500 font-medium text-[11px]">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                      <p className="text-slate-800 font-bold text-[11px] mt-0.5">Mengetahui,</p>
-                      <p className="text-slate-900 font-extrabold text-[11px] uppercase tracking-wide">Kepala Bidang Keamanan & Ketertiban</p>
+                    <div className="w-[280px] relative font-sans space-y-1">
+                      <p className="text-slate-600 font-medium text-[11px]">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                      <p className="text-slate-900 font-bold text-xs uppercase tracking-wide">Mengetahui, Kepala Bidang Keamanan</p>
                       
                       {/* Overlapping TTD & Stempel Keamanan */}
-                      <div className="h-16 w-44 relative flex items-center justify-start select-none my-1">
+                      <div className="min-h-[92px] w-full relative flex items-center justify-start select-none py-1">
                         {/* TTD in background */}
-                        <div className="z-10 absolute inset-0 flex items-center justify-start">
+                        <div className="z-10 relative flex items-center justify-start">
                           {isImageUrl(settings.ttdKeamananUrl) ? (
-                            <img src={settings.ttdKeamananUrl} alt="TTD Keamanan" className="max-h-16 max-w-[150px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdKeamananUrl} alt="TTD Keamanan" className="h-22 max-w-[210px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
-                            <span className="text-[10px] font-mono text-emerald-800 italic font-bold">
-                              {settings.ttdKeamananUrl || "✍️ Junaidi"}
+                            <span className="text-sm font-serif italic text-slate-900 font-bold underline">
+                              {settings.ttdKeamananUrl || "Junaidi Al-Anshori"}
                             </span>
                           )}
                         </div>
 
                         {/* Stempel overlapping */}
                         {settings.stempelKeamananUrl && (
-                          <div className="z-20 absolute left-[30px] top-[-10px] pointer-events-none opacity-85">
+                          <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelKeamananUrl) ? (
-                              <img src={settings.stempelKeamananUrl} alt="Stempel Keamanan" className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                              <img src={settings.stempelKeamananUrl} alt="Stempel Keamanan" className="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-12 w-12 flex items-center justify-center text-[5px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/75">
+                              <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/75">
                                 {settings.stempelKeamananUrl}
                               </div>
                             )}
@@ -13153,7 +12941,10 @@ export default function AdminDashboard({
                         )}
                       </div>
 
-                      <p className="font-extrabold text-slate-900 underline mt-1">{printSecurityLog.signedBy || settings.namaKeamanan || "Ustadz Junaidi Al-Anshori"}</p>
+                      <div className="pt-1">
+                        <p className="font-black text-slate-950 underline text-xs leading-none uppercase">{printSecurityLog.signedBy || settings.namaKeamanan || "Ustadz Junaidi Al-Anshori"}</p>
+                        <p className="text-[10px] text-slate-600 font-medium mt-0.5">Kepala Bidang Keamanan & Ketertiban</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -13167,8 +12958,7 @@ export default function AdminDashboard({
                 onClick={() => setPrintSecurityLog(null)}
                 className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold rounded-xl text-xs cursor-pointer shadow-sm transition animate-pulse"
               >
-                Kembali & Tutup ❌
-              </button>
+                Kembali & Tutup </button>
             </div>
           </div>
         </div>
@@ -13181,7 +12971,7 @@ export default function AdminDashboard({
             {/* Header Sticky Bar */}
             <div className="p-4 bg-indigo-900 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-xl">⚖️</span>
+                <span className="text-xl">️</span>
                 <div>
                   <h3 className="text-sm font-extrabold uppercase tracking-wider">Preview & Cetak Surat Takzir</h3>
                   <p className="text-[10px] text-indigo-100 font-mono">ID: {printDisciplineLog.id}</p>
@@ -13211,7 +13001,7 @@ export default function AdminDashboard({
 
               {/* Information Note */}
               <div className="mx-auto max-w-2xl mb-4 bg-amber-50 border border-amber-200 text-amber-950 p-2.5 rounded-xl text-[11px] font-sans flex items-center gap-2">
-                <span className="text-sm">💡</span>
+                
                 <span><strong>Pratinjau Surat Resmi:</strong> Surat ini sudah diformat dengan standar kepengasuhan dan dapat langsung dicetak. Gunakan mode Portrait saat print.</span>
               </div>
 
@@ -13228,9 +13018,7 @@ export default function AdminDashboard({
                   <div className="flex gap-4 items-center">
                     {(settings.logoUrl || '/pesantren_logo.jpg') ? (
                       <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo Pesantren" className="h-16 w-16 object-contain" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="text-3xl shrink-0 flex items-center justify-center h-16 w-16">🕌</div>
-                    )}
+                    ) : null}
                     <div className="flex-1 text-left font-sans">
                       <h4 className="text-slate-900 font-black text-sm tracking-wide uppercase leading-tight">{settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h4>
                       <p className="text-[10px] italic text-slate-500 font-bold tracking-wide uppercase">Biro Ketertiban & Pengawasan Disiplin Madrasah</p>
@@ -13297,30 +13085,30 @@ export default function AdminDashboard({
 
                   {/* Signatures Row */}
                   <div className="mt-12 flex justify-end text-xs text-left">
-                    <div className="w-[200px] relative">
-                      <p className="text-slate-400 font-medium">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                      <p className="text-slate-900 font-bold mt-1">Kepala Ketertiban,</p>
+                    <div className="w-[280px] relative font-sans space-y-1">
+                      <p className="text-slate-600 font-medium text-[11px]">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                      <p className="text-slate-900 font-bold text-xs uppercase tracking-wide">Mengetahui, Kepala Bidang Ketertiban</p>
                       
                       {/* Overlapping TTD & Stempel Ketertiban */}
-                      <div className="h-16 w-44 relative flex items-center justify-start select-none my-1">
+                      <div className="min-h-[92px] w-full relative flex items-center justify-start select-none py-1">
                         {/* TTD in background */}
-                        <div className="z-10 absolute inset-0 flex items-center justify-start">
+                        <div className="z-10 relative flex items-center justify-start">
                           {isImageUrl(settings.ttdKetertibanUrl) ? (
-                            <img src={settings.ttdKetertibanUrl} alt="TTD Ketertiban" className="max-h-16 max-w-[150px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdKetertibanUrl} alt="TTD Ketertiban" className="h-22 max-w-[210px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
-                            <span className="text-[10px] font-mono text-indigo-850 italic font-bold">
-                              {settings.ttdKetertibanUrl || "✍️ A. Somad"}
+                            <span className="text-sm font-serif italic text-slate-900 font-bold underline">
+                              {settings.ttdKetertibanUrl || "Abdul Somad, S.Sy"}
                             </span>
                           )}
                         </div>
 
                         {/* Stempel overlapping */}
                         {settings.stempelKetertibanUrl && (
-                          <div className="z-20 absolute left-[30px] top-[-10px] pointer-events-none opacity-85">
+                          <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelKetertibanUrl) ? (
-                              <img src={settings.stempelKetertibanUrl} alt="Stempel Ketertiban" className="h-20 w-20 object-contain rotate-[8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                              <img src={settings.stempelKetertibanUrl} alt="Stempel Ketertiban" className="h-26 w-26 object-contain rotate-[8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="border border-double border-indigo-600/60 text-indigo-700/90 rounded-full h-12 w-12 flex items-center justify-center text-[5px] font-extrabold uppercase rotate-[8deg] leading-tight text-center bg-white/75">
+                              <div className="border border-double border-indigo-600/60 text-indigo-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[8deg] leading-tight text-center bg-white/75">
                                 {settings.stempelKetertibanUrl}
                               </div>
                             )}
@@ -13328,7 +13116,10 @@ export default function AdminDashboard({
                         )}
                       </div>
 
-                      <p className="font-extrabold text-slate-900 underline mt-1">{printDisciplineLog.signedBy || settings.namaKetertiban || "Ustadz Abdul Somad, S.Sy"}</p>
+                      <div className="pt-1">
+                        <p className="font-black text-slate-950 underline text-xs leading-none uppercase">{printDisciplineLog.signedBy || settings.namaKetertiban || "Ustadz Abdul Somad, S.Sy"}</p>
+                        <p className="text-[10px] text-slate-600 font-medium mt-0.5">Kepala Bidang Ketertiban Santri</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -13342,8 +13133,7 @@ export default function AdminDashboard({
                 onClick={() => setPrintDisciplineLog(null)}
                 className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold rounded-xl text-xs cursor-pointer shadow-sm transition animate-pulse"
               >
-                Kembali & Tutup ❌
-              </button>
+                Kembali & Tutup </button>
             </div>
           </div>
         </div>
@@ -13386,7 +13176,7 @@ export default function AdminDashboard({
 
               {/* Information Note */}
               <div className="mx-auto max-w-2xl mb-4 bg-amber-50 border border-amber-200 text-amber-950 p-2.5 rounded-xl text-[11px] font-sans flex items-center gap-2">
-                <span className="text-sm">💡</span>
+                
                 <span><strong>Pratinjau Surat Resmi:</strong> Surat ini sudah diformat dengan standar kepengasuhan dan dapat langsung dicetak. Gunakan mode Portrait saat print.</span>
               </div>
 
@@ -13403,9 +13193,7 @@ export default function AdminDashboard({
                   <div className="flex gap-4 items-center">
                     {(settings.logoUrl || '/pesantren_logo.jpg') ? (
                       <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo Pesantren" className="h-16 w-16 object-contain" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="text-3xl shrink-0 flex items-center justify-center h-16 w-16">🕌</div>
-                    )}
+                    ) : null}
                     <div className="flex-1 text-left font-sans">
                       <h4 className="text-slate-900 font-black text-sm tracking-wide uppercase leading-tight">{settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h4>
                       <p className="text-[10px] italic font-sans text-slate-500 font-bold tracking-wide uppercase">Biro Kesehatan & Poskestren Al-Asy'ariyah</p>
@@ -13476,30 +13264,30 @@ export default function AdminDashboard({
 
                   {/* Signatures Row */}
                   <div className="mt-12 flex justify-end text-xs text-left">
-                    <div className="w-[200px] relative">
-                      <p className="text-slate-400 font-medium">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                      <p className="text-slate-900 font-bold mt-1">Biro Kesehatan (Poskestren),</p>
+                    <div className="w-[280px] relative font-sans space-y-1">
+                      <p className="text-slate-600 font-medium text-[11px]">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                      <p className="text-slate-900 font-bold text-xs uppercase tracking-wide">Mengetahui, Biro Kesehatan (Poskestren)</p>
                       
                       {/* Overlapping TTD & Stempel Kesehatan */}
-                      <div className="h-16 w-44 relative flex items-center justify-start select-none my-1">
+                      <div className="min-h-[92px] w-full relative flex items-center justify-start select-none py-1">
                         {/* TTD in background */}
-                        <div className="z-10 absolute inset-0 flex items-center justify-start">
+                        <div className="z-10 relative flex items-center justify-start">
                           {isImageUrl(settings.ttdKesehatanUrl) ? (
-                            <img src={settings.ttdKesehatanUrl} alt="TTD Kesehatan" className="max-h-16 max-w-[150px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdKesehatanUrl} alt="TTD Kesehatan" className="h-22 max-w-[210px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
-                            <span className="text-[10px] font-mono text-rose-800 italic font-bold">
-                              {settings.ttdKesehatanUrl || "✍️ dr. Fatimah"}
+                            <span className="text-sm font-serif italic text-slate-900 font-bold underline">
+                              {settings.ttdKesehatanUrl || "dr. Fatimah"}
                             </span>
                           )}
                         </div>
 
                         {/* Stempel overlapping */}
                         {settings.stempelKesehatanUrl && (
-                          <div className="z-20 absolute left-[30px] top-[-10px] pointer-events-none opacity-85">
+                          <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelKesehatanUrl) ? (
-                              <img src={settings.stempelKesehatanUrl} alt="Stempel Kesehatan" className="h-20 w-20 object-contain rotate-[-6deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                              <img src={settings.stempelKesehatanUrl} alt="Stempel Kesehatan" className="h-26 w-26 object-contain rotate-[-6deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="border border-double border-rose-600/60 text-rose-700/90 rounded-full h-12 w-12 flex items-center justify-center text-[5px] font-extrabold uppercase rotate-[-6deg] leading-tight text-center bg-white/75">
+                              <div className="border border-double border-rose-600/60 text-rose-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-6deg] leading-tight text-center bg-white/75">
                                 {settings.stempelKesehatanUrl}
                               </div>
                             )}
@@ -13507,7 +13295,10 @@ export default function AdminDashboard({
                         )}
                       </div>
 
-                      <p className="font-extrabold text-slate-900 underline mt-1">{printHealthLog.signedBy || settings.namaKesehatan || "Ustadzah dr. Fatimah Az-Zahra"}</p>
+                      <div className="pt-1">
+                        <p className="font-black text-slate-950 underline text-xs leading-none uppercase">{printHealthLog.signedBy || settings.namaKesehatan || "Ustadzah dr. Fatimah Az-Zahra"}</p>
+                        <p className="text-[10px] text-slate-600 font-medium mt-0.5">Dokter / Tim Medis Poskestren</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -13521,8 +13312,7 @@ export default function AdminDashboard({
                 onClick={() => setPrintHealthLog(null)}
                 className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold rounded-xl text-xs cursor-pointer shadow-sm transition animate-pulse"
               >
-                Kembali & Tutup ❌
-              </button>
+                Kembali & Tutup </button>
             </div>
           </div>
         </div>
@@ -13547,7 +13337,7 @@ export default function AdminDashboard({
               {/* Header */}
               <div className="p-5 bg-teal-900 text-white flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">📋</span>
+                  
                   <div>
                     <h3 className="text-sm font-extrabold uppercase tracking-wider">Detail Tagihan & Log Verifikasi AI</h3>
                     <p className="text-[10px] text-teal-100 font-mono">ID Tagihan: {b.id}</p>
@@ -13638,7 +13428,7 @@ export default function AdminDashboard({
                     {/* Timeline Log Riwayat */}
                     <div className="space-y-3">
                       <h5 className="font-extrabold text-slate-900 tracking-wide uppercase text-[10px] flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
-                        <span>📋 Log Riwayat & Aktivitas Tagihan</span>
+                        <span>Log Riwayat & Aktivitas Tagihan</span>
                       </h5>
 
                       <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
@@ -13685,8 +13475,7 @@ export default function AdminDashboard({
                             rel="noopener noreferrer"
                             className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 text-white rounded-lg text-[10px] font-bold backdrop-blur-xs transition cursor-pointer"
                           >
-                            Buka Penuh 🔗
-                          </a>
+                            Buka Penuh </a>
                         </div>
 
                         {/* AI Status Panel */}
@@ -13755,7 +13544,7 @@ export default function AdminDashboard({
                       </div>
                     ) : (
                       <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center text-slate-400 bg-slate-50/50">
-                        <span className="text-3xl mb-1">📷</span>
+                        
                         <p className="font-bold text-[11px]">Belum Ada Bukti Pembayaran</p>
                         <p className="text-[9px] max-w-xs mx-auto mt-0.5">Wali santri belum mengunggah bukti bayar untuk tagihan ini.</p>
                       </div>
@@ -13778,8 +13567,7 @@ export default function AdminDashboard({
                     }}
                     className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl transition text-[11px] cursor-pointer shadow-xs"
                   >
-                    Setujui Lunas ✓
-                  </button>
+                    Setujui Lunas </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -13788,8 +13576,7 @@ export default function AdminDashboard({
                     }}
                     className="px-4 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold rounded-xl transition text-[11px] cursor-pointer"
                   >
-                    Tolak / Belum Lunas ❌
-                  </button>
+                    Tolak / Belum Lunas </button>
                 </div>
                 
                 <button
@@ -13797,8 +13584,7 @@ export default function AdminDashboard({
                   onClick={() => setSelectedBillForLogs(null)}
                   className="px-4 py-1.5 bg-slate-300 hover:bg-slate-400 text-slate-700 font-extrabold rounded-xl text-[11px] cursor-pointer transition shadow-xs"
                 >
-                  Tutup Log ❌
-                </button>
+                  Tutup Log </button>
               </div>
 
             </div>
@@ -13813,7 +13599,7 @@ export default function AdminDashboard({
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 p-4 text-white flex justify-between items-center">
               <div>
                 <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-1.5">
-                  <span>✏️ Edit Data & Nominal Tagihan Santri</span>
+                  <span>Edit Data & Nominal Tagihan Santri</span>
                 </h3>
                 <p className="text-[10px] text-teal-100 font-mono">ID Tagihan: {editingBill.id}</p>
               </div>
@@ -13899,7 +13685,7 @@ export default function AdminDashboard({
                   >
                     <option value="Belum Lunas">Belum Lunas</option>
                     <option value="Konfirmasi Pembayaran">Konfirmasi Pembayaran (Periksa)</option>
-                    <option value="Lunas">Lunas ✓</option>
+                    <option value="Lunas">Lunas</option>
                   </select>
                 </div>
 
@@ -13951,7 +13737,7 @@ export default function AdminDashboard({
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 p-4 text-white flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-1.5">
-                  <span>✏️ Edit Agenda / Kegiatan Pesantren</span>
+                  <span>Edit Agenda / Kegiatan Pesantren</span>
                 </h3>
                 <p className="text-[10px] text-teal-100 font-mono">ID Agenda: {editingEventId}</p>
               </div>
@@ -14063,8 +13849,7 @@ export default function AdminDashboard({
                   type="submit"
                   className="px-5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-black transition cursor-pointer shadow-xs"
                 >
-                  Simpan Perubahan Agenda ✓
-                </button>
+                  Simpan Perubahan Agenda </button>
               </div>
             </form>
           </div>
@@ -14078,7 +13863,7 @@ export default function AdminDashboard({
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 p-4 text-white flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-1.5">
-                  <span>✏️ Edit Rekening / Kanal Pembayaran</span>
+                  <span>Edit Rekening / Kanal Pembayaran</span>
                 </h3>
                 <p className="text-[10px] text-teal-100 font-mono">ID: {editingBankAccount.id}</p>
               </div>
@@ -14161,8 +13946,7 @@ export default function AdminDashboard({
                   type="submit"
                   className="px-5 py-2 bg-emerald-800 hover:bg-emerald-900 text-amber-300 rounded-lg font-extrabold transition text-xs cursor-pointer shadow-xs"
                 >
-                  Simpan Perubahan Rekening ✓
-                </button>
+                  Simpan Perubahan Rekening </button>
               </div>
             </form>
           </div>
@@ -14175,7 +13959,7 @@ export default function AdminDashboard({
           <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-emerald-100 transform transition-all">
             <div className="bg-gradient-to-r from-emerald-800 to-teal-950 p-4 text-white flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <span className="p-2 bg-amber-400/20 text-amber-300 rounded-lg text-lg">📩</span>
+                
                 <div>
                   <h3 className="font-extrabold text-sm uppercase tracking-wider text-amber-300">Notifikasi Akun Pengurus Baru</h3>
                   <p className="text-[10px] text-emerald-100">Kredensial login pengurus berhasil dibuat</p>
@@ -14219,7 +14003,7 @@ export default function AdminDashboard({
               </div>
 
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-900 flex items-start gap-2">
-                <span className="text-amber-600 text-sm">💡</span>
+                
                 <p>Notifikasi pendaftaran akun telah dikirim ke log WhatsApp & email pengurus. Anda juga dapat menyalin atau membagikan kredensial ini langsung kepada pengurus bersangkutan.</p>
               </div>
 
@@ -14233,7 +14017,7 @@ export default function AdminDashboard({
                   }}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  📋 Salin Kredensial
+                  Salin Kredensial
                 </button>
                 <a
                   href={`https://wa.me/?text=${encodeURIComponent(
@@ -14243,7 +14027,7 @@ export default function AdminDashboard({
                   rel="noopener noreferrer"
                   className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
                 >
-                  💬 Kirim via WhatsApp
+                  Kirim via WhatsApp
                 </a>
                 <button
                   type="button"

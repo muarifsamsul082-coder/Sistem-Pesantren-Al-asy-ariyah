@@ -194,14 +194,13 @@ export default function Navbar({
       defaultPass = 'admin123';
     } else if (['keamanan', 'ketertiban', 'kesehatan'].includes(session.role)) {
       const emailKey = (session.email || `${session.role}@alasyariyah.sch.id`).toLowerCase();
-      let staffName = session.fullName || '';
-      if (!staffName) {
-        staffName = localStorage.getItem('staff_custom_name_' + emailKey) || '';
-      }
+      let staffName = localStorage.getItem('staff_custom_name_' + emailKey) || 
+                      localStorage.getItem('staff_custom_name_' + session.role) || 
+                      session.fullName || '';
       if (!staffName) {
         try {
           const staffUsers = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
-          const found = staffUsers.find((u: any) => u && u.email && u.email.toLowerCase() === emailKey);
+          const found = staffUsers.find((u: any) => (u && u.email && u.email.toLowerCase() === emailKey) || u.role === session.role);
           if (found && (found.fullName || found.name)) staffName = found.fullName || found.name;
         } catch (e) {}
       }
@@ -362,11 +361,12 @@ export default function Navbar({
 
       // 3. Update current session object in storage
       try {
-        const storedSess = localStorage.getItem('pesantren_session');
+        const storedSess = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
         if (storedSess) {
           const parsed = JSON.parse(storedSess);
           parsed.fullName = newName;
           parsed.roleName = newName;
+          sessionStorage.setItem('pesantren_session', JSON.stringify(parsed));
           localStorage.setItem('pesantren_session', JSON.stringify(parsed));
         }
       } catch (e) {}
@@ -374,43 +374,62 @@ export default function Navbar({
       window.dispatchEvent(new Event('pesantren_admin_name_updated'));
       window.dispatchEvent(new Event('pesantren_staff_users_updated'));
       window.dispatchEvent(new Event('pesantren_db_sync'));
+      setProfileUpdateTrigger(prev => prev + 1);
       setProfileSuccess('Nama profil akun berhasil disinkronkan ke akun pengurus & menu persetujuan!');
     } else if (session && ['keamanan', 'ketertiban', 'kesehatan'].includes(session.role)) {
       const emailKey = (session.email || `${session.role}@alasyariyah.sch.id`).toLowerCase();
       localStorage.setItem('staff_custom_name_' + emailKey, newName);
+      localStorage.setItem('staff_custom_name_' + session.role, newName);
 
-      // Update in staff users list
+      // Update in staff users list and sync to menu persetujuan & database
       try {
         const staffUsers = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
-        let changed = false;
+        let found = false;
         const updatedStaff = staffUsers.map((u: any) => {
-          if (u && u.email && u.email.toLowerCase() === emailKey) {
-            changed = true;
+          if (
+            (u.email && u.email.toLowerCase() === emailKey) ||
+            u.role === session.role ||
+            (session.userId && u.id === session.userId)
+          ) {
+            found = true;
             return { ...u, fullName: newName, name: newName };
           }
           return u;
         });
-        if (changed) {
-          localStorage.setItem('pesantren_staff_users', JSON.stringify(updatedStaff));
-          window.dispatchEvent(new Event('pesantren_staff_users_updated'));
-          if (isSupabaseConfigured()) {
-            pushAllStaffUsersToSupabase(updatedStaff).catch(() => {});
-          }
-          // Broadcast to server
-          fetch('/api/staff-users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: emailKey, fullName: newName, name: newName })
-          }).catch(e => console.warn('Failed to push staff user:', e));
+
+        if (!found) {
+          updatedStaff.push({
+            id: session.userId || `usr-${session.role}`,
+            fullName: newName,
+            name: newName,
+            email: emailKey,
+            role: session.role,
+            isConfirmed: true,
+            registeredAt: new Date().toISOString().split('T')[0]
+          });
         }
+
+        localStorage.setItem('pesantren_staff_users', JSON.stringify(updatedStaff));
+        window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+        if (isSupabaseConfigured()) {
+          pushAllStaffUsersToSupabase(updatedStaff).catch(() => {});
+        }
+        // Broadcast to server
+        fetch('/api/staff-users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedStaff)
+        }).catch(e => console.warn('Failed to push staff user:', e));
       } catch (e) {}
 
       // Update current session in storage
       try {
-        const storedSess = localStorage.getItem('pesantren_session');
+        const storedSess = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
         if (storedSess) {
           const parsed = JSON.parse(storedSess);
           parsed.fullName = newName;
+          parsed.roleName = newName;
+          sessionStorage.setItem('pesantren_session', JSON.stringify(parsed));
           localStorage.setItem('pesantren_session', JSON.stringify(parsed));
         }
       } catch (e) {}
@@ -421,6 +440,11 @@ export default function Navbar({
         const parsed = stored ? JSON.parse(stored) : {};
         parsed.name = newName;
         localStorage.setItem(cfgKey, JSON.stringify(parsed));
+        fetch('/api/staff-configs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: session.role, config: { name: newName } })
+        }).catch(() => {});
         if (isSupabaseConfigured()) {
           await pushStaffConfigToSupabase(session.role, { name: newName });
         }
@@ -429,7 +453,8 @@ export default function Navbar({
       }
       window.dispatchEvent(new Event('staff_configs_updated'));
       window.dispatchEvent(new Event('pesantren_db_sync'));
-      setProfileSuccess('Nama profil Pengurus & sapaan dashboard berhasil disimpan!');
+      setProfileUpdateTrigger(prev => prev + 1);
+      setProfileSuccess('Nama profil Pengurus berhasil disimpan dan disinkronkan ke seluruh sistem!');
     }
   };
 
@@ -829,7 +854,7 @@ export default function Navbar({
                 </div>
                 {session && (
                   <div className="text-[11px] font-bold text-emerald-100 truncate max-w-[170px] mt-0.5">
-                    👤 {userName}
+                    {userName}
                   </div>
                 )}
               </div>
@@ -1125,7 +1150,7 @@ export default function Navbar({
                     htmlFor="avatar-upload-file"
                     className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-black cursor-pointer shadow-sm transition flex items-center gap-1"
                   >
-                    📸 Ganti Foto Sendiri
+                    Ganti Foto Profil
                   </label>
                   {customAvatar && (
                     <button
@@ -1184,18 +1209,17 @@ export default function Navbar({
               {/* SECTION: Password Change Form (Always Directly Displayed!) */}
               <form onSubmit={handlePasswordChange} className="space-y-3.5 pt-4 border-t border-slate-100">
                 <h5 className="text-[11px] uppercase font-bold text-emerald-900 tracking-wider">
-                  🔑 GANTI PASSWORD AKUN
+                  GANTI PASSWORD AKUN
                 </h5>
 
                 {profileError && (
-                  <div className="text-[11px] text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-100 font-bold">
-                    ⚠️ {profileError}
+                  <div className="text-[11px] text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-100 font-bold">️ {profileError}
                   </div>
                 )}
 
                 {profileSuccess && (
                   <div className="text-[11px] text-emerald-600 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100 font-bold">
-                    ✅ {profileSuccess}
+                    {profileSuccess}
                   </div>
                 )}
 

@@ -23,7 +23,9 @@ import {
   X,
   CreditCard,
   Copy,
-  Info
+  Info,
+  BookOpen,
+  ShieldAlert
 } from 'lucide-react';
 import { Student, Bill, PortalSettings, Room } from '../types';
 
@@ -210,8 +212,8 @@ export default function WhatsAppBroadcastPanel({
     // Bank accounts info
     const accounts = settings.rekeningList || [];
     const rekeningInfo = accounts.length > 0
-      ? `💳 *Rekening Resmi Pesantren:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n')
-      : `💳 *Rekening Pembayaran:* Silakan konfirmasi ke Bendahara Pesantren.`;
+      ? `*Rekening Resmi Pesantren:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n')
+      : `*Rekening Pembayaran:* Silakan konfirmasi ke Bendahara Pesantren.`;
 
     const rincianTagihanText = unpaid.items.length > 0
       ? unpaid.items.map((b, idx) => `  ${idx + 1}. ${b.title}: Rp ${Number(b.amount).toLocaleString('id-ID')} (Jatuh tempo: ${b.dueDate || '-'})`).join('\n')
@@ -243,10 +245,10 @@ export default function WhatsAppBroadcastPanel({
         `Wali dari Ananda *{nama_santri}* (Kelas: {kelas} | Kamar: {kamar})\n\n` +
         `Pemberitahuan Resmi dari *${schoolName}*:\n\n` +
         `Diberitahukan kepada seluruh bapak/ibu wali santri bahwa agenda kegiatan belajar mengajar semester ini telah selesai dan libur kepulangan santri akan dilaksanakan pada:\n\n` +
-        `🌴 *Mulai Libur / Kepulangan:* [Tuliskan Tanggal, misal: Ahad, 28 Juni 2026]\n` +
-        `⏰ *Waktu Penjemputan:* Pukul 08.00 - 16.00 WIB\n` +
-        `📅 *Batas Waktu Kembali ke Pondok:* [Tuliskan Tanggal & Jam, misal: Ahad, 12 Juli 2026 maks pkl 17.00 WIB]\n\n` +
-        `📌 *Catatan Penting:*\n` +
+        `• *Mulai Libur / Kepulangan:* [Tuliskan Tanggal, misal: Ahad, 28 Juni 2026]\n` +
+        `• *Waktu Penjemputan:* Pukul 08.00 - 16.00 WIB\n` +
+        `• *Batas Waktu Kembali ke Pondok:* [Tuliskan Tanggal & Jam, misal: Ahad, 12 Juli 2026 maks pkl 17.00 WIB]\n\n` +
+        `*Catatan Penting:*\n` +
         `1. Santri wajib menyelesaikan seluruh tanggungan hafalan dan administrasi sebelum kepulangan.\n` +
         `2. Penjemputan wajib lapor ke Pos Keamanan Pesantren.\n` +
         `3. Mohon senantiasa membimbing ananda menjaga shalat berjamaah dan akhlakul karimah selama di rumah.\n\n` +
@@ -263,9 +265,9 @@ export default function WhatsAppBroadcastPanel({
         `Wali dari Ananda: *{nama_santri}* (NIS: {nis})\n` +
         `Kamar/Asrama: {kamar}\n\n` +
         `Kami sampaikan pemberitahuan administrasi dan pengingat pembayaran iuran syahriyah / tagihan pesantren dari *${schoolName}*:\n\n` +
-        `📋 *Rincian Tagihan Belum Selesai:*\n` +
+        `*Rincian Tagihan Belum Selesai:*\n` +
         `{rincian_tagihan}\n\n` +
-        `💰 *Total Nominal Tunggakan:* *{total_tagihan}*\n\n` +
+        `*Total Nominal Tunggakan:* *{total_tagihan}*\n\n` +
         `{rekening_pesantren}\n\n` +
         `Bukti setoran atau transfer dapat diunggah melalui Portal Santri atau dikonfirmasikan langsung ke nomor Bendahara Pesantren.\n\n` +
         `Bagi yang telah melakukan pembayaran, mohon abaikan pesan pengingat ini. Terima kasih atas dukungan Bapak/Ibu demi kelancaran kegiatan santri.\n\n` +
@@ -280,10 +282,10 @@ export default function WhatsAppBroadcastPanel({
         `Yth. Bapak/Ibu *{nama_wali}*\n` +
         `Wali dari Ananda *{nama_santri}* (Kelas: {kelas})\n\n` +
         `Dengan memohon rahmat dan ridho Allah SWT, kami mengundang Bapak/Ibu sekeluarga untuk menghadiri agenda:\n\n` +
-        `📢 *Agenda:* Pertemuan Rutin Wali Santri & Sosialisasi Program Pendidikan\n` +
-        `📅 *Hari/Tanggal:* [Tuliskan Hari & Tanggal]\n` +
-        `⏰ *Waktu:* Pukul 08.30 WIB - Selesai\n` +
-        `📍 *Tempat:* Aula Utama ${schoolName}\n\n` +
+        `• *Agenda:* Pertemuan Rutin Wali Santri & Sosialisasi Program Pendidikan\n` +
+        `• *Hari / Tanggal:* [Tuliskan Hari & Tanggal]\n` +
+        `• *Waktu:* Pukul 08.30 WIB - Selesai\n` +
+        `• *Tempat:* Aula Utama ${schoolName}\n\n` +
         `Mengingat pentingnya agenda ini untuk perkembangan pendidikan putra-putri kita, kehadiran Bapak/Ibu sangat kami harapkan.\n\n` +
         `Wassalamu'alaikum Wr. Wb.\n` +
         `-- *Sekretariat Pesantren* --`
@@ -295,8 +297,8 @@ export default function WhatsAppBroadcastPanel({
         `Yth. Bapak/Ibu *{nama_wali}*\n` +
         `Wali dari Ananda *{nama_santri}* (Kelas: {kelas})\n\n` +
         `Mengingatkan kembali bahwa kegiatan belajar mengajar semester baru di *${schoolName}* akan segera dimulai:\n\n` +
-        `📅 *Waktu Kedatangan Santri:* [Hari, Tanggal]\n` +
-        `🎒 *Perlengkapan:* Seragam lengkap, kitab kajian semester baru, serta perlengkapan pribadi.\n\n` +
+        `• *Waktu Kedatangan Santri:* [Hari, Tanggal]\n` +
+        `• *Perlengkapan:* Seragam lengkap, kitab kajian semester baru, serta perlengkapan pribadi.\n\n` +
         `Keterlambatan kembali tanpa izin pengurus akan dikenakan sanksi tata tertib ketertiban pesantren. Terima kasih.\n\n` +
         `Wassalamu'alaikum Wr. Wb.\n` +
         `-- *Biro Ketertiban Pesantren* --`
@@ -484,133 +486,100 @@ export default function WhatsAppBroadcastPanel({
   }, [rooms, students]);
 
   return (
-    <div className="space-y-6 text-left">
-      {/* HEADER BANNER */}
-      <div className="bg-gradient-to-r from-emerald-850 via-teal-900 to-emerald-950 text-white p-6 rounded-2xl shadow-md border border-emerald-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="p-2 bg-emerald-700/60 rounded-xl text-amber-300 shadow-inner">
-              <MessageSquare className="h-6 w-6" />
-            </span>
-            <h3 className="font-black text-lg sm:text-xl text-white tracking-wide">
-              Kirim Pesan WhatsApp Massal ke Wali Santri
-            </h3>
-          </div>
-          <p className="text-xs text-emerald-100/90 max-w-3xl leading-relaxed">
-            Kirimkan pengumuman resmi jadwal libur pesantren, jadwal kembali, undangan rapat, hingga pengingat rincian tagihan syahriyah bulanan secara massal dan personal ke nomor WhatsApp orang tua/wali santri terpilih.
-          </p>
+    <div className="space-y-5 text-left">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <div>
+          <h3 className="font-extrabold text-base text-slate-900">
+            Broadcast WhatsApp Wali Santri
+          </h3>
         </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-          <div className="px-3.5 py-2 bg-white/10 backdrop-blur-xs rounded-xl border border-white/15 text-xs text-emerald-100 flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Mode: <strong>{isGatewayActive ? 'Gateway Otomatis (Fonnte/API)' : 'Direct Link (wa.me)'}</strong></span>
-          </div>
+        <div className="flex items-center gap-2 shrink-0 text-xs">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="text-slate-600 font-medium">Saluran: <strong className="text-slate-900">{isGatewayActive ? 'Gateway Otomatis' : 'Mode Direct (wa.me)'}</strong></span>
         </div>
       </div>
 
       {/* QUICK PRESET TEMPLATES BAR */}
-      <div className="bg-white rounded-2xl border border-emerald-100 p-5 shadow-xs space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-amber-500" />
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Template Pesan Cepat (1-Klik Terapkan):
-            </h4>
-          </div>
-          <span className="text-[11px] text-gray-500 italic">Pilih template siap pakai untuk pengumuman atau tagihan</span>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-bold text-slate-600 mr-1">Template:</span>
+        <button
+          type="button"
+          onClick={() => applyPresetTemplate('libur')}
+          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition cursor-pointer"
+        >
+          Jadwal Libur
+        </button>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => applyPresetTemplate('libur')}
-            className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100/80 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
-          >
-            <span>🌴</span>
-            <span>Pengumuman Jadwal Libur & Kepulangan</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => applyPresetTemplate('tagihan')}
+          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition cursor-pointer"
+        >
+          Iuran Syahriyah
+        </button>
 
-          <button
-            type="button"
-            onClick={() => applyPresetTemplate('tagihan')}
-            className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100/80 text-amber-950 border border-amber-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
-          >
-            <span>💰</span>
-            <span>Pengingat Pembayaran / Tagihan Bulanan</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => applyPresetTemplate('rapat')}
+          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition cursor-pointer"
+        >
+          Rapat Wali
+        </button>
 
-          <button
-            type="button"
-            onClick={() => applyPresetTemplate('rapat')}
-            className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100/80 text-blue-900 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
-          >
-            <span>📢</span>
-            <span>Undangan Rapat & Pertemuan Wali</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => applyPresetTemplate('semester_baru')}
+          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition cursor-pointer"
+        >
+          Masuk Asrama
+        </button>
 
-          <button
-            type="button"
-            onClick={() => applyPresetTemplate('semester_baru')}
-            className="px-3.5 py-2 bg-purple-50 hover:bg-purple-100/80 text-purple-900 border border-purple-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
-          >
-            <span>🎒</span>
-            <span>Awal Masuk Asrama & Semester Baru</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => applyPresetTemplate('kesehatan')}
+          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition cursor-pointer"
+        >
+          Poskestren
+        </button>
 
-          <button
-            type="button"
-            onClick={() => applyPresetTemplate('kesehatan')}
-            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100/80 text-rose-900 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
-          >
-            <span>🩺</span>
-            <span>Himbauan Kesehatan & Poskestren</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => applyPresetTemplate('kosong')}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            <span>✏️ Kosongkan Teks</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => applyPresetTemplate('kosong')}
+          className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-lg text-xs font-medium transition cursor-pointer border border-slate-200"
+        >
+          Kosongkan
+        </button>
       </div>
 
       {/* TWO COLUMNS: COMPOSE (LEFT) & LIVE PREVIEW (RIGHT) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
         {/* COMPOSE AREA (7 cols) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-emerald-100 p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg">✍️</span>
-              <h4 className="font-extrabold text-sm text-slate-900">Format & Teks Pesan WhatsApp</h4>
-            </div>
-            <span className="text-[11px] text-gray-500 font-mono">
+        <div className="lg:col-span-7 bg-white rounded-2xl p-5 space-y-4 border border-slate-100/80">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h4 className="font-bold text-sm text-slate-900">Format & Redaksi Pesan</h4>
+            <span className="text-[11px] text-slate-500 font-mono font-semibold">
               {messageBody.length} karakter
             </span>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] uppercase font-bold text-gray-500 block">Subjek / Judul Pesan (Catatan Log)</label>
+            <label className="text-[11px] uppercase font-bold text-slate-600 block">Subjek / Judul Pesan</label>
             <input
               type="text"
               value={messageTitle}
               onChange={(e) => setMessageTitle(e.target.value)}
-              placeholder="Contoh: Pengumuman Jadwal Libur Idul Fitri"
-              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
+              placeholder="Contoh: Pengumuman Jadwal Libur Pesantren"
+              className="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-white"
             />
           </div>
 
           {/* Placeholders helper pills */}
           <div className="space-y-1.5 pt-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-extrabold text-emerald-800">
-                Variabel Personal Otomatis (Klik untuk menyisipkan):
-              </span>
-              <span className="text-[9.5px] text-slate-400">Otomatis diganti sesuai data tiap santri</span>
-            </div>
+            <span className="text-[11px] uppercase font-bold text-slate-600 block">
+              Variabel Pesan:
+            </span>
 
             <div className="flex flex-wrap gap-1.5">
               {[
@@ -628,8 +597,7 @@ export default function WhatsAppBroadcastPanel({
                   key={item.tag}
                   type="button"
                   onClick={() => insertPlaceholder(item.tag)}
-                  title={`Klik untuk menyisipkan: ${item.desc}`}
-                  className="px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-900 border border-emerald-200/80 rounded-lg text-[10px] font-mono font-bold transition cursor-pointer active:scale-95 shadow-3xs"
+                  className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-mono transition cursor-pointer"
                 >
                   +{item.tag}
                 </button>
@@ -639,41 +607,34 @@ export default function WhatsAppBroadcastPanel({
 
           {/* Message Body Textarea */}
           <div className="space-y-1 pt-1">
-            <label className="text-[10px] uppercase font-bold text-gray-500 block">Isi Pesan WhatsApp</label>
+            <label className="text-[11px] uppercase font-bold text-slate-600 block">Isi Redaksi Pesan</label>
             <textarea
-              rows={11}
+              rows={12}
               value={messageBody}
               onChange={(e) => setMessageBody(e.target.value)}
-              placeholder="Ketik teks pesan WhatsApp di sini..."
-              className="w-full px-3.5 py-2.5 text-xs border border-gray-200 rounded-xl font-sans text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-white leading-relaxed resize-y"
+              placeholder="Tuliskan draf teks pesan WhatsApp di sini..."
+              className="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-sans text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-white leading-relaxed resize-y"
             />
-            <div className="flex justify-between items-center text-[10px] text-gray-400 pt-1">
-              <span>Tips formatting WA: *tebal*, _miring_, ~coret~</span>
-              <span>Baris: {messageBody.split('\n').length}</span>
-            </div>
           </div>
         </div>
 
         {/* LIVE PREVIEW AREA (5 cols) */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-emerald-100 p-5 sm:p-6 shadow-xs space-y-4 flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-white rounded-2xl p-5 space-y-4 flex flex-col justify-between border border-slate-100/80">
           <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg">👁️</span>
-                <h4 className="font-extrabold text-sm text-slate-900">Pratinjau Pesan Personal</h4>
-              </div>
-              <span className="text-[10px] bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-                Live Preview
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-sm text-slate-900">Pratinjau Pesan Personal</h4>
+              <span className="text-[10px] bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded-full">
+                Simulasi WA
               </span>
             </div>
 
             {/* Select sample student */}
             <div className="space-y-1">
-              <label className="text-[10px] uppercase font-bold text-gray-500 block">Lihat Simulasi Untuk Santri:</label>
+              <label className="text-[11px] uppercase font-bold text-slate-600 block">Simulasi Nama Penerima:</label>
               <select
                 value={previewStudentId}
                 onChange={(e) => setPreviewStudentId(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl font-bold text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
               >
                 {filteredStudents.map(s => (
                   <option key={s.id} value={s.id}>
@@ -684,72 +645,59 @@ export default function WhatsAppBroadcastPanel({
             </div>
 
             {/* Mock WhatsApp Chat Box */}
-            <div className="rounded-2xl border border-emerald-200/80 bg-[#e5ddd5] overflow-hidden shadow-sm text-xs">
+            <div className="rounded-xl border border-slate-200 bg-[#ece5dd] overflow-hidden text-xs">
               {/* WA Header */}
               <div className="bg-[#075e54] text-white p-3 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-full bg-emerald-700 flex items-center justify-center font-bold text-xs uppercase border border-white/20">
+                  <div className="h-8 w-8 rounded-full bg-emerald-800 flex items-center justify-center font-bold text-xs uppercase border border-white/20">
                     {previewStudent?.parentName?.[0] || 'W'}
                   </div>
                   <div>
                     <h5 className="font-bold text-xs leading-none text-white">
                       {previewStudent?.parentName || 'Bapak/Ibu Wali Santri'}
                     </h5>
-                    <p className="text-[9.5px] text-emerald-100/80 mt-0.5 font-mono">
+                    <p className="text-[10px] text-emerald-100 mt-0.5 font-mono">
                       +{cleanPhone(previewStudent?.parentPhone || '6281234567890')}
                     </p>
                   </div>
                 </div>
-                <div className="text-white/80 text-[10px] font-mono">WhatsApp</div>
+                <div className="text-white/90 text-[10px] font-mono font-semibold">WhatsApp</div>
               </div>
 
               {/* WA Chat Body */}
-              <div className="p-3.5 space-y-2 max-h-[380px] overflow-y-auto bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]">
+              <div className="p-3.5 space-y-2 max-h-[380px] overflow-y-auto bg-[#efeae2]">
                 <div className="flex justify-center">
-                  <span className="bg-white/80 backdrop-blur-xs text-[9px] text-slate-500 font-semibold px-2.5 py-0.5 rounded-full shadow-2xs">
+                  <span className="bg-white text-[9.5px] text-slate-600 font-bold px-2 py-0.5 rounded-full shadow-2xs border border-slate-200">
                     HARI INI
                   </span>
                 </div>
 
-                <div className="bg-[#dcf8c6] text-slate-900 p-3 rounded-2xl rounded-tr-none shadow-xs text-[11px] leading-relaxed whitespace-pre-wrap font-sans border border-emerald-100 max-w-[95%] ml-auto">
+                <div className="bg-white text-slate-950 p-3.5 rounded-2xl rounded-tr-none shadow-xs text-[11.5px] leading-relaxed whitespace-pre-wrap font-sans border border-slate-200 max-w-[95%] ml-auto">
                   {previewStudent ? (
                     generatePersonalizedMessage(messageBody, previewStudent)
                   ) : (
-                    <span className="text-gray-400 italic">Pilih santri untuk melihat pratinjau pesan.</span>
+                    <span className="text-slate-400 italic">Pilih santri untuk melihat simulasi pesan.</span>
                   )}
-                  <div className="text-right text-[8.5px] text-emerald-900/60 font-mono mt-1">
-                    {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ✓✓
+                  <div className="text-right text-[9px] text-slate-500 font-mono font-bold mt-1.5 flex items-center justify-end gap-1">
+                    <span>{new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-
-          {/* Quick info footer */}
-          <div className="bg-emerald-50/60 border border-emerald-100 p-3 rounded-xl text-[11px] text-emerald-950 flex items-start gap-2">
-            <Info className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
-            <p>
-              Teks di atas adalah contoh nyata yang akan otomatis diterima oleh wali santri bersangkutan dengan seluruh tagihan dan namanya terisi tepat.
-            </p>
-          </div>
         </div>
       </div>
 
       {/* FILTER & RECIPIENTS SELECTION SECTION */}
-      <div className="bg-white rounded-2xl border border-emerald-100 p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="bg-white rounded-2xl p-5 space-y-4 border border-slate-100/80">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-          <div>
-            <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-              <Users className="h-4 w-4 text-emerald-700" />
-              Pilih Target Wali Santri Penerima Broadcast
-            </h4>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Gunakan filter di bawah untuk menargetkan pesan ke santri kamar tertentu, jenjang kelas, atau khusus santri yang memiliki tunggakan SPP.
-            </p>
-          </div>
+          <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+            <Users className="h-4 w-4 text-emerald-700" />
+            Pilih Target Wali Santri
+          </h4>
 
           <div className="flex items-center gap-2">
-            <span className="px-3 py-1.5 bg-emerald-800 text-white rounded-xl text-xs font-black shadow-xs">
+            <span className="px-3 py-1 bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-xs">
               Terpilih: {selectedStudentsList.length} dari {filteredStudents.length} Santri
             </span>
           </div>
@@ -777,8 +725,8 @@ export default function WhatsAppBroadcastPanel({
               className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
             >
               <option value="all">Semua Status Tagihan</option>
-              <option value="with_unpaid">🔴 Punya Tunggakan Tagihan</option>
-              <option value="paid_only">🟢 Sudah Lunas Semua</option>
+              <option value="with_unpaid">Punya Tunggakan Tagihan</option>
+              <option value="paid_only">Sudah Lunas Semua</option>
             </select>
           </div>
 
@@ -812,12 +760,12 @@ export default function WhatsAppBroadcastPanel({
         </div>
 
         {/* Selection Tools & Checkboxes Quick Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 bg-slate-50 rounded-xl text-xs">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={handleToggleSelectAll}
-              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
+              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               {selectedStudentIds.size >= filteredStudents.filter(s => isValidPhone(s.parentPhone)).length && filteredStudents.length > 0 ? (
                 <>
@@ -827,19 +775,19 @@ export default function WhatsAppBroadcastPanel({
               ) : (
                 <>
                   <CheckSquare className="h-3.5 w-3.5" />
-                  <span>Pilih Semua Hasil Filter ({filteredStudents.filter(s => isValidPhone(s.parentPhone)).length})</span>
+                  <span>Pilih Semua ({filteredStudents.filter(s => isValidPhone(s.parentPhone)).length})</span>
                 </>
               )}
             </button>
 
-            <label className="flex items-center gap-1.5 text-gray-700 cursor-pointer font-medium select-none">
+            <label className="flex items-center gap-1.5 text-gray-700 cursor-pointer font-medium select-none text-xs">
               <input
                 type="checkbox"
                 checked={hasPhoneOnly}
                 onChange={(e) => setHasPhoneOnly(e.target.checked)}
                 className="rounded border-gray-300 text-emerald-700 focus:ring-emerald-500"
               />
-              <span>Hanya yang memiliki No. WhatsApp</span>
+              <span>Hanya yang punya WhatsApp</span>
             </label>
           </div>
 
@@ -848,7 +796,7 @@ export default function WhatsAppBroadcastPanel({
               <button
                 type="button"
                 onClick={() => setSelectedStudentIds(new Set())}
-                className="text-rose-600 hover:underline text-[11px] font-bold cursor-pointer"
+                className="text-rose-600 hover:underline text-xs font-bold cursor-pointer"
               >
                 Reset Pilihan (0)
               </button>
@@ -857,7 +805,7 @@ export default function WhatsAppBroadcastPanel({
         </div>
 
         {/* TABLE RECIPIENTS */}
-        <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-3xs">
+        <div className="overflow-x-auto rounded-xl border border-slate-100">
           <table className="w-full border-collapse text-left text-xs">
             <thead>
               <tr className="bg-slate-50 text-slate-700 font-bold border-b border-gray-200">
@@ -934,8 +882,8 @@ export default function WhatsAppBroadcastPanel({
                               +{cleanPhone(std.parentPhone)}
                             </span>
                           ) : (
-                            <span className="text-[10px] text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded font-bold">
-                              ⚠️ Belum ada no WA
+                            <span className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-bold">
+                              Tanpa WhatsApp
                             </span>
                           )}
                         </div>
@@ -944,16 +892,16 @@ export default function WhatsAppBroadcastPanel({
                       <td className="px-3 py-3">
                         {unpaid.count > 0 ? (
                           <div className="space-y-0.5">
-                            <span className="inline-block text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                              🔴 {unpaid.count} Tagihan (Rp {unpaid.total.toLocaleString('id-ID')})
+                            <span className="inline-block text-[10px] font-bold text-rose-800 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                              {unpaid.count} Tagihan (Rp {unpaid.total.toLocaleString('id-ID')})
                             </span>
                             <div className="text-[9.5px] text-gray-400 truncate max-w-[150px]">
                               {unpaid.items.map(b => b.title).join(', ')}
                             </div>
                           </div>
                         ) : (
-                          <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                            🟢 Lunas Semua
+                          <span className="inline-block text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            Lunas Semua
                           </span>
                         )}
                       </td>
@@ -996,10 +944,10 @@ export default function WhatsAppBroadcastPanel({
                               window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
                               saveWaLog(messageTitle || 'Kirim Perorangan', phone, `${std.parentName} (${std.fullName})`, msg);
                             }}
-                            className="px-2.5 py-1 bg-emerald-100/70 hover:bg-emerald-200 text-emerald-900 font-bold rounded-lg text-[10px] transition cursor-pointer flex items-center justify-center gap-1 mx-auto"
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-950 font-bold rounded-lg text-[10px] border border-slate-200 transition cursor-pointer flex items-center justify-center gap-1 mx-auto"
                             title="Buka WA langsung untuk wali ini"
                           >
-                            <span>💬</span>
+                            <ExternalLink className="h-3 w-3 text-emerald-700" />
                             <span>Kirim WA</span>
                           </button>
                         ) : (
@@ -1037,7 +985,7 @@ export default function WhatsAppBroadcastPanel({
                 ) : (
                   <>
                     <Send className="h-4 w-4 text-amber-300" />
-                    <span>Kirim Pesan Massal via Gateway Otomatis ({selectedStudentsList.length})</span>
+                    <span>Kirim Broadcast WhatsApp ({selectedStudentsList.length})</span>
                   </>
                 )}
               </button>
@@ -1112,7 +1060,7 @@ export default function WhatsAppBroadcastPanel({
               <div className="p-4 bg-gradient-to-r from-emerald-850 to-teal-950 text-white flex items-center justify-between">
                 <div>
                   <h3 className="font-extrabold text-sm uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                    <span>📱</span> Antrean Pengiriman WhatsApp Langsung
+                    Antrean Pengiriman WhatsApp Langsung
                   </h3>
                   <p className="text-[11px] text-emerald-100 mt-0.5">
                     Penerima ke-{directQueueIndex + 1} dari {selectedStudentsList.length} wali santri terpilih
@@ -1158,11 +1106,11 @@ export default function WhatsAppBroadcastPanel({
                       </span>
                       {isCurrentSent ? (
                         <span className="text-[10px] text-emerald-700 font-bold mt-1 inline-block">
-                          ✓ Sudah Dibuka
+                          Sudah Dibuka
                         </span>
                       ) : (
                         <span className="text-[10px] text-amber-700 font-bold mt-1 inline-block">
-                          ⏳ Menunggu Kirim
+                          Menunggu Kirim
                         </span>
                       )}
                     </div>
@@ -1191,7 +1139,6 @@ export default function WhatsAppBroadcastPanel({
                     onClick={() => handleSendCurrentDirect(curStd)}
                     className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-xs transition cursor-pointer shadow-md flex items-center justify-center gap-2 active:scale-98"
                   >
-                    <span>📲</span>
                     <span>Buka WhatsApp Sekarang untuk Wali Ini</span>
                     <ExternalLink className="h-4 w-4" />
                   </button>
@@ -1203,7 +1150,7 @@ export default function WhatsAppBroadcastPanel({
                       onClick={() => setDirectQueueIndex(idx => Math.max(0, idx - 1))}
                       className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition cursor-pointer disabled:opacity-40"
                     >
-                      ⬅ Sebelumnya
+                      Sebelumnya
                     </button>
 
                     <button
@@ -1226,7 +1173,7 @@ export default function WhatsAppBroadcastPanel({
                     onClick={handleOpenAllDirectTabs}
                     className="text-emerald-800 font-bold hover:underline cursor-pointer"
                   >
-                    Buka Semua ({selectedStudentsList.length}) Tab Sekaligus ➜
+                    Buka Semua ({selectedStudentsList.length}) Tab Sekaligus
                   </button>
                 </div>
               </div>

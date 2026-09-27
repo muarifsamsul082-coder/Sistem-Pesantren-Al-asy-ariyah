@@ -254,6 +254,7 @@ export interface UserSession {
   studentId?: string; // If role is santri
   fullName?: string; // Individual name for this specific account
   roleName?: string; // Display name for this specific account
+  userId?: string;
 }
 
 export interface ForgotPasswordRequest {
