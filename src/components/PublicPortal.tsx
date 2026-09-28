@@ -84,11 +84,13 @@ export default function PublicPortal({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: false, amount: 0.15 }}
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-            className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-emerald-50 p-6 sm:p-8 space-y-6"
+            className="lg:col-span-7 bg-emerald-900/40 backdrop-blur-md rounded-2xl shadow-xl border border-emerald-700/50 p-6 sm:p-8 space-y-6 text-white"
           >
             <div>
-              <span className="text-[10px] uppercase font-bold text-emerald-800 font-mono tracking-widest block">Identitas Khidmat</span>
-              <h2 className="text-2xl font-black text-emerald-950 mt-1 font-sans">
+              <span className="inline-block px-3 py-1 bg-amber-400 text-emerald-950 rounded-full text-[10px] uppercase font-bold font-mono tracking-widest shadow-xs">
+                Identitas Khidmat
+              </span>
+              <h2 className="text-2xl font-black text-white mt-2.5 font-sans tracking-wide">
                 Visi & Misi {settings.schoolName}
               </h2>
               <motion.div 
@@ -102,15 +104,15 @@ export default function PublicPortal({
 
             <motion.div 
               whileHover={{ scale: 1.01 }}
-              className="p-4 bg-emerald-50 rounded-xl border-l-4 border-emerald-800 text-xs text-emerald-900 leading-relaxed font-medium transition"
+              className="p-4 bg-emerald-950/60 rounded-xl border-l-4 border-amber-400 text-xs text-emerald-100 leading-relaxed font-medium transition shadow-inner"
             >
-              <span className="font-extrabold uppercase text-[10px] text-emerald-950 block tracking-widest mb-1 font-sans">Visi Pesantren:</span>
+              <span className="font-extrabold uppercase text-[10px] text-amber-300 block tracking-widest mb-1 font-sans">Visi Pesantren:</span>
               "{settings.vision}"
             </motion.div>
 
             <div className="space-y-3">
-              <span className="font-extrabold uppercase text-[10px] text-emerald-950 block tracking-widest">Misi Pesantren:</span>
-              <ul className="space-y-2 text-xs text-gray-600 leading-relaxed list-disc pl-4 font-sans">
+              <span className="font-extrabold uppercase text-[10px] text-amber-300 block tracking-widest">Misi Pesantren:</span>
+              <ul className="space-y-2 text-xs text-emerald-100/90 leading-relaxed list-disc pl-4 font-sans">
                 {settings.mission.map((m, idx) => (
                   <motion.li 
                     key={idx}
@@ -118,7 +120,7 @@ export default function PublicPortal({
                     whileInView={{ opacity: 1, x: 0 }}
                     viewport={{ once: false }}
                     transition={{ duration: 0.6, delay: 0.12 * idx }}
-                    className="hover:text-emerald-950 transition-all font-sans"
+                    className="hover:text-amber-200 transition-all font-sans"
                   >
                     {m}
                   </motion.li>
@@ -133,23 +135,23 @@ export default function PublicPortal({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: false, amount: 0.15 }}
             transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-emerald-100 p-6 sm:p-8 flex flex-col justify-between space-y-6"
+            className="lg:col-span-5 bg-emerald-900/40 backdrop-blur-md rounded-2xl shadow-xl border border-emerald-700/50 p-6 sm:p-8 flex flex-col justify-between space-y-6 text-white"
           >
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <motion.div 
                   whileHover={{ rotate: [0, -10, 10, 0] }}
                   transition={{ duration: 0.5 }}
-                  className="inline-flex p-3 bg-emerald-50 text-emerald-800 border border-emerald-200/70 rounded-xl shadow-2xs"
+                  className="inline-flex p-3 bg-emerald-850 text-amber-300 border border-emerald-600/60 rounded-xl shadow-xs"
                 >
-                  <Landmark className="h-6 w-6" />
+                  <Landmark className="h-6 w-6 text-amber-300" />
                 </motion.div>
-                <span className="text-[10px] uppercase font-bold text-emerald-800 font-mono tracking-widest bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-150">
+                <span className="text-[10px] uppercase font-bold text-emerald-950 font-mono tracking-widest bg-amber-400 px-3 py-1 rounded-full shadow-xs">
                   Sekilas Info
                 </span>
               </div>
               <div>
-                <h3 className="text-2xl font-black text-emerald-950 font-sans">Sekilas Tentang Kami</h3>
+                <h3 className="text-2xl font-black text-white font-sans">Sekilas Tentang Kami</h3>
                 <motion.div 
                   initial={{ width: 0 }}
                   whileInView={{ width: 48 }}
@@ -157,20 +159,20 @@ export default function PublicPortal({
                   transition={{ duration: 0.8, delay: 0.2 }}
                   className="border-b-2 border-amber-400 mt-2 mb-3" 
                 />
-                <p className="text-slate-700 text-xs sm:text-sm leading-relaxed font-sans font-medium whitespace-pre-line">
+                <p className="text-emerald-100/90 text-xs sm:text-sm leading-relaxed font-sans font-medium whitespace-pre-line">
                   {settings.aboutUs}
                 </p>
               </div>
             </div>
 
             {(ppdbStatus.isActive || session) && (
-              <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-2">
+              <div className="pt-4 border-t border-emerald-700/40 flex flex-wrap gap-2">
                 {ppdbStatus.isActive && (
                   <motion.button 
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setView('ppdb')} 
-                    className="px-4 py-2.5 bg-emerald-800 font-bold hover:bg-emerald-700 text-white rounded-xl text-xs tracking-wide shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                    className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 font-extrabold text-emerald-950 rounded-xl text-xs tracking-wide shadow-md flex items-center gap-1.5 cursor-pointer transition-all"
                   >
                     Daftar Santri Baru <ArrowRight className="h-3.5 w-3.5" />
                   </motion.button>
@@ -180,7 +182,7 @@ export default function PublicPortal({
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setView(session.role === 'admin' ? 'admin-dashboard' : 'santri-dashboard')}
-                    className="px-4 py-2.5 bg-amber-500 font-bold text-slate-950 rounded-xl text-xs hover:bg-amber-400 shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-4 py-2.5 bg-emerald-800/80 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold border border-emerald-600/50 shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     Kembali ke Dashboard Anda ➡️
                   </motion.button>
@@ -208,22 +210,23 @@ export default function PublicPortal({
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-6"
           >
-            <div className="text-center">
-              <span className="text-[10px] uppercase font-bold text-emerald-800 font-mono tracking-widest block">Kabar Pesantren</span>
-              <h3 className="text-xl md:text-2xl font-black text-emerald-950 font-sans">Berita & Kegiatan Terbaru</h3>
-              <motion.div 
-                initial={{ width: 0 }}
-                whileInView={{ width: 48 }}
-                viewport={{ once: false }}
-                transition={{ duration: 0.9, delay: 0.2 }}
-                className="border-b-2 border-amber-400 mx-auto mt-1" 
-              />
+            <div className="text-center space-y-1">
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-amber-400 text-emerald-950 font-mono font-black text-xs uppercase tracking-widest rounded-full shadow-sm">
+                <Newspaper className="h-3.5 w-3.5 text-emerald-950" /> Kabar Pesantren
+              </span>
+              <h3 className="text-2xl md:text-3xl font-black text-white font-sans tracking-tight pt-1 drop-shadow-sm">
+                Berita & Kegiatan Terbaru
+              </h3>
+              <p className="text-xs text-emerald-200/90 font-medium max-w-md mx-auto">
+                Kabar terkini seputar aktivitas pendidikan, kajian kitab, dan agenda santri
+              </p>
+              <div className="w-16 h-1 bg-amber-400 mx-auto mt-2 rounded-full" />
             </div>
 
             {news.length > 0 ? (
               <div className="space-y-8">
                 {/* Carousel with AnimatePresence image & text transitions */}
-                <div className="relative overflow-hidden bg-white rounded-3xl border border-emerald-100 shadow-lg max-w-5xl mx-auto">
+                <div className="relative overflow-hidden bg-emerald-900/40 backdrop-blur-md rounded-3xl border border-emerald-700/50 shadow-xl max-w-5xl mx-auto text-white">
                   <div className="relative min-h-[360px] md:min-h-[300px] flex flex-col md:flex-row items-stretch">
                     
                     {/* Animated Image Container */}
@@ -241,13 +244,13 @@ export default function PublicPortal({
                           referrerPolicy="no-referrer"
                         />
                       </AnimatePresence>
-                      <span className="absolute top-4 left-4 bg-emerald-800 text-white font-extrabold text-[9px] uppercase px-3 py-1 rounded-full tracking-wider shadow-sm z-10">
+                      <span className="absolute top-4 left-4 bg-amber-400 text-emerald-950 font-black text-[9px] uppercase px-3 py-1 rounded-full tracking-wider shadow-sm z-10">
                         {news[currentSlide].category}
                       </span>
                     </div>
 
                     {/* Animated Text Container */}
-                    <div className="p-8 md:p-12 flex-1 flex flex-col justify-between space-y-4 text-left bg-gradient-to-br from-white to-emerald-50/10">
+                    <div className="p-8 md:p-12 flex-1 flex flex-col justify-between space-y-4 text-left bg-gradient-to-br from-emerald-950/70 to-emerald-900/40">
                       <AnimatePresence mode="wait">
                         <motion.div 
                           key={`info-${currentSlide}-${news[currentSlide]?.id}`}
@@ -257,22 +260,22 @@ export default function PublicPortal({
                           transition={{ duration: 0.55, ease: "easeOut" }}
                           className="space-y-3"
                         >
-                          <div className="text-[10px] text-emerald-800 font-mono font-bold tracking-wider">{news[currentSlide].date}</div>
-                          <h4 className="text-emerald-950 text-xl md:text-2xl font-black font-sans leading-tight">
+                          <div className="text-[10px] text-amber-300 font-mono font-bold tracking-wider">{news[currentSlide].date}</div>
+                          <h4 className="text-white text-xl md:text-2xl font-black font-sans leading-tight">
                             {news[currentSlide].title}
                           </h4>
-                          <p className="text-gray-500 font-sans text-xs md:text-sm leading-relaxed line-clamp-3 md:line-clamp-4">
+                          <p className="text-emerald-100/90 font-sans text-xs md:text-sm leading-relaxed line-clamp-3 md:line-clamp-4">
                             {news[currentSlide].excerpt}
                           </p>
                         </motion.div>
                       </AnimatePresence>
 
-                      <div className="flex items-center justify-between pt-6 border-t border-gray-100">
+                      <div className="flex items-center justify-between pt-6 border-t border-emerald-700/40">
                         <motion.button
                           whileHover={{ scale: 1.04 }}
                           whileTap={{ scale: 0.96 }}
                           onClick={() => setSelectedArticle(news[currentSlide])}
-                          className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm hover:shadow cursor-pointer"
+                          className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-emerald-950 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm hover:shadow cursor-pointer"
                         >
                           Baca Selengkapnya
                           <ArrowUpRight className="h-4 w-4" />
@@ -283,7 +286,7 @@ export default function PublicPortal({
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={handlePrevSlide}
-                            className="p-2 rounded-full border border-gray-200 bg-white hover:bg-emerald-50 text-emerald-800 transition shadow-sm cursor-pointer"
+                            className="p-2 rounded-full border border-emerald-700/60 bg-emerald-950/70 hover:bg-emerald-800 text-amber-300 transition shadow-sm cursor-pointer"
                             title="Sebelumnya"
                           >
                             <ChevronLeft className="h-4 w-4" />
@@ -382,16 +385,17 @@ export default function PublicPortal({
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-6"
           >
-            <div className="text-center">
-              <span className="text-[10px] uppercase font-bold text-emerald-800 font-mono tracking-widest block">Informasi Resmi</span>
-              <h3 className="text-xl md:text-2xl font-black text-emerald-950 font-sans">Pengumuman & Maklumat</h3>
-              <motion.div 
-                initial={{ width: 0 }}
-                whileInView={{ width: 48 }}
-                viewport={{ once: false }}
-                transition={{ duration: 0.9, delay: 0.2 }}
-                className="border-b-2 border-amber-400 mx-auto mt-1" 
-              />
+            <div className="text-center space-y-1">
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-amber-400 text-emerald-950 font-mono font-black text-xs uppercase tracking-widest rounded-full shadow-sm">
+                <Bell className="h-3.5 w-3.5 text-emerald-950" /> Informasi Penting
+              </span>
+              <h3 className="text-2xl md:text-3xl font-black text-white font-sans tracking-tight pt-1 drop-shadow-sm">
+                Pengumuman & Maklumat Resmi
+              </h3>
+              <p className="text-xs text-emerald-200/90 font-medium max-w-md mx-auto">
+                Pemberitahuan resmi dari Pengasuh dan Pengurus Pondok Pesantren
+              </p>
+              <div className="w-16 h-1 bg-amber-400 mx-auto mt-2 rounded-full" />
             </div>
 
             {publicAnnouncements.length > 0 ? (
@@ -405,8 +409,8 @@ export default function PublicPortal({
                         onClick={() => setAnnFilter(filter)}
                         className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition cursor-pointer ${
                           annFilter === filter 
-                            ? 'bg-emerald-800 text-white shadow-xs' 
-                            : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'
+                            ? 'bg-amber-400 text-emerald-950 shadow-xs font-black' 
+                            : 'bg-emerald-950/70 border border-emerald-700/60 text-emerald-100 hover:bg-emerald-900/60'
                         }`}
                       >
                         {filter === 'all' ? 'Semua Prioritas' : filter === 'high' ? '🔴 Penting / High' : filter === 'medium' ? '🟡 Sedang / Medium' : '🟢 Biasa / Low'}
@@ -426,20 +430,20 @@ export default function PublicPortal({
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.35, delay: idx * 0.05 }}
                         whileHover={{ x: 4, transition: { duration: 0.15 } }}
-                        className={`p-5 rounded-2xl border bg-white shadow-xs transition-all flex gap-4 items-start ${
+                        className={`p-5 rounded-2xl border bg-emerald-900/35 backdrop-blur-md shadow-xs transition-all flex gap-4 items-start text-white ${
                           ann.priority === 'high' 
-                            ? 'border-rose-100 bg-rose-50/10' 
+                            ? 'border-rose-400/50 bg-rose-950/30' 
                             : ann.priority === 'medium'
-                            ? 'border-amber-100 bg-amber-50/10'
-                            : 'border-emerald-100 bg-emerald-50/10'
+                            ? 'border-amber-400/50 bg-amber-950/30'
+                            : 'border-emerald-700/50 bg-emerald-950/40'
                         }`}
                       >
                         <div className={`p-2.5 rounded-xl shrink-0 ${
                           ann.priority === 'high' 
-                            ? 'bg-rose-100 text-rose-700' 
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
                             : ann.priority === 'medium'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-emerald-100 text-emerald-700'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                         }`}>
                           <Bell className="h-5 w-5" />
                         </div>
@@ -449,29 +453,29 @@ export default function PublicPortal({
                               ann.priority === 'high' 
                                 ? 'bg-rose-600 text-white' 
                                 : ann.priority === 'medium'
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-emerald-650 text-white'
+                                ? 'bg-amber-500 text-emerald-950 font-black' 
+                                : 'bg-emerald-600 text-white'
                             }`}>
                               {ann.priority === 'high' ? 'Penting' : ann.priority === 'medium' ? 'Sedang' : 'Informasi'}
                             </span>
-                            <span className="text-[10px] font-mono text-slate-400 font-semibold">{ann.date}</span>
+                            <span className="text-[10px] font-mono text-emerald-200/70 font-semibold">{ann.date}</span>
                           </div>
-                          <h4 className="font-extrabold text-sm text-slate-900 leading-snug">{ann.title}</h4>
-                          <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{ann.content}</p>
+                          <h4 className="font-extrabold text-sm text-white leading-snug">{ann.title}</h4>
+                          <p className="text-xs text-emerald-100/90 leading-relaxed whitespace-pre-line">{ann.content}</p>
                         </div>
                       </motion.div>
                     ))}
                   </AnimatePresence>
 
                   {filteredAnnouncements.length === 0 && (
-                    <div className="bg-white rounded-2xl p-12 text-center border border-slate-150 text-gray-400 text-xs font-semibold">
+                    <div className="bg-emerald-950/60 rounded-2xl p-12 text-center border border-emerald-800 text-emerald-300/60 text-xs font-semibold">
                       Tidak ada pengumuman dengan kriteria filter ini.
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl p-12 text-center border border-emerald-50 text-gray-400 text-xs font-semibold max-w-4xl mx-auto">
+              <div className="bg-emerald-950/60 rounded-2xl p-12 text-center border border-emerald-800 text-emerald-300/60 text-xs font-semibold max-w-4xl mx-auto">
                 Belum ada pengumuman resmi terbaru saat ini.
               </div>
             )}

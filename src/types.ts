@@ -60,6 +60,8 @@ export interface SecurityLog {
   studentName: string;
   permitType: 'Keluar Lingkungan' | 'Pulang (Keluarga)';
   description: string;
+  destination?: string;
+  destinationCity?: string;
   outDate: string;
   expectedReturnDate: string;
   actualReturnDate?: string;
@@ -131,6 +133,7 @@ export interface Student {
   alumniId?: string; // Unique ID for alumni, generated upon graduation
   tahunKeluar?: string; // Exit/graduation year
   alumniReason?: string; // Sebab berhenti/lulus (e.g., Lulus, Pindah Sekolah, Bekerja, Mengabdi, dll.)
+  paymentHistory?: any[];
 }
 
 export interface Bill {
@@ -144,6 +147,7 @@ export interface Bill {
   status: 'Lunas' | 'Belum Lunas' | 'Konfirmasi Pembayaran';
   category?: string;
   paymentDate?: string;
+  paidDate?: string;
   paymentProofUrl?: string;
   paymentMethod?: string;
   senderBank?: string;

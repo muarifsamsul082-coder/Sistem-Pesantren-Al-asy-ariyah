@@ -1,8 +1,9 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import QRCode from 'qrcode';
 import { 
   User, CreditCard, Landmark, DollarSign, Calendar, Clock, AlertCircle, 
-  CheckCircle2, Bell, ShieldAlert, Sparkles, Send, UploadCloud, Check, Printer, IdCard, X, Download, Info
+  CheckCircle2, Bell, ShieldAlert, Sparkles, Send, UploadCloud, Check, Printer, IdCard, X, Download, Info, Copy, QrCode
 } from 'lucide-react';
 import { Student, Bill, Announcement, PortalSettings, SecurityLog, compressImage } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
@@ -11,6 +12,16 @@ import { isSupabaseConfigured, pushStudentToSupabase, pushBillToSupabase, markLo
 const isImageUrl = (str?: string): boolean => {
   if (!str) return false;
   return str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/') || str.startsWith('data:image/');
+};
+
+// Deterministic unique 3-digit transfer code between 100 and 500
+const getUniqueTransferCode = (billId: string, baseAmount: number): number => {
+  let hash = 0;
+  for (let i = 0; i < billId.length; i++) {
+    hash = (hash * 31 + billId.charCodeAt(i)) % 401;
+  }
+  // Code range: 100 to 500 (inclusive)
+  return 100 + (Math.abs(hash) % 401);
 };
 
 const getCityFromAddress = (addressStr?: string) => {
@@ -57,12 +68,80 @@ export default function SantriDashboard({
 }: SantriDashboardProps) {
   const [selectedBill, setSelectedBill] = React.useState<Bill | null>(null);
   const [receiptBill, setReceiptBill] = React.useState<Bill | null>(null);
-  const [bank, setBank] = React.useState('Transfer BRI (Virtual Account)');
+  const [bank, setBank] = React.useState('Transfer BRI');
   const [proofUrl, setProofUrl] = React.useState('');
   const [success, setSuccess] = React.useState(false);
   const [senderBank, setSenderBank] = React.useState('Bank BRI');
+  const [selectedRekeningId, setSelectedRekeningId] = React.useState<string>('');
+  const [qrCodeDataUrl, setQrCodeDataUrl] = React.useState<string>('');
+  const [copiedKey, setCopiedKey] = React.useState<string>('');
 
   const [isSantriMenuOpen, setIsSantriMenuOpen] = React.useState(false);
+
+  // Available bank accounts
+  const rekeningList = React.useMemo(() => {
+    if (settings.rekeningList && settings.rekeningList.length > 0) {
+      return settings.rekeningList;
+    }
+    return [
+      { id: 'rek-bri-def', bankName: 'Bank BRI', accountNumber: '0019-01-002345-53-8', accountName: "Ponpes Al-Asy'ariyah", isMain: true },
+      { id: 'rek-bsi-def', bankName: 'Bank Syariah Indonesia (BSI)', accountNumber: '7123-456-789', accountName: "Ponpes Al-Asy'ariyah", isMain: false },
+      { id: 'rek-mandiri-def', bankName: 'Bank Mandiri', accountNumber: '138-00-1928374-1', accountName: "Ponpes Al-Asy'ariyah", isMain: false }
+    ];
+  }, [settings.rekeningList]);
+
+  // Current chosen destination bank account
+  const currentRekening = React.useMemo(() => {
+    if (selectedRekeningId) {
+      const found = rekeningList.find(r => r.id === selectedRekeningId);
+      if (found) return found;
+    }
+    return rekeningList.find(r => r.isMain) || rekeningList[0];
+  }, [rekeningList, selectedRekeningId]);
+
+  // Unique nominal addition (between 100 and 500)
+  const uniqueCode = React.useMemo(() => {
+    if (!selectedBill) return 120;
+    return getUniqueTransferCode(selectedBill.id, selectedBill.amount);
+  }, [selectedBill]);
+
+  // Final exact amount to transfer
+  const finalTransferAmount = React.useMemo(() => {
+    if (!selectedBill) return 0;
+    return selectedBill.amount + uniqueCode;
+  }, [selectedBill, uniqueCode]);
+
+  // Generate QR Code automatically whenever bill or destination bank is selected
+  React.useEffect(() => {
+    if (!selectedBill || !currentRekening) {
+      setQrCodeDataUrl('');
+      return;
+    }
+    const qrString = `TRANSFER ONLINE PESANTREN\nBANK: ${currentRekening.bankName}\nNO. REKENING: ${currentRekening.accountNumber}\nPENERIMA: ${currentRekening.accountName}\nTOTAL TRANSFER: Rp ${finalTransferAmount.toLocaleString('id-ID')}\nKODE UNIK: ${uniqueCode}\nTAGIHAN: ${selectedBill.title}\nSANTRI: ${student.fullName} (NIS: ${student.nis})`;
+    
+    QRCode.toDataURL(qrString, {
+      width: 260,
+      margin: 1,
+      color: {
+        dark: '#064e3b',
+        light: '#ffffff',
+      }
+    })
+      .then(url => setQrCodeDataUrl(url))
+      .catch(err => console.error('Failed to generate transfer QR code:', err));
+  }, [selectedBill, currentRekening, finalTransferAmount, uniqueCode, student.fullName, student.nis]);
+
+  // Initialize selection when opening bill
+  React.useEffect(() => {
+    if (selectedBill) {
+      setSenderBank('Bank BRI');
+      if (rekeningList.length > 0) {
+        const initial = rekeningList.find(r => r.isMain) || rekeningList[0];
+        setSelectedRekeningId(initial.id);
+        setBank(`Transfer ${initial.bankName}`);
+      }
+    }
+  }, [selectedBill, rekeningList]);
 
   // States for exit permit application (Pengajuan Izin Keluar)
   const [permitType, setPermitType] = React.useState<'Keluar Lingkungan' | 'Pulang (Keluarga)'>('Keluar Lingkungan');
@@ -158,9 +237,10 @@ export default function SantriDashboard({
 
     const updatedBill: Bill = {
       ...selectedBill,
+      amount: finalTransferAmount, // Tagihan disesuaikan dengan kode unik transfer
       status: 'Konfirmasi Pembayaran',
-      paymentMethod: bank,
-      senderBank: senderBank,
+      paymentMethod: bank || `Transfer ${currentRekening.bankName}`,
+      senderBank: senderBank || 'Transfer Bank',
       paymentProofUrl: proofUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=200'
     };
 
@@ -189,7 +269,7 @@ export default function SantriDashboard({
     if (student.parentPhone) {
       const rawPhone = student.parentPhone.replace(/[^0-9]/g, '');
       const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
-      const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${student.parentName || 'Wali Santri'},\n\nTerima kasih, bukti transfer pembayaran untuk tagihan *${selectedBill.title}* senilai *Rp ${selectedBill.amount.toLocaleString('id-ID')}* ananda *${student.fullName}* telah berhasil diunggah ke sistem portal pesantren.\n\nStatus: *Menunggu Konfirmasi Bendahara*.\nBukti akan segera diverifikasi oleh panitia keuangan pesantren.\n\nWassalamu'alaikum Wr. Wb.\n_Bendahara Pesantren_`;
+      const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${student.parentName || 'Wali Santri'},\n\nTerima kasih, bukti transfer pembayaran untuk tagihan *${selectedBill.title}* senilai *Rp ${finalTransferAmount.toLocaleString('id-ID')}* (termasuk kode unik tagihan: *${uniqueCode}*) tujuan *${currentRekening.bankName}* ananda *${student.fullName}* telah berhasil diunggah ke sistem portal pesantren.\n\nStatus: *Menunggu Konfirmasi Bendahara*.\nBukti akan segera diverifikasi oleh panitia keuangan pesantren.\n\nWassalamu'alaikum Wr. Wb.\n_Bendahara Pesantren_`;
       fetch('/api/send-wa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -507,94 +587,201 @@ export default function SantriDashboard({
                       </div>
                     ) : (
                       <div className="space-y-4 text-xs">
-                        {/* Summary Tagihan */}
-                        <div className="p-3.5 bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-xl flex items-center justify-between shadow-sm">
-                          <div>
-                            <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-200 block">Total Tagihan</span>
-                            <span className="text-lg font-black font-mono">Rp {selectedBill.amount.toLocaleString('id-ID')}</span>
+                        {/* Summary Tagihan Khusus Transfer */}
+                        <div className="p-4 bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 text-white rounded-2xl shadow-md space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] uppercase font-mono tracking-wider text-amber-300 block font-bold">
+                                Tagihan Pembayaran
+                              </span>
+                              <h5 className="text-sm font-extrabold text-white mt-0.5">{selectedBill.title}</h5>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[9px] bg-amber-400 text-emerald-950 font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                {student.fullName}
+                              </span>
+                              <span className="text-[9px] text-emerald-200 block mt-1 font-mono">NIS: {student.nis}</span>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <span className="text-[9px] bg-amber-400 text-emerald-950 font-black px-2 py-0.5 rounded-full uppercase">
-                              {student.fullName}
-                            </span>
-                            <span className="text-[9px] text-emerald-200 block mt-0.5 font-mono">NIS: {student.nis}</span>
+
+                          {/* Rincian Tagihan Pokok & Kode Unik Khusus */}
+                          <div className="bg-emerald-950/60 p-3 rounded-xl border border-emerald-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2 text-[11px] text-emerald-200">
+                                <span>Tagihan Pokok:</span>
+                                <span className="font-mono font-bold text-white">Rp {selectedBill.amount.toLocaleString('id-ID')}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-amber-300 font-bold">
+                                <span>Kode Unik Tagihan Khusus:</span>
+                                <span className="font-mono bg-amber-400/20 px-1.5 py-0.2 rounded border border-amber-400/40">
+                                  +Rp {uniqueCode}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-800">
+                              <span className="text-[9px] uppercase font-mono tracking-wider text-amber-200 block font-bold">
+                                Total Harus Ditransfer
+                              </span>
+                              <div className="flex items-center gap-1.5 justify-start sm:justify-end">
+                                <span className="text-lg sm:text-xl font-black font-mono text-amber-300">
+                                  Rp {finalTransferAmount.toLocaleString('id-ID')}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(String(finalTransferAmount));
+                                    setCopiedKey('amount');
+                                    setTimeout(() => setCopiedKey(''), 2000);
+                                  }}
+                                  className="p-1 rounded bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 transition cursor-pointer"
+                                  title="Salin Total Transfer"
+                                >
+                                  {copiedKey === 'amount' ? <Check className="h-3.5 w-3.5 text-amber-300" /> : <Copy className="h-3.5 w-3.5" />}
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Rekening Resmi Pesantren Synchronized State */}
-                        {settings.rekeningList && settings.rekeningList.length > 0 ? (
-                          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-left">
-                            <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider block">
-                              Rekening Resmi Tujuan Transfer:
-                            </span>
-                            <div className="space-y-2">
-                              {settings.rekeningList.map((rek: any) => (
-                                <div key={rek.id} className="p-2.5 bg-white border border-emerald-100 rounded-lg flex items-center justify-between gap-2 shadow-2xs">
+                        {/* PILIHAN REKENING & BANK TUJUAN TRANSFER */}
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block">
+                            Pilih Bank & Rekening Tujuan Transfer:
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            {rekeningList.map((rek: any) => {
+                              const isSelected = currentRekening.id === rek.id;
+                              return (
+                                <button
+                                  key={rek.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedRekeningId(rek.id);
+                                    setBank(`Transfer ${rek.bankName}`);
+                                  }}
+                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                                    isSelected 
+                                      ? 'border-emerald-700 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-600/30' 
+                                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                                  }`}
+                                >
                                   <div>
-                                    <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
-                                      <span>{rek.bankName}</span>
+                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                      <span className="font-extrabold text-slate-900 text-xs truncate">{rek.bankName}</span>
                                       {rek.isMain && (
-                                        <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">
+                                        <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold uppercase shrink-0">
                                           Utama
                                         </span>
                                       )}
                                     </div>
-                                    <div className="font-mono text-xs font-black text-emerald-900 mt-0.5 select-all">
+                                    <div className="font-mono text-[11px] font-bold text-emerald-850 truncate">
                                       {rek.accountNumber}
                                     </div>
-                                    <div className="text-[10px] text-slate-500">
+                                    <div className="text-[9px] text-slate-500 truncate">
                                       a.n. {rek.accountName}
                                     </div>
                                   </div>
+                                  {isSelected && (
+                                    <span className="absolute top-2 right-2 text-emerald-700">
+                                      <CheckCircle2 className="h-3.5 w-3.5" />
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* QR CODE DISPLAY LANGSUNG SESUAI BANK DAN JUMLAH */}
+                        <div className="p-4 bg-emerald-50/60 rounded-2xl border-2 border-dashed border-emerald-400/80 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <QrCode className="h-4 w-4 text-emerald-800" />
+                              <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
+                                QR Code Transfer {currentRekening.bankName}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                              Siap Scan
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3.5 rounded-xl border border-emerald-100 shadow-2xs">
+                            {/* QR Code Canvas/Image */}
+                            <div className="shrink-0 bg-white p-2 rounded-xl border border-emerald-200 shadow-xs flex flex-col items-center">
+                              {qrCodeDataUrl ? (
+                                <img 
+                                  src={qrCodeDataUrl} 
+                                  alt={`QR Transfer ${currentRekening.bankName}`} 
+                                  className="w-36 h-36 object-contain" 
+                                />
+                              ) : (
+                                <div className="w-36 h-36 bg-slate-100 animate-pulse rounded-lg flex items-center justify-center text-slate-400 font-mono text-[10px]">
+                                  Membuat QR...
+                                </div>
+                              )}
+                              {qrCodeDataUrl && (
+                                <a
+                                  href={qrCodeDataUrl}
+                                  download={`QR_Transfer_${currentRekening.bankName.replace(/\s+/g, '_')}_${finalTransferAmount}.png`}
+                                  className="mt-2 text-[9px] font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 transition"
+                                >
+                                  <Download className="h-3 w-3" /> Unduh QR
+                                </a>
+                              )}
+                            </div>
+
+                            {/* Rekening & Nominal Details */}
+                            <div className="space-y-2 flex-1 min-w-0 text-left w-full">
+                              <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                                <div className="text-[10px] text-slate-500 font-medium">Bank Tujuan Transfer:</div>
+                                <div className="font-extrabold text-sm text-slate-900">{currentRekening.bankName}</div>
+                                
+                                <div className="text-[10px] text-slate-500 font-medium pt-1">Nomor Rekening Tujuan:</div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-mono text-sm font-black text-emerald-950 select-all tracking-wider">
+                                    {currentRekening.accountNumber}
+                                  </span>
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      navigator.clipboard?.writeText(rek.accountNumber);
-                                      setBank(`Transfer ${rek.bankName}`);
+                                      navigator.clipboard?.writeText(currentRekening.accountNumber);
+                                      setCopiedKey('rek');
+                                      setTimeout(() => setCopiedKey(''), 2000);
                                     }}
-                                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-md transition cursor-pointer"
+                                    className="px-2 py-0.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
                                   >
-                                    Salin
+                                    {copiedKey === 'rek' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                    <span>{copiedKey === 'rek' ? 'Disalin' : 'Salin'}</span>
                                   </button>
                                 </div>
-                              ))}
+                                <div className="text-[10px] text-slate-600 font-semibold">
+                                  Atas Nama: <strong className="text-slate-900">{currentRekening.accountName}</strong>
+                                </div>
+                              </div>
+
+                              <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-amber-900 space-y-0.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold">Jumlah Transfer Wajib:</span>
+                                  <span className="font-mono font-black text-sm text-amber-950">
+                                    Rp {finalTransferAmount.toLocaleString('id-ID')}
+                                  </span>
+                                </div>
+                                <p className="text-[9.5px] text-amber-800 leading-tight">
+                                  Pastikan mentransfer tepat hingga 3 digit terakhir (**Rp {finalTransferAmount.toLocaleString('id-ID')}**) agar otomatis terverifikasi.
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        ) : (
-                          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5 text-left">
-                            <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs">
-                              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                              <span>Rekening Pesantren Belum Didaftarkan</span>
-                            </div>
-                            <p className="text-[11px] text-amber-800 leading-relaxed">
-                              Admin belum mendaftarkan nomor rekening resmi pesantren. Pembayaran sementara dapat dilakukan secara tunai langsung ke Bendahara Pesantren.
-                            </p>
-                          </div>
-                        )}
+                        </div>
 
                         {/* Form Pembayaran Manual & Unggah Resi */}
                         <form onSubmit={handlePaySimulate} className="space-y-3 text-left">
-                          <div>
-                            <label className="text-[10px] text-slate-600 font-bold block mb-1">Metode / Saluran Pembayaran</label>
-                            <select
-                              value={bank}
-                              onChange={(e) => setBank(e.target.value)}
-                              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-700 focus:outline-none"
-                            >
-                              {settings.rekeningList && settings.rekeningList.length > 0 ? (
-                                settings.rekeningList.map((rek: any) => (
-                                  <option key={rek.id} value={`Transfer ${rek.bankName}`}>
-                                    {rek.bankName} - {rek.accountNumber} a.n. {rek.accountName}
-                                  </option>
-                                ))
-                              ) : null}
-                              <option value="Tunai ke Bendahara Pesantren">Bayar Tunai Langsung ke Bendahara</option>
-                            </select>
-                          </div>
-
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             <div>
-                              <label className="text-[10px] text-slate-600 font-bold block mb-1">Unggah Struk / Bukti Resi</label>
+                              <label className="text-[10px] text-slate-700 font-bold block mb-1">
+                                Unggah Foto Bukti Transfer / Struk Resi <span className="text-red-500">*</span>
+                              </label>
                               <div className="flex flex-col gap-1.5">
                                 <input
                                    type="file"
@@ -624,22 +811,22 @@ export default function SantriDashboard({
                                    className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 px-3 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-95 w-full text-center"
                                 >
                                    <UploadCloud className="h-4 w-4 text-emerald-700" /> 
-                                   <span>{proofUrl ? 'Resi Dipilih' : 'Pilih Foto Bukti Resi'}</span>
+                                   <span>{proofUrl ? 'Resi Berhasil Dipilih' : 'Pilih Foto Bukti Transfer'}</span>
                                 </label>
                                 {proofUrl && (
                                   <div className="mt-1 flex items-center gap-2">
                                     <img src={proofUrl} alt="Bukti Resi" className="h-10 w-10 object-cover rounded border border-slate-200" />
-                                    <span className="text-[10px] text-emerald-700 font-semibold">Foto siap diunggah</span>
+                                    <span className="text-[10px] text-emerald-700 font-semibold">Foto siap dikirim</span>
                                   </div>
                                 )}
                               </div>
                             </div>
 
                             <div>
-                              <label className="text-[10px] text-slate-600 font-bold block mb-1">Bank Pengirim (Opsional)</label>
+                              <label className="text-[10px] text-slate-700 font-bold block mb-1">Bank Pengirim / Rekening Anda (Opsional)</label>
                               <input
                                 type="text"
-                                placeholder="Contoh: BCA / BRI / Mandiri"
+                                placeholder="Contoh: BCA / Mandiri / BRI a.n. Ayah"
                                 value={senderBank}
                                 onChange={(e) => setSenderBank(e.target.value)}
                                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-700 focus:outline-none"
@@ -649,10 +836,10 @@ export default function SantriDashboard({
 
                           <button
                             type="submit"
-                            className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+                            className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
                           >
                             <UploadCloud className="h-4 w-4" />
-                            <span>Kirim Bukti Pembayaran ke Bendahara</span>
+                            <span>Kirim Bukti Pembayaran ke Bendahara (Rp {finalTransferAmount.toLocaleString('id-ID')})</span>
                           </button>
                         </form>
                       </div>

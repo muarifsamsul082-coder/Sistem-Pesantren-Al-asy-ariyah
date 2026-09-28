@@ -14,12 +14,10 @@
   color: #065f46 !important;
 }
 .from-emerald-850 {
-  --tw-gradient-from: #065f46 var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(6 95 70 / 0) var(--tw-gradient-to-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  background-image: linear-gradient(to right, #065f46, #047857) !important;
 }
 .to-emerald-850 {
-  --tw-gradient-to: #065f46 var(--tw-gradient-to-position) !important;
+  background-color: #065f46 !important;
 }
 
 /* Dark mode basic style mapping */

@@ -8,6 +8,7 @@ import AdminDashboard from './components/AdminDashboard';
 import SantriDashboard from './components/SantriDashboard';
 import StaffDashboard from './components/StaffDashboard';
 import LoginModal from './components/LoginModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import { UserSession, News, Announcement, PCSBRegistration, Student, Bill, PortalSettings, Room } from './types';
 import { autoAdjustPpdbSettings } from './lib/dateUtils';
 
@@ -805,17 +806,18 @@ export default function App() {
     window.addEventListener('pesantren_settings_updated', handleStorageChange);
     window.addEventListener('focus', handleWindowFocus);
 
-    // Restore login session: use sessionStorage strictly so closing tab automatically logs out
-    const storedSession = sessionStorage.getItem('pesantren_session');
+    // Restore login session: use sessionStorage with localStorage fallback so closing tab or refreshing never abruptly kicks user out
+    const storedSession = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
     if (storedSession) {
       try {
-        const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || '0', 10);
-        const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000;
+        const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || localStorage.getItem('pesantren_last_activity') || '0', 10);
+        const INACTIVITY_TIMEOUT_MS = 25 * 60 * 1000;
         if (lastActivity > 0 && Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS) {
           sessionStorage.removeItem('pesantren_session');
           sessionStorage.removeItem('pesantren_current_view');
           sessionStorage.removeItem('pesantren_last_activity');
           localStorage.removeItem('pesantren_session');
+          localStorage.removeItem('pesantren_last_activity');
           setSession(null);
           setView('home');
           return;
@@ -825,7 +827,7 @@ export default function App() {
         if (parsedSess.role === 'santri') {
           const studentId = parsedSess.studentId;
           const localStudents = getLocal<Student[]>('pesantren_students', []);
-          const currentStudent = localStudents.find(s => s.id === studentId);
+          const currentStudent = localStudents.find(s => s && s.id === studentId);
           if (currentStudent && currentStudent.status === 'Alumni') {
             sessionStorage.removeItem('pesantren_session');
             localStorage.removeItem('pesantren_session');
@@ -836,10 +838,12 @@ export default function App() {
         }
         setSession(parsedSess);
         sessionStorage.setItem('pesantren_session', JSON.stringify(parsedSess));
+        localStorage.setItem('pesantren_session', JSON.stringify(parsedSess));
         sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
+        localStorage.setItem('pesantren_last_activity', Date.now().toString());
 
         // CRITICAL: Preserve active menu on refresh! Do not force reset to overview/dashboard
-        const savedView = sessionStorage.getItem('pesantren_current_view');
+        const savedView = sessionStorage.getItem('pesantren_current_view') || localStorage.getItem('pesantren_current_view');
         if (savedView) {
           setView(savedView);
         } else {
@@ -857,7 +861,6 @@ export default function App() {
         setSession(null);
       }
     } else {
-      localStorage.removeItem('pesantren_session');
       setSession(null);
     }
 
@@ -914,12 +917,10 @@ export default function App() {
   }, [rooms]);
 
   React.useEffect(() => {
-    if (bills.length > 0) {
-      try {
-        localStorage.setItem('pesantren_bills', JSON.stringify(bills));
-      } catch (err) {
-        console.error("Failed to save bills:", err);
-      }
+    try {
+      localStorage.setItem('pesantren_bills', JSON.stringify(bills));
+    } catch (err) {
+      console.error("Failed to save bills:", err);
     }
   }, [bills]);
 
@@ -1253,180 +1254,188 @@ export default function App() {
 
       {/* Main Container */}
       <main className={`flex-grow flex flex-col transition-all duration-300 ${session && isAccountOpen ? 'lg:pl-64' : ''}`}>
-        {currentView === 'home' && (
-          <div className="flex-grow flex flex-col bg-emerald-950">
-            <Hero 
-              onJoinPCSB={() => setView('ppdb')} 
-              schoolName={settings.schoolName}
-              tagline={settings.tagline}
-              ppdbOpen={settings.ppdbOpen}
-              ppdbStartDate={settings.ppdbStartDate}
-              ppdbEndDate={settings.ppdbEndDate}
-            />
-            <PublicPortal 
-              news={news}
-              announcements={announcements}
-              settings={settings}
-              setView={setView}
-              onOpenLogin={() => setIsLoginOpen(true)}
-              session={session}
-              className="flex-grow"
-              currentView="home"
-            />
-          </div>
-        )}
-
-        {currentView === 'profile' && (
-          <div className="flex-grow flex flex-col bg-slate-50">
-            <PublicPortal 
-              news={news}
-              announcements={announcements}
-              settings={settings}
-              setView={setView}
-              onOpenLogin={() => setIsLoginOpen(true)}
-              session={session}
-              className="flex-grow"
-              currentView="profile"
-            />
-          </div>
-        )}
-
-        {currentView === 'news' && (
-          <div className="flex-grow flex flex-col bg-slate-50 py-8">
-            <PublicPortal 
-              news={news}
-              announcements={announcements}
-              settings={settings}
-              setView={setView}
-              onOpenLogin={() => setIsLoginOpen(true)}
-              session={session}
-              className="flex-grow"
-              currentView="news"
-            />
-          </div>
-        )}
-
-        {currentView === 'announcements' && (
-          <div className="flex-grow flex flex-col bg-slate-50 py-8">
-            <PublicPortal 
-              news={news}
-              announcements={announcements}
-              settings={settings}
-              setView={setView}
-              onOpenLogin={() => setIsLoginOpen(true)}
-              session={session}
-              className="flex-grow"
-              currentView="announcements"
-            />
-          </div>
-        )}
-
-        {currentView === 'ppdb' && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <PCSBForm 
-              onSubmit={handlePpdbSubmit} 
-              ppdbOpen={settings.ppdbOpen}
-              ppdbStartDate={settings.ppdbStartDate}
-              ppdbEndDate={settings.ppdbEndDate}
-              settings={settings}
-              onBackToHome={() => setView('home')}
-            />
-          </div>
-        )}
-
-        {currentView === 'admin-dashboard' && (
-          session?.role === 'admin' ? (
-            <AdminDashboard 
-              students={students}
-              setStudents={setStudents}
-              rooms={rooms}
-              setRooms={setRooms}
-              bills={bills}
-              setBills={setBills}
-              news={news}
-              setNews={setNews}
-              announcements={announcements}
-              setAnnouncements={setAnnouncements}
-              ppdbList={ppdbList}
-              setPpdbList={setPpdbList}
-              settings={settings}
-              setSettings={saveSettings}
-              onLogout={handleLogout}
-              activeTab={adminTab}
-              setActiveTab={setAdminTab}
-              session={session}
-              availableFormalClasses={availableFormalClasses}
-              setAvailableFormalClasses={setAvailableFormalClasses}
-              availableMadrasahClasses={availableMadrasahClasses}
-              setAvailableMadrasahClasses={setAvailableMadrasahClasses}
-            />
-          ) : (
-            <div className="max-w-md mx-auto p-12 text-center space-y-4">
-              <h2 className="text-xl font-bold text-red-700">Akses Ditolak</h2>
-              <p className="text-xs text-gray-500">Anda harus masuk dengan akun administrator muarifsamsul082@gmail.com</p>
-              <button 
-                onClick={() => setIsLoginOpen(true)} 
-                className="px-4 py-2 bg-emerald-800 text-white rounded font-bold text-xs"
-              >
-                Log In Admin
-              </button>
+        <ErrorBoundary fallbackTitle="Halaman Utama Mengalami Kendala">
+          {currentView === 'home' && (
+            <div className="flex-grow flex flex-col bg-emerald-950">
+              <Hero 
+                onJoinPCSB={() => setView('ppdb')} 
+                schoolName={settings.schoolName}
+                tagline={settings.tagline}
+                ppdbOpen={settings.ppdbOpen}
+                ppdbStartDate={settings.ppdbStartDate}
+                ppdbEndDate={settings.ppdbEndDate}
+              />
+              <PublicPortal 
+                news={news}
+                announcements={announcements}
+                settings={settings}
+                setView={setView}
+                onOpenLogin={() => setIsLoginOpen(true)}
+                session={session}
+                className="flex-grow"
+                currentView="home"
+              />
             </div>
-          )
-        )}
+          )}
 
-        {currentView === 'santri-dashboard' && (
-          session?.role === 'santri' && currentStudent ? (
-            <SantriDashboard 
-              student={currentStudent}
-              bills={bills}
-              setBills={setBills}
-              announcements={announcements}
-              settings={settings}
-              onLogout={handleLogout}
-              activeSantriTab={santriTab}
-              setActiveSantriTab={setSantriTab}
-              showStudentCard={showStudentCard}
-              setShowStudentCard={setShowStudentCard}
-              students={students}
-              setStudents={setStudents}
-            />
-          ) : (
-            <div className="max-w-md mx-auto p-12 text-center space-y-4">
-              <h2 className="text-xl font-bold text-red-700">Akses Portal Ditolak</h2>
-              <p className="text-xs text-gray-500">Silakan login sebagai santri menggunakan NISN resmi Anda.</p>
-              <button 
-                onClick={() => setIsLoginOpen(true)} 
-                className="px-4 py-2 bg-emerald-800 text-white rounded font-bold text-xs"
-              >
-                Log In Santri
-              </button>
+          {currentView === 'profile' && (
+            <div className="flex-grow flex flex-col bg-slate-50">
+              <PublicPortal 
+                news={news}
+                announcements={announcements}
+                settings={settings}
+                setView={setView}
+                onOpenLogin={() => setIsLoginOpen(true)}
+                session={session}
+                className="flex-grow"
+                currentView="profile"
+              />
             </div>
-          )
-        )}
+          )}
 
-        {currentView === 'staff-dashboard' && (
-          session && ['keamanan', 'ketertiban', 'kesehatan'].includes(session.role) ? (
-            <StaffDashboard 
-              session={session}
-              students={students}
-              setStudents={setStudents}
-              onLogout={handleLogout}
-              activeSubTab={staffTab}
-              setActiveSubTab={setStaffTab}
-            />
-          ) : (
-            <div className="max-w-md mx-auto p-12 text-center space-y-4">
-              <h2 className="text-xl font-bold text-red-700">Akses Pengurus Ditolak</h2>
-              <p className="text-xs text-gray-500">Silakan login sebagai pengurus bidang.</p>
-              <button 
-                onClick={() => setIsLoginOpen(true)} 
-                className="px-4 py-2 bg-emerald-800 text-white rounded font-bold text-xs"
-              >
-                Log In Pengurus
-              </button>
+          {currentView === 'news' && (
+            <div className="flex-grow flex flex-col bg-slate-50 py-8">
+              <PublicPortal 
+                news={news}
+                announcements={announcements}
+                settings={settings}
+                setView={setView}
+                onOpenLogin={() => setIsLoginOpen(true)}
+                session={session}
+                className="flex-grow"
+                currentView="news"
+              />
             </div>
-          )
-        )}
+          )}
+
+          {currentView === 'announcements' && (
+            <div className="flex-grow flex flex-col bg-slate-50 py-8">
+              <PublicPortal 
+                news={news}
+                announcements={announcements}
+                settings={settings}
+                setView={setView}
+                onOpenLogin={() => setIsLoginOpen(true)}
+                session={session}
+                className="flex-grow"
+                currentView="announcements"
+              />
+            </div>
+          )}
+
+          {currentView === 'ppdb' && (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+              <PCSBForm 
+                onSubmit={handlePpdbSubmit} 
+                ppdbOpen={settings.ppdbOpen}
+                ppdbStartDate={settings.ppdbStartDate}
+                ppdbEndDate={settings.ppdbEndDate}
+                settings={settings}
+                onBackToHome={() => setView('home')}
+              />
+            </div>
+          )}
+
+          {currentView === 'admin-dashboard' && (
+            session?.role === 'admin' ? (
+              <ErrorBoundary fallbackTitle="Dashboard Admin Mengalami Kendala">
+                <AdminDashboard 
+                  students={students}
+                  setStudents={setStudents}
+                  rooms={rooms}
+                  setRooms={setRooms}
+                  bills={bills}
+                  setBills={setBills}
+                  news={news}
+                  setNews={setNews}
+                  announcements={announcements}
+                  setAnnouncements={setAnnouncements}
+                  ppdbList={ppdbList}
+                  setPpdbList={setPpdbList}
+                  settings={settings}
+                  setSettings={saveSettings}
+                  onLogout={handleLogout}
+                  activeTab={adminTab}
+                  setActiveTab={setAdminTab}
+                  session={session}
+                  availableFormalClasses={availableFormalClasses}
+                  setAvailableFormalClasses={setAvailableFormalClasses}
+                  availableMadrasahClasses={availableMadrasahClasses}
+                  setAvailableMadrasahClasses={setAvailableMadrasahClasses}
+                />
+              </ErrorBoundary>
+            ) : (
+              <div className="max-w-md mx-auto p-12 text-center space-y-4">
+                <h2 className="text-xl font-bold text-red-700">Akses Ditolak</h2>
+                <p className="text-xs text-gray-500">Anda harus masuk dengan akun administrator muarifsamsul082@gmail.com</p>
+                <button 
+                  onClick={() => setIsLoginOpen(true)} 
+                  className="px-4 py-2 bg-emerald-800 text-white rounded font-bold text-xs"
+                >
+                  Log In Admin
+                </button>
+              </div>
+            )
+          )}
+
+          {currentView === 'santri-dashboard' && (
+            session?.role === 'santri' && currentStudent ? (
+              <ErrorBoundary fallbackTitle="Portal Santri Mengalami Kendala">
+                <SantriDashboard 
+                  student={currentStudent}
+                  bills={bills}
+                  setBills={setBills}
+                  announcements={announcements}
+                  settings={settings}
+                  onLogout={handleLogout}
+                  activeSantriTab={santriTab}
+                  setActiveSantriTab={setSantriTab}
+                  showStudentCard={showStudentCard}
+                  setShowStudentCard={setShowStudentCard}
+                  students={students}
+                  setStudents={setStudents}
+                />
+              </ErrorBoundary>
+            ) : (
+              <div className="max-w-md mx-auto p-12 text-center space-y-4">
+                <h2 className="text-xl font-bold text-red-700">Akses Portal Ditolak</h2>
+                <p className="text-xs text-gray-500">Silakan login sebagai santri menggunakan NISN resmi Anda.</p>
+                <button 
+                  onClick={() => setIsLoginOpen(true)} 
+                  className="px-4 py-2 bg-emerald-800 text-white rounded font-bold text-xs"
+                >
+                  Log In Santri
+                </button>
+              </div>
+            )
+          )}
+
+          {currentView === 'staff-dashboard' && (
+            session && ['keamanan', 'ketertiban', 'kesehatan'].includes(session.role) ? (
+              <ErrorBoundary fallbackTitle="Portal Pengurus Mengalami Kendala">
+                <StaffDashboard 
+                  session={session}
+                  students={students}
+                  setStudents={setStudents}
+                  onLogout={handleLogout}
+                  activeSubTab={staffTab}
+                  setActiveSubTab={setStaffTab}
+                />
+              </ErrorBoundary>
+            ) : (
+              <div className="max-w-md mx-auto p-12 text-center space-y-4">
+                <h2 className="text-xl font-bold text-red-700">Akses Pengurus Ditolak</h2>
+                <p className="text-xs text-gray-500">Silakan login sebagai pengurus bidang.</p>
+                <button 
+                  onClick={() => setIsLoginOpen(true)} 
+                  className="px-4 py-2 bg-emerald-800 text-white rounded font-bold text-xs"
+                >
+                  Log In Pengurus
+                </button>
+              </div>
+            )
+          )}
+        </ErrorBoundary>
       </main>
 
       {/* Unified Login modal */}

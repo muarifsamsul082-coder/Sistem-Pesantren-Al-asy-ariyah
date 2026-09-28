@@ -1773,12 +1773,19 @@ export async function syncBillsWithSupabase(billsList: Bill[]): Promise<Bill[]> 
         verificationLogs: Array.isArray(item.verification_logs) ? item.verification_logs : []
       }));
 
-      const missingInRemote = billsList.filter(l => !data.some((r: any) => r.id === l.id));
+      let deletedIds: string[] = [];
+      try {
+        const rawDel = typeof localStorage !== 'undefined' ? localStorage.getItem('pesantren_deleted_bill_ids') : null;
+        if (rawDel) deletedIds = JSON.parse(rawDel);
+      } catch (e) {}
+
+      const cleanRemote = remoteMapped.filter(b => b && !deletedIds.includes(b.id));
+      const missingInRemote = billsList.filter(l => l && !deletedIds.includes(l.id) && !data.some((r: any) => r.id === l.id));
       if (missingInRemote.length > 0) {
         await pushAllBillsToSupabase(missingInRemote);
-        return [...remoteMapped, ...missingInRemote];
+        return [...cleanRemote, ...missingInRemote];
       }
-      return remoteMapped;
+      return cleanRemote;
     } else if (billsList.length > 0) {
       await pushAllBillsToSupabase(billsList);
     }

@@ -472,7 +472,7 @@ export default function Navbar({
 
   const menuItems = [
     { id: 'home', label: 'Beranda' },
-    { id: 'profile', label: 'Profil' },
+    { id: 'profile', label: 'Visi & Misi' },
     { id: 'news', label: 'Berita' },
     { id: 'announcements', label: 'Pengumuman' },
     ...(ppdbStatus.isActive ? [{ id: 'ppdb', label: 'Pendaftaran PCSB', highlight: true }] : []),
@@ -655,12 +655,12 @@ export default function Navbar({
                   <button
                     key={item.id}
                     onClick={() => handleNavClick(item.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
                       item.highlight
                         ? 'bg-amber-400 text-emerald-950 hover:bg-amber-300 shadow-sm'
                         : currentView === item.id
-                        ? 'bg-emerald-700 text-white border border-amber-400'
-                        : 'text-emerald-100 hover:bg-emerald-800'
+                        ? 'bg-emerald-800/90 text-amber-300 border border-emerald-600/70 shadow-xs'
+                        : 'text-emerald-100 hover:bg-emerald-800/50 hover:text-white'
                     }`}
                   >
                     {item.label}
@@ -727,18 +727,18 @@ export default function Navbar({
       {isNavOpen && (!session || session.role === 'santri') && (
         <>
           <div 
-            className="fixed inset-0 bg-slate-950/20 backdrop-blur-[1px] z-45 cursor-default animate-fade-in"
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px] z-45 cursor-default animate-fade-in"
             onClick={() => setIsNavOpen(false)}
           />
-          <div className="absolute right-4 top-14 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-emerald-100 dark:border-slate-800 z-50 divide-y divide-slate-100 dark:divide-slate-800 py-1 max-h-[80vh] overflow-y-auto text-slate-800 dark:text-slate-100 text-left animate-fade-in">
-            <div className="px-4 py-3 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/40">
-              <span className="text-[10px] uppercase font-mono font-extrabold text-emerald-700 dark:text-emerald-450">
+          <div className="absolute right-4 top-14 w-64 bg-emerald-950/95 backdrop-blur-md rounded-2xl shadow-2xl border border-emerald-700/60 z-50 divide-y divide-emerald-800/60 py-1 max-h-[80vh] overflow-y-auto text-emerald-100 text-left animate-fade-in">
+            <div className="px-4 py-3 bg-emerald-900/80 flex items-center justify-between border-b border-emerald-800/60">
+              <span className="text-[10px] uppercase font-mono font-extrabold text-amber-300">
                 {!session ? 'Navigasi Portal' : 'Menu Walisantri'}
               </span>
               <button
                 type="button"
                 onClick={() => setIsNavOpen(false)}
-                className="text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-450 transition p-1 rounded-lg"
+                className="text-emerald-300 hover:text-rose-400 transition p-1 rounded-lg"
                 title="Tutup Menu"
               >
                 <X className="h-4 w-4" />
@@ -753,10 +753,10 @@ export default function Navbar({
                     key={item.id}
                     type="button"
                     onClick={() => handleNavClick(item.id)}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center justify-between ${
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
                       currentView === item.id 
-                        ? 'bg-emerald-50 text-emerald-800 dark:bg-slate-800 dark:text-amber-400' 
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                        ? 'bg-emerald-800 text-amber-300' 
+                        : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
                     }`}
                   >
                     <span>{item.label}</span>
@@ -773,8 +773,8 @@ export default function Navbar({
                   <button
                     type="button"
                     onClick={() => { handleSantriTabClick('tagihan'); setIsNavOpen(false); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
-                      santriTab === 'tagihan' && currentView === 'santri-dashboard' ? 'bg-emerald-50 text-emerald-800 dark:bg-slate-800 dark:text-amber-400' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                      santriTab === 'tagihan' && currentView === 'santri-dashboard' ? 'bg-emerald-800 text-amber-300' : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
                     }`}
                   >
                     <span>Tagihan & Pembayaran</span>
@@ -782,8 +782,8 @@ export default function Navbar({
                   <button
                     type="button"
                     onClick={() => { handleSantriTabClick('pelanggaran'); setIsNavOpen(false); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
-                      santriTab === 'pelanggaran' && currentView === 'santri-dashboard' ? 'bg-emerald-50 text-emerald-800 dark:bg-slate-800 dark:text-amber-400' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                      santriTab === 'pelanggaran' && currentView === 'santri-dashboard' ? 'bg-emerald-800 text-amber-300' : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
                     }`}
                   >
                     <span>Pelanggaran & Takzir</span>
@@ -791,8 +791,8 @@ export default function Navbar({
                   <button
                     type="button"
                     onClick={() => { handleSantriTabClick('kesehatan'); setIsNavOpen(false); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
-                      santriTab === 'kesehatan' && currentView === 'santri-dashboard' ? 'bg-emerald-50 text-emerald-800 dark:bg-slate-800 dark:text-amber-400' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                      santriTab === 'kesehatan' && currentView === 'santri-dashboard' ? 'bg-emerald-800 text-amber-300' : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
                     }`}
                   >
                     <span>Riwayat Medis Sakit</span>
@@ -800,8 +800,8 @@ export default function Navbar({
                   <button
                     type="button"
                     onClick={() => { handleSantriTabClick('perizinan'); setIsNavOpen(false); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
-                      santriTab === 'perizinan' && currentView === 'santri-dashboard' ? 'bg-emerald-50 text-emerald-800 dark:bg-slate-800 dark:text-amber-400' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                      santriTab === 'perizinan' && currentView === 'santri-dashboard' ? 'bg-emerald-800 text-amber-300' : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
                     }`}
                   >
                     <span>Pengajuan Izin Keluar</span>
@@ -810,20 +810,20 @@ export default function Navbar({
                     <button
                       type="button"
                       onClick={() => { triggerStudentCard(); setIsNavOpen(false); }}
-                      className="w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      className="w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 text-emerald-100 hover:bg-emerald-900/60 hover:text-white cursor-pointer"
                     >
                       <span>Kartu Santri Digital</span>
                     </button>
                   )}
                   
-                  <div className="border-t border-slate-100 dark:border-slate-800 pt-2 pb-1 px-3">
+                  <div className="border-t border-emerald-800/60 pt-2 pb-1 px-3">
                     <button
                       type="button"
                       onClick={() => {
                         onLogout();
                         setIsNavOpen(false);
                       }}
-                      className="w-full text-left px-3 py-2 text-xs font-extrabold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition flex items-center justify-center gap-1.5 cursor-pointer border border-rose-200 dark:border-rose-950/40 rounded-xl"
+                      className="w-full text-left px-3 py-2 text-xs font-extrabold text-rose-300 hover:bg-rose-950/40 transition flex items-center justify-center gap-1.5 cursor-pointer border border-rose-800/50 rounded-xl"
                     >
                       <span>Keluar Sesi</span>
                     </button>

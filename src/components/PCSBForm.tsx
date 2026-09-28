@@ -324,22 +324,45 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
                   </div>
                 </div>
 
-                {/* Tanda Tangan */}
-                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-6">
-                  <div className="text-gray-400 text-[10px] italic text-left">
-                    Dokumen ini sah dicetak langsung setelah pengisian online sistem PCSB Mandiri Al-Asy'ariyah.
+                {/* Tanda Tangan: Stempel di sebelah kiri, Tanda Tangan di sebelah kanan dengan rata kiri */}
+                <div className="mt-8 pt-4 border-t border-dashed border-gray-250 flex items-end justify-between">
+                  {/* STEMPEL DI SEBELAH KIRI */}
+                  <div className="flex flex-col items-center justify-center p-1">
+                    {(settings.stempelPcsbUrl || settings.stempelPesantrenUrl) ? (
+                      <div className="relative inline-block">
+                        <div className="border-2 border-double border-emerald-600/70 text-emerald-800 rounded-full h-20 w-20 flex items-center justify-center text-[7.5px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/90 shadow-2xs p-1">
+                          {settings.stempelPcsbUrl || settings.stempelPesantrenUrl || 'PANITIA PCSB'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border border-dashed border-emerald-300 text-emerald-700/80 rounded-full h-18 w-18 flex items-center justify-center text-[7.5px] font-mono font-bold uppercase rotate-[-6deg] text-center p-1">
+                        STEMPEL PCSB
+                      </div>
+                    )}
                   </div>
 
-                  <div className="text-center space-y-1 w-44">
-                    <p className="text-[10px] text-gray-400">{new Date().toISOString().split('T')[0]}</p>
-                    <div className="relative inline-block py-1">
-                      <span className="absolute top-1 left-2/4 -translate-x-2/4 border border-emerald-300 text-emerald-600/70 rounded-full text-[8px] font-bold px-1 uppercase rotate-6 border-dashed whitespace-nowrap bg-white">
-                        PCSB ONLINE SYSTEM
-                      </span>
-                      <div className="h-6 w-20 mx-auto opacity-10 bg-[radial-gradient(#059669_1px,transparent_1px)] bg-[size:4px_4px]" />
+                  {/* TANDA TANGAN DI SEBELAH KANAN DENGAN RATA KIRI */}
+                  <div className="text-left space-y-1 w-[240px] font-sans">
+                    <p className="text-[10px] text-gray-400 font-medium">
+                      {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                    <p className="text-[10px] text-gray-900 font-bold uppercase tracking-wider">
+                      Wali Santri / Pendaftar,
+                    </p>
+                    <div className="h-16 flex items-center justify-start py-1">
+                      <div className="relative inline-block">
+                        <span className="border border-emerald-300 text-emerald-700 rounded-full text-[8px] font-bold px-2 py-0.5 uppercase rotate-3 border-dashed whitespace-nowrap bg-emerald-50/60 block">
+                          PCSB ONLINE SYSTEM
+                        </span>
+                        <div className="h-4 w-28 opacity-10 bg-[radial-gradient(#059669_1px,transparent_1px)] bg-[size:4px_4px] mt-1" />
+                      </div>
                     </div>
-                    <p className="text-xs font-bold text-gray-900 border-b border-gray-300 pb-0.5 inline-block">{formData.parentName}</p>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-wider block font-bold leading-none">Pendaftar / Wali Santri</p>
+                    <p className="text-xs font-black text-gray-950 border-b border-gray-400 pb-0.5 inline-block">
+                      {formData.parentName || 'Orang Tua / Wali'}
+                    </p>
+                    <p className="text-[9px] text-gray-500 uppercase tracking-wider block font-bold leading-none mt-0.5">
+                      Pendaftar Calon Santri
+                    </p>
                   </div>
                 </div>
               </div>
@@ -378,15 +401,22 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-3xl mx-auto border border-emerald-100">
-      <div className="bg-gradient-to-r from-emerald-850 to-teal-900 px-6 py-8 text-white">
-        <div className="flex items-center gap-3">
-          <div className="bg-amber-400 p-2.5 rounded-xl text-emerald-950">
-            <Sparkles className="h-6 w-6 animate-pulse" />
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-3xl mx-auto border border-emerald-200">
+      <div 
+        className="px-6 py-7 text-white bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 border-b border-emerald-800 shadow-sm"
+        style={{ backgroundColor: '#064e3b' }}
+      >
+        <div className="flex items-center gap-3.5">
+          <div className="bg-amber-400 p-2.5 rounded-xl text-emerald-950 shrink-0 shadow-md">
+            <Sparkles className="h-6 w-6 animate-pulse text-emerald-950" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold">Penerimaan Calon Santri Baru</h2>
-            <p className="text-emerald-100 text-xs">Pondok Pesantren Al-Asy'ariyah • Tahun Ajaran 2026/2027</p>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide drop-shadow-sm">
+              Formulir Pendaftaran Calon Santri Baru (PCSB)
+            </h2>
+            <p className="text-amber-300 font-bold text-xs mt-1 drop-shadow-xs">
+              {settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"} • Tahun Ajaran 2026/2027
+            </p>
           </div>
         </div>
       </div>
@@ -395,9 +425,14 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
         
         {/* Section 1: Data Calon Santri */}
         <div>
-          <h3 className="text-sm font-bold text-emerald-900 uppercase tracking-widest border-b border-emerald-100 pb-2 mb-4">
-            I. Identitas Calon Santri
-          </h3>
+          <div className="flex items-center gap-2.5 pb-2.5 mb-4 border-b-2 border-emerald-600/30">
+            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+              I
+            </span>
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+              Identitas Calon Santri
+            </h3>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-emerald-800 mb-1">Nama Lengkap Calon Santri *</label>
@@ -504,9 +539,14 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
 
         {/* Section 2: Data Orang Tua / Wali */}
         <div>
-          <h3 className="text-sm font-bold text-emerald-900 uppercase tracking-widest border-b border-emerald-100 pb-2 mb-4">
-            II. Identitas Orang Tua / Wali
-          </h3>
+          <div className="flex items-center gap-2.5 pb-2.5 mb-4 border-b-2 border-emerald-600/30">
+            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+              II
+            </span>
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+              Identitas Orang Tua / Wali
+            </h3>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-emerald-800 mb-1">No. Kartu Keluarga (KK) (16 Digit) *</label>
@@ -595,9 +635,14 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
 
         {/* Section 3: Rincian Biaya & Pilihan Pembayaran */}
         <div>
-          <h3 className="text-sm font-bold text-emerald-900 uppercase tracking-widest border-b border-emerald-100 pb-2 mb-4 flex items-center gap-2">
-            <span>💸</span> III. Rincian Biaya & Pilihan Syahriah Santri Baru
-          </h3>
+          <div className="flex items-center gap-2.5 pb-2.5 mb-4 border-b-2 border-emerald-600/30">
+            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+              III
+            </span>
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+              Rincian Biaya & Pilihan Syahriyah Santri Baru
+            </h3>
+          </div>
           <p className="text-[11px] text-gray-500 mb-4">
             Silakan tinjau rincian komponen biaya yang wajib dibayarkan oleh wali santri baru dan pilih preferensi metode pelunasan Syahriah (SPP) 1 tahun.
           </p>
@@ -682,9 +727,14 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
 
         {/* Section 4: Berkas Persyaratan Kelengkapan */}
         <div>
-          <h3 className="text-sm font-bold text-emerald-900 uppercase tracking-widest border-b border-emerald-100 pb-2 mb-4 flex items-center gap-2">
-            <span>📎</span> IV. Berkas Kelengkapan Calon Santri (Persyaratan Fisik / Unggah Softcopy)
-          </h3>
+          <div className="flex items-center gap-2.5 pb-2.5 mb-4 border-b-2 border-emerald-600/30">
+            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+              IV
+            </span>
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+              Berkas Kelengkapan Calon Santri (Softcopy / Persyaratan Fisik)
+            </h3>
+          </div>
           <p className="text-[11px] text-gray-500 mb-4">
             Silakan unggah pindaian (softcopy) dokumen pendukung di bawah ini. Anda juga wajib membawa dokumen fisik asli/fotokopi saat hadir melakukan verifikasi di pesantren.
           </p>
@@ -760,9 +810,14 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
 
         {/* Section 5: Rincian Tagihan Pendaftaran & Biaya Awal (Wajib) */}
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest border-b border-slate-200 pb-2 flex items-center gap-2">
-            <span>💳</span> V. Rincian Jumlah Tagihan Pendaftaran & Biaya Masuk Santri Baru
-          </h3>
+          <div className="flex items-center gap-2.5 pb-2.5 mb-2 border-b-2 border-emerald-600/30">
+            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+              V
+            </span>
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+              Rincian Jumlah Tagihan Pendaftaran & Biaya Masuk Santri Baru
+            </h3>
+          </div>
           <p className="text-[11px] text-gray-500">
             Berikut adalah rincian lengkap seluruh item tagihan keuangan awal untuk Santri Baru:
           </p>

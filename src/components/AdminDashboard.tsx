@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, compressImage, isSameRoom } from '../types';
 import { downloadPrintableHTML, downloadPrintableTableHTML, PrintGuideAlert } from './PrintHelper';
+import ErrorBoundary from './ErrorBoundary';
 import {
   getSupabaseConfig,
   saveSupabaseCredentialsLocally,
@@ -672,10 +673,17 @@ export default function AdminDashboard({
   };
 
   // Staff configurations synced from division logins
-  const [staffConfigs, setStaffConfigs] = React.useState({
-    keamanan: { name: '', signature: '', seal: '' },
-    ketertiban: { name: '', signature: '', seal: '' },
-    kesehatan: { name: '', signature: '', seal: '' }
+  const [staffConfigs, setStaffConfigs] = React.useState<Record<string, {
+    name: string;
+    signature: string;
+    seal: string;
+    letterTemplate1?: string;
+    letterTemplate2?: string;
+    letterTemplate3?: string;
+  }>>({
+    keamanan: { name: '', signature: '', seal: '', letterTemplate1: '', letterTemplate2: '', letterTemplate3: '' },
+    ketertiban: { name: '', signature: '', seal: '', letterTemplate1: '', letterTemplate2: '', letterTemplate3: '' },
+    kesehatan: { name: '', signature: '', seal: '', letterTemplate1: '', letterTemplate2: '', letterTemplate3: '' }
   });
 
   const reloadStaffConfigs = () => {
@@ -1059,7 +1067,7 @@ export default function AdminDashboard({
       throw new Error("API Offline atau merespons error");
     } catch (e: any) {
       let fallbackResult = '';
-      let fallbackStatus = 'Terverifikasi Otomatis';
+      let fallbackStatus: 'Terverifikasi Otomatis' | 'Perlu Peninjauan' | 'Gagal' = 'Terverifikasi Otomatis';
 
       if (type === 'payment') {
         const hasProof = !!contextData?.proofUrl;
@@ -3123,7 +3131,7 @@ export default function AdminDashboard({
         }
       }
       setBillTitle('');
-      setBillAmount('');
+      setBillAmount(0);
     }
     
     setSelectedStudentId('');
@@ -3202,6 +3210,50 @@ export default function AdminDashboard({
     }
   };
 
+  // Delete Bill (Permanently removes from state, localStorage, server, and Supabase)
+  const handleDeleteBill = (billId: string, studentName?: string, amount?: number) => {
+    triggerConfirm(
+      'Hapus Tagihan',
+      `Yakin ingin menghapus tagihan milik ${studentName || 'santri'} sebesar Rp ${(Number(amount) || 0).toLocaleString('id-ID')} ini? Tindakan ini bersifat permanen.`,
+      async () => {
+        try {
+          const updated = (bills || []).filter(bill => bill && bill.id !== billId);
+          setBills(updated);
+          localStorage.setItem('pesantren_bills', JSON.stringify(updated));
+          
+          // Track deleted bill IDs so Supabase / polling sync never resurrects them
+          try {
+            const rawDeleted = localStorage.getItem('pesantren_deleted_bill_ids');
+            const deletedIds: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+            if (!deletedIds.includes(billId)) {
+              deletedIds.push(billId);
+              localStorage.setItem('pesantren_deleted_bill_ids', JSON.stringify(deletedIds.slice(-200)));
+            }
+          } catch (e) {}
+
+          markLocalDataChanged('bills');
+
+          // Sync deletion with server backend
+          fetch('/api/bills', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updated)
+          }).catch(err => console.error('Server bills delete sync error:', err));
+
+          if (isSupabaseConfigured()) {
+            await deleteBillFromSupabase(billId).catch(err => console.error('Cloud delete bill error:', err));
+          }
+          window.dispatchEvent(new Event('pesantren_db_sync'));
+          logAdminActivity('HAPUS_TAGIHAN', `Menghapus tagihan santri ${studentName || '-'}`);
+          showAlert('success', 'Tagihan berhasil dihapus permanen.');
+        } catch (err) {
+          console.error('Gagal menghapus tagihan:', err);
+          showAlert('danger', 'Gagal memproses penghapusan tagihan.');
+        }
+      }
+    );
+  };
+
   // Save Portal Settings
     // Helper to immediately update and persist settings across local & cloud
   const updateAndPersistSettings = (newSettings: PortalSettings) => {
@@ -3242,16 +3294,16 @@ export default function AdminDashboard({
   };
 
   // Calculated Stats
-  const totalStudents = students.filter(s => s.status !== 'Alumni' && s.status !== 'Berhenti').length;
-  const pendingPCSB = ppdbList.filter(p => p.status === 'Pending').length;
-  const totalBills = bills.length;
-  const lunasBills = bills.filter(b => b.status === 'Lunas').length;
-  const unpaidBills = bills.filter(b => b.status === 'Belum Lunas').length;
-  const verificationBills = bills.filter(b => b.status === 'Konfirmasi Pembayaran').length;
+  const totalStudents = (students || []).filter(s => s && s.status !== 'Alumni' && s.status !== 'Berhenti').length;
+  const pendingPCSB = (ppdbList || []).filter(p => p && p.status === 'Pending').length;
+  const totalBills = (bills || []).length;
+  const lunasBills = (bills || []).filter(b => b && b.status === 'Lunas').length;
+  const unpaidBills = (bills || []).filter(b => b && b.status === 'Belum Lunas').length;
+  const verificationBills = (bills || []).filter(b => b && b.status === 'Konfirmasi Pembayaran').length;
   
-  const totalIncome = bills
-    .filter(b => b.status === 'Lunas')
-    .reduce((sum, b) => sum + b.amount, 0);
+  const totalIncome = (bills || [])
+    .filter(b => b && b.status === 'Lunas')
+    .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
 
   const getMonthlyIncomeData = () => {
     const months = [
@@ -3272,28 +3324,28 @@ export default function AdminDashboard({
     const currentYearStr = new Date().getFullYear().toString();
 
     return months.map(m => {
-      const monthlyBills = bills.filter(b => {
-        if (b.status !== 'Lunas') return false;
+      const monthlyBills = (bills || []).filter(b => {
+        if (!b || b.status !== 'Lunas') return false;
         const dateToCheck = b.paymentDate || b.dueDate;
         if (!dateToCheck) return false;
         const [year, month] = dateToCheck.split('-');
         return year === currentYearStr && month === m.month;
       });
 
-      const totalIncome = monthlyBills.reduce((sum, b) => sum + b.amount, 0);
+      const totalMonthlyIncome = monthlyBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
 
       return {
         name: m.name,
         fullname: m.fullname,
-        'Pemasukan': totalIncome
+        'Pemasukan': totalMonthlyIncome
       };
     });
   };
 
   const getRoomStatsData = () => {
     const roomCounts: { [key: string]: number } = {};
-    students.forEach(s => {
-      if (s.status === 'Aktif') {
+    (students || []).forEach(s => {
+      if (s && s.status === 'Aktif') {
         const rName = s.kamar || 'Belum Ada Kamar';
         roomCounts[rName] = (roomCounts[rName] || 0) + 1;
       }
@@ -3306,7 +3358,8 @@ export default function AdminDashboard({
 
   const getStatusStatsData = () => {
     const statusCounts: { [key: string]: number } = {};
-    students.forEach(s => {
+    (students || []).forEach(s => {
+      if (!s) return;
       const status = s.status || 'Aktif';
       statusCounts[status] = (statusCounts[status] || 0) + 1;
     });
@@ -3314,10 +3367,12 @@ export default function AdminDashboard({
   };
 
   // Filter students or PPDB based on search and filters
-  const filteredStudents = students.filter(s => s.status !== 'Alumni' && s.status !== 'Berhenti').filter(s => {
-    const matchesSearch = s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) || 
-                          (s.nis || '').includes(studentSearch) || 
-                          (s.class || '').toLowerCase().includes(studentSearch.toLowerCase());
+  const filteredStudents = (students || []).filter(s => s && s.status !== 'Alumni' && s.status !== 'Berhenti').filter(s => {
+    const sName = (s.fullName || '').toLowerCase();
+    const sNis = s.nis || '';
+    const sClass = (s.class || '').toLowerCase();
+    const q = (studentSearch || '').toLowerCase();
+    const matchesSearch = sName.includes(q) || sNis.includes(studentSearch) || sClass.includes(q);
     const matchesClass = studentClassFilter === 'Semua' || s.class === studentClassFilter;
     const matchesGender = studentGenderFilter === 'Semua' || s.gender === studentGenderFilter;
     const matchesStatus = studentStatusFilter === 'Semua' || 
@@ -3325,24 +3380,30 @@ export default function AdminDashboard({
     
     return matchesSearch && matchesClass && matchesGender && matchesStatus;
   }).sort((a, b) => {
-    if (studentSortFilter === 'nama-asc') return a.fullName.localeCompare(b.fullName);
-    if (studentSortFilter === 'nama-desc') return b.fullName.localeCompare(a.fullName);
+    if (studentSortFilter === 'nama-asc') return (a.fullName || '').localeCompare(b.fullName || '');
+    if (studentSortFilter === 'nama-desc') return (b.fullName || '').localeCompare(a.fullName || '');
     if (studentSortFilter === 'nisn-asc' || studentSortFilter === 'nis-asc') return (a.nis || '').localeCompare(b.nis || '');
     return 0;
   });
 
-  const filteredPpdb = ppdbList.filter(p => {
-    const matchesSearch = p.fullName.toLowerCase().includes(ppdbSearch.toLowerCase()) ||
-                          p.parentName.toLowerCase().includes(ppdbSearch.toLowerCase());
+  const filteredPpdb = (ppdbList || []).filter(p => {
+    if (!p) return false;
+    const pName = (p.fullName || '').toLowerCase();
+    const pParent = (p.parentName || '').toLowerCase();
+    const q = (ppdbSearch || '').toLowerCase();
+    const matchesSearch = pName.includes(q) || pParent.includes(q);
     const matchesStatus = ppdbStatusFilter === 'Semua' || p.status === ppdbStatusFilter;
     const matchesGender = ppdbGenderFilter === 'Semua' || p.gender === ppdbGenderFilter;
     
     return matchesSearch && matchesStatus && matchesGender;
   });
 
-  const filteredBills = bills.filter(b => {
-    const matchesSearch = b.studentName.toLowerCase().includes(billSearch.toLowerCase()) || 
-                          b.title.toLowerCase().includes(billSearch.toLowerCase());
+  const filteredBills = (bills || []).filter(b => {
+    if (!b) return false;
+    const bName = (b.studentName || '').toLowerCase();
+    const bTitle = (b.title || '').toLowerCase();
+    const q = (billSearch || '').toLowerCase();
+    const matchesSearch = bName.includes(q) || bTitle.includes(q);
     const matchesFilter = billFilter === 'Semua' || b.status === billFilter;
     return matchesSearch && matchesFilter;
   });
@@ -3510,68 +3571,68 @@ export default function AdminDashboard({
           transition={{ duration: 0.2 }}
           className="w-full"
         >
-          {activeTab === 'overview' && (
+          <ErrorBoundary fallbackTitle={`Menu "${activeTab}" Mengalami Kendala`}>
+            {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Sapaan Salam Friendly (Kotak Hijau Ringkas) */}
-          <div className="mb-6 font-sans text-left bg-gradient-to-r from-emerald-800 to-teal-950 p-4 sm:p-5 rounded-2xl border border-emerald-950 flex items-center gap-3.5 shadow-sm text-white">
-            
+          {/* Sapaan Salam Friendly (Warna Hijau Tenang & Sejuk) */}
+          <div className="mb-6 font-sans text-left bg-gradient-to-r from-emerald-800 to-teal-900 border border-emerald-700/60 p-4 sm:p-5 rounded-2xl flex items-center gap-3.5 shadow-xs text-white">
             <div>
               <h2 className="text-sm sm:text-base font-extrabold tracking-wide uppercase">
-                Assalamu'alaikum, <span className="text-amber-300 font-black">{currentAdminName}</span>
+                Assalamu'alaikum, <span className="text-emerald-100 font-black">{currentAdminName}</span>
               </h2>
-              <p className="text-emerald-100/90 text-xs mt-0.5 font-medium">
+              <p className="text-emerald-100/80 text-xs mt-0.5 font-medium">
                 Selamat bertugas mengawal administrasi Pondok Pesantren Al-Asy'ariyah.
               </p>
             </div>
           </div>
 
-          {/* Bento-grid of cards */}
+          {/* Bento-grid of cards (Warna Lembut Natural Tidak Mencolok) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-50 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-slate-300 transition flex items-center justify-between">
               <div>
-                <span className="text-gray-400 text-xs font-semibold">Total Santri Aktif</span>
-                <h3 className="text-3xl font-extrabold text-emerald-950 mt-1">{totalStudents}</h3>
-                <span className="text-emerald-600 text-xs mt-1 block font-medium">Santri terdaftar</span>
+                <span className="text-slate-500 text-xs font-semibold">Total Santri Aktif</span>
+                <h3 className="text-3xl font-extrabold text-slate-800 mt-1">{totalStudents}</h3>
+                <span className="text-emerald-700 text-xs mt-1 block font-medium">Santri terdaftar</span>
               </div>
-              <div className="bg-emerald-50 p-3 rounded-xl text-emerald-700">
+              <div className="bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100/70">
                 <Users className="h-6 w-6" />
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-50 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-slate-300 transition flex items-center justify-between">
               <div>
-                <span className="text-gray-400 text-xs font-semibold">Pendaftar Baru PCSB</span>
-                <h3 className="text-3xl font-extrabold text-emerald-950 mt-1">{ppdbList.length}</h3>
-                <span className="text-amber-600 text-xs mt-1 block font-medium">
+                <span className="text-slate-500 text-xs font-semibold">Pendaftar Baru PCSB</span>
+                <h3 className="text-3xl font-extrabold text-slate-800 mt-1">{ppdbList.length}</h3>
+                <span className="text-amber-700 text-xs mt-1 block font-medium">
                   {pendingPCSB} Menunggu Verifikasi
                 </span>
               </div>
-              <div className="bg-amber-50 p-3 rounded-xl text-amber-700">
+              <div className="bg-amber-50 text-amber-800 p-3 rounded-xl border border-amber-100/70">
                 <GraduationCap className="h-6 w-6" />
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-50 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-slate-300 transition flex items-center justify-between">
               <div>
-                <span className="text-gray-400 text-xs font-semibold">Tagihan Belum Bayar</span>
-                <h3 className="text-3xl font-extrabold text-emerald-950 mt-1">{unpaidBills}</h3>
-                <span className="text-rose-600 text-xs mt-1 block font-medium">Harus ditindak lanjuti</span>
+                <span className="text-slate-500 text-xs font-semibold">Tagihan Belum Bayar</span>
+                <h3 className="text-3xl font-extrabold text-slate-800 mt-1">{unpaidBills}</h3>
+                <span className="text-rose-700 text-xs mt-1 block font-medium">Harus ditindak lanjuti</span>
               </div>
-              <div className="bg-rose-50 p-3 rounded-xl text-rose-700">
+              <div className="bg-rose-50 text-rose-800 p-3 rounded-xl border border-rose-100/70">
                 <DollarSign className="h-6 w-6" />
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-50 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-slate-300 transition flex items-center justify-between">
               <div>
-                <span className="text-gray-400 text-xs font-semibold">Total Kas Terkumpul (Bulan Ini)</span>
-                <h3 className="text-2xl font-extrabold text-emerald-900 mt-1">
-                  Rp {totalIncome.toLocaleString('id-ID')}
+                <span className="text-slate-500 text-xs font-semibold">Total Kas Terkumpul (Bulan Ini)</span>
+                <h3 className="text-2xl font-extrabold text-slate-800 mt-1">
+                  Rp {(totalIncome || 0).toLocaleString('id-ID')}
                 </h3>
-                <span className="text-emerald-600 text-xs mt-1 block font-medium">{lunasBills} Transaksi Lunas</span>
+                <span className="text-teal-700 text-xs mt-1 block font-medium">{lunasBills} Transaksi Lunas</span>
               </div>
-              <div className="bg-teal-50 p-3 rounded-xl text-teal-700">
+              <div className="bg-teal-50 text-teal-800 p-3 rounded-xl border border-teal-100/70">
                 <Wallet className="h-6 w-6" />
               </div>
             </div>
@@ -3595,9 +3656,9 @@ export default function AdminDashboard({
               });
 
               return (
-                <div className="bg-white rounded-2xl shadow-sm border border-amber-200/60 p-6 mt-6 space-y-4 text-left animate-fade-in">
+                <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6 mt-6 space-y-4 text-left animate-fade-in">
                   <h4 className="font-extrabold text-gray-900 text-sm flex items-center gap-2">
-                    <span className="p-1 bg-amber-50 text-amber-700 rounded-lg">️</span>
+                    <span className="p-1 bg-slate-100 text-slate-700 rounded-lg">️</span>
                     Antrean Persetujuan Izin Keluar Pondok ({pendingPermits.length})
                   </h4>
                   <p className="text-[11px] text-gray-500">Berikut adalah daftar pengajuan perizinan keluar lingkungan / pulang santri yang membutuhkan verifikasi & tanda tangan Pengurus/Keamanan.</p>
@@ -3609,7 +3670,7 @@ export default function AdminDashboard({
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {pendingPermits.map(({ studentId, studentName, log }) => (
-                        <div key={log.id} className="p-4 bg-amber-50/10 rounded-xl border border-amber-100 hover:border-amber-200 transition space-y-3">
+                        <div key={log.id} className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:border-slate-300 transition space-y-3">
                           <div className="flex justify-between items-start gap-2">
                             <div>
                               {/* Identity number placed above name */}
@@ -3673,9 +3734,9 @@ export default function AdminDashboard({
 
           <div className="w-full">
             {/* Quick stats & action points */}
-            <div className="bg-white rounded-2xl shadow-sm border border-emerald-50 p-6 space-y-4">
+            <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6 space-y-4">
               <h4 className="font-bold text-gray-900 text-sm flex items-center gap-1">
-                <CheckSquare className="h-4 w-4 text-emerald-700" />
+                <CheckSquare className="h-4 w-4 text-emerald-800" />
                 Daftar Tunggu Konfirmasi Pembayaran Tagihan ({verificationBills})
               </h4>
               
@@ -3683,10 +3744,10 @@ export default function AdminDashboard({
                 <p className="text-gray-400 text-xs text-center py-8">Semua konfirmasi tagihan sudah bersih!</p>
               ) : (
                 <div className="space-y-3">
-                  {bills.filter(b => b.status === 'Konfirmasi Pembayaran').map(b => (
-                    <div key={b.id} className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  {bills.filter(b => b && b.status === 'Konfirmasi Pembayaran').map(b => (
+                    <div key={b.id} className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                       <div>
-                        <div className="font-bold text-emerald-950 text-sm flex items-center gap-2 flex-wrap">
+                        <div className="font-bold text-slate-900 text-sm flex items-center gap-2 flex-wrap">
                           <span>{b.studentName}</span>
                           {b.verificationStatus && (
                             <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border uppercase ${
@@ -3698,7 +3759,7 @@ export default function AdminDashboard({
                             </span>
                           )}
                         </div>
-                        <div className="text-gray-500 font-mono mt-0.5">{b.title} • Rp {b.amount.toLocaleString()}</div>
+                        <div className="text-gray-500 font-mono mt-0.5">{b.title} • Rp {(Number(b.amount) || 0).toLocaleString('id-ID')}</div>
                         {b.paymentProofUrl && (
                           <a 
                             href={b.paymentProofUrl} 
@@ -5105,17 +5166,20 @@ export default function AdminDashboard({
 
         // Filtered alumni
         const filteredAlumni = alumniList.filter(a => {
-          const matchesSearch = a.fullName.toLowerCase().includes(alumniSearch.toLowerCase()) || 
+          if (!a) return false;
+          const aName = (a.fullName || '').toLowerCase();
+          const q = (alumniSearch || '').toLowerCase();
+          const matchesSearch = aName.includes(q) || 
             (a.nis && a.nis.includes(alumniSearch)) || 
-            (a.alumniId && a.alumniId.toLowerCase().includes(alumniSearch.toLowerCase()));
+            (a.alumniId && (a.alumniId || '').toLowerCase().includes(q));
           const matchesGender = alumniGenderFilter === 'Semua' || a.gender === alumniGenderFilter;
           const matchesYear = alumniYearFilter === 'Semua' || a.tahunKeluar === alumniYearFilter;
           return matchesSearch && matchesGender && matchesYear;
         }).sort((a, b) => {
           if (alumniSort === 'name-asc') {
-            return a.fullName.localeCompare(b.fullName);
+            return (a.fullName || '').localeCompare(b.fullName || '');
           } else if (alumniSort === 'name-desc') {
-            return b.fullName.localeCompare(a.fullName);
+            return (b.fullName || '').localeCompare(a.fullName || '');
           } else if (alumniSort === 'year-desc') {
             return (b.tahunKeluar || '').localeCompare(a.tahunKeluar || '');
           } else if (alumniSort === 'year-asc') {
@@ -5521,7 +5585,7 @@ export default function AdminDashboard({
             setEditingRoom(null);
           } else {
             // Add
-            if (rooms.some(r => r.name.toUpperCase() === upperRoomName)) {
+            if ((rooms || []).some(r => r && (r.name || '').toUpperCase() === upperRoomName)) {
               showAlert('danger', `Kamar dengan nama ${upperRoomName} sudah terdaftar.`);
               return;
             }
@@ -5549,14 +5613,27 @@ export default function AdminDashboard({
             'Hapus Kamar',
             `Apakah Anda yakin ingin menghapus Kamar ${room.name} dari database?`,
             () => {
-              setRooms(rooms.filter(r => r.id !== room.id));
-              showAlert('success', `Kamar ${room.name} berhasil dihapus.`);
+              try {
+                const updated = rooms.filter(r => r.id !== room.id);
+                setRooms(updated);
+                localStorage.setItem('pesantren_rooms', JSON.stringify(updated));
+                markLocalDataChanged('rooms');
+                if (isSupabaseConfigured()) {
+                  deleteRoomFromSupabase(room.id).catch(console.error);
+                }
+                window.dispatchEvent(new Event('pesantren_db_sync'));
+                showAlert('success', `Kamar ${room.name} berhasil dihapus.`);
+              } catch (err) {
+                console.error('Error deleting room:', err);
+                showAlert('danger', 'Gagal menghapus data kamar.');
+              }
             }
           );
         };
 
-        const filteredRooms = rooms.filter(r => {
-          const matchesSearch = r.name.toLowerCase().includes(roomSearch.toLowerCase());
+        const filteredRooms = (rooms || []).filter(r => {
+          if (!r) return false;
+          const matchesSearch = (r.name || '').toLowerCase().includes((roomSearch || '').toLowerCase());
           const matchesGender = roomGenderFilter === 'Semua' || r.gender === roomGenderFilter;
           return matchesSearch && matchesGender;
         });
@@ -6690,7 +6767,7 @@ export default function AdminDashboard({
                       <div className="min-w-0">
                         <strong className="block text-gray-900 leading-tight text-sm font-extrabold truncate">{b.studentName}</strong>
                         <span className="text-gray-500 text-[10px] block mt-0.5 truncate">{b.title} ({b.category || 'Lain-lain'})</span>
-                        <span className="text-emerald-800 font-extrabold block mt-0.5 font-mono">Rp {b.amount.toLocaleString('id-ID')}</span>
+                        <span className="text-emerald-800 font-extrabold block mt-0.5 font-mono">Rp {(Number(b.amount) || 0).toLocaleString('id-ID')}</span>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -6749,19 +6826,11 @@ export default function AdminDashboard({
                         Detail & Log AI </button>
 
                       <button
-                        onClick={() => {
-                          triggerConfirm(
-                            'Hapus Tagihan',
-                            `Yakin ingin menghapus tagihan milik ${b.studentName} sebesar Rp ${b.amount.toLocaleString()} ini?`,
-                            () => {
-                              setBills(bills.filter(bill => bill.id !== b.id));
-                              showAlert('success', 'Tagihan dihapus.');
-                            }
-                          );
-                        }}
-                        className="text-red-500 hover:underline text-[9px] block text-center mt-1 w-full cursor-pointer"
+                        type="button"
+                        onClick={() => handleDeleteBill(b.id, b.studentName, Number(b.amount) || 0)}
+                        className="text-red-500 hover:text-red-700 hover:underline text-[9px] font-bold block text-center mt-1 w-full cursor-pointer py-0.5"
                       >
-                        Hapus
+                        Hapus Tagihan
                       </button>
                     </div>
                   </div>
@@ -6936,25 +7005,26 @@ export default function AdminDashboard({
               <div className="space-y-3">
                 {(editSettings.rekeningList || []).length > 0 ? (
                   (editSettings.rekeningList || []).map((rek) => {
+                    const bName = (rek.bankName || '').toLowerCase();
                     const isEWallet = rek.type === 'ewallet' || 
-                      rek.bankName.toLowerCase().includes('wallet') || 
-                      rek.bankName.toLowerCase().includes('dana') || 
-                      rek.bankName.toLowerCase().includes('gopay') || 
-                      rek.bankName.toLowerCase().includes('qris') ||
-                      rek.bankName.toLowerCase().includes('ovo') ||
-                      rek.bankName.toLowerCase().includes('shopeepay');
+                      bName.includes('wallet') || 
+                      bName.includes('dana') || 
+                      bName.includes('gopay') || 
+                      bName.includes('qris') ||
+                      bName.includes('ovo') ||
+                      bName.includes('shopeepay');
 
                     const bankShort = isEWallet ? (
-                      rek.bankName.toLowerCase().includes('dana') ? 'DANA' :
-                      rek.bankName.toLowerCase().includes('gopay') ? 'GOPAY' :
-                      rek.bankName.toLowerCase().includes('ovo') ? 'OVO' :
-                      rek.bankName.toLowerCase().includes('qris') ? 'QRIS' : 'E-WALL'
+                      bName.includes('dana') ? 'DANA' :
+                      bName.includes('gopay') ? 'GOPAY' :
+                      bName.includes('ovo') ? 'OVO' :
+                      bName.includes('qris') ? 'QRIS' : 'E-WALL'
                     ) : (
-                      rek.bankName.includes('Syariah Indonesia') ? 'BSI' :
-                      rek.bankName.includes('Rakyat Indonesia') ? 'BRI' :
-                      rek.bankName.includes('Negara Indonesia') ? 'BNI' :
-                      rek.bankName.includes('Central Asia') ? 'BCA' :
-                      rek.bankName.includes('Mandiri') ? 'MANDIRI' : 'BANK'
+                      (rek.bankName || '').includes('Syariah Indonesia') ? 'BSI' :
+                      (rek.bankName || '').includes('Rakyat Indonesia') ? 'BRI' :
+                      (rek.bankName || '').includes('Negara Indonesia') ? 'BNI' :
+                      (rek.bankName || '').includes('Central Asia') ? 'BCA' :
+                      (rek.bankName || '').includes('Mandiri') ? 'MANDIRI' : 'BANK'
                     );
                     
                     const logoBg = isEWallet ? 'bg-indigo-50 text-indigo-800 border-indigo-200' :
@@ -7012,9 +7082,8 @@ export default function AdminDashboard({
                                     updatedList[0].isMain = true;
                                   }
                                   const updatedSettings = { ...editSettings, rekeningList: updatedList };
-                                  setEditSettings(updatedSettings);
-                                  setSettings(updatedSettings);
-                                  showAlert('success', 'Rekening berhasil dihapus!');
+                                  updateAndPersistSettings(updatedSettings);
+                                  showAlert('success', 'Rekening berhasil dihapus & tersimpan!');
                                 }
                               );
                             }}
@@ -7079,8 +7148,8 @@ export default function AdminDashboard({
                     onChange={(e) => {
                       const nextGender = e.target.value as 'Laki-laki' | 'Perempuan';
                       setNewStdGender(nextGender);
-                      const match = (rooms || []).find(r => r.gender === nextGender);
-                      if (match) {
+                      const match = (rooms || []).find(r => r && r.gender === nextGender);
+                      if (match && match.name) {
                         setNewStdKamar(match.name);
                       }
                     }}
@@ -7338,7 +7407,7 @@ export default function AdminDashboard({
                     Sekolah Formal (Sore)
                   </h4>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                    {availableFormalClasses.length} Pilihan
+                    {(availableFormalClasses || []).length} Pilihan
                   </span>
                 </div>
 
@@ -7350,14 +7419,14 @@ export default function AdminDashboard({
                     const input = form.elements.namedItem('newFormalClass') as HTMLInputElement;
                     const val = input.value.trim();
                     if (!val) return;
-                    if (availableFormalClasses.includes(val)) {
+                    if ((availableFormalClasses || []).includes(val)) {
                       showAlert('danger', `Kelas "${val}" sudah ada dalam pilihan!`);
                       return;
                     }
-                    const updated = [...availableFormalClasses, val];
+                    const updated = [...(availableFormalClasses || []), val];
                     setAvailableFormalClasses(updated);
                     localStorage.setItem('pesantren_available_formal_classes', JSON.stringify(updated));
-                    pushMasterClassesToSupabase({ formal: updated, madrasah: availableMadrasahClasses }).catch(console.error);
+                    pushMasterClassesToSupabase({ formal: updated, madrasah: availableMadrasahClasses || [] }).catch(console.error);
                     setEditSettings(prev => ({ ...prev, availableFormalClasses: updated }));
                     window.dispatchEvent(new Event('pesantren_settings_updated'));
                     logAdminActivity('TAMBAH_MASTER_KELAS', `Menambahkan master kelas formal: ${val}`);
@@ -7384,7 +7453,7 @@ export default function AdminDashboard({
 
                 {/* List Kelas Formal */}
                 <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                  {availableFormalClasses.map((cls) => (
+                  {(availableFormalClasses || []).map((cls) => (
                     <div
                       key={cls}
                       className="bg-white px-3 py-2 rounded-lg border border-slate-100 flex items-center justify-between text-xs font-bold hover:bg-emerald-50/10 transition"
@@ -7393,7 +7462,7 @@ export default function AdminDashboard({
                       <button
                         type="button"
                         onClick={() => {
-                          if (availableFormalClasses.length <= 1) {
+                          if ((availableFormalClasses || []).length <= 1) {
                             showAlert('danger', 'Minimal harus ada 1 pilihan kelas formal!');
                             return;
                           }
@@ -7401,10 +7470,10 @@ export default function AdminDashboard({
                             'Hapus Master Kelas',
                             `Apakah Anda yakin ingin menghapus master kelas "${cls}"?`,
                             () => {
-                              const updated = availableFormalClasses.filter((c) => c !== cls);
+                              const updated = (availableFormalClasses || []).filter((c) => c !== cls);
                               setAvailableFormalClasses(updated);
                               localStorage.setItem('pesantren_available_formal_classes', JSON.stringify(updated));
-                              pushMasterClassesToSupabase({ formal: updated, madrasah: availableMadrasahClasses }).catch(console.error);
+                              pushMasterClassesToSupabase({ formal: updated, madrasah: availableMadrasahClasses || [] }).catch(console.error);
                               setEditSettings(prev => ({ ...prev, availableFormalClasses: updated }));
                               window.dispatchEvent(new Event('pesantren_settings_updated'));
                               logAdminActivity('HAPUS_MASTER_KELAS', `Menghapus master kelas formal: ${cls}`);
@@ -7429,7 +7498,7 @@ export default function AdminDashboard({
                     Madrasah Diniyah (Pagi)
                   </h4>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                    {availableMadrasahClasses.length} Pilihan
+                    {(availableMadrasahClasses || []).length} Pilihan
                   </span>
                 </div>
 
@@ -7441,14 +7510,14 @@ export default function AdminDashboard({
                     const input = form.elements.namedItem('newMadrasahClass') as HTMLInputElement;
                     const val = input.value.trim();
                     if (!val) return;
-                    if (availableMadrasahClasses.includes(val)) {
+                    if ((availableMadrasahClasses || []).includes(val)) {
                       showAlert('danger', `Kelas "${val}" sudah ada dalam pilihan!`);
                       return;
                     }
-                    const updated = [...availableMadrasahClasses, val];
+                    const updated = [...(availableMadrasahClasses || []), val];
                     setAvailableMadrasahClasses(updated);
                     localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(updated));
-                    pushMasterClassesToSupabase({ formal: availableFormalClasses, madrasah: updated }).catch(console.error);
+                    pushMasterClassesToSupabase({ formal: availableFormalClasses || [], madrasah: updated }).catch(console.error);
                     setEditSettings(prev => ({ ...prev, availableMadrasahClasses: updated }));
                     window.dispatchEvent(new Event('pesantren_settings_updated'));
                     logAdminActivity('TAMBAH_MASTER_KELAS', `Menambahkan master kelas madrasah: ${val}`);
@@ -10784,10 +10853,26 @@ export default function AdminDashboard({
                 type="button"
                 disabled={tightDeleteInputName !== tightDeleteStudent.fullName || tightDeleteInputCode !== 'HAPUS-SANTRI-PERMANEN-ALASYARIYAH'}
                 onClick={() => {
-                  setStudents(students.filter(std => std.id !== tightDeleteStudent.id));
-                  setBills(bills.filter(b => b.studentId !== tightDeleteStudent.id));
-                  setTightDeleteStudent(null);
-                  showAlert('success', 'Data santri berhasil dihapus selamanya melalui prosedur ketat.');
+                  try {
+                    const stdId = tightDeleteStudent.id;
+                    const updatedStudents = students.filter(std => std.id !== stdId);
+                    const updatedBills = bills.filter(b => b.studentId !== stdId);
+                    setStudents(updatedStudents);
+                    setBills(updatedBills);
+                    localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
+                    localStorage.setItem('pesantren_bills', JSON.stringify(updatedBills));
+                    markLocalDataChanged('students');
+                    markLocalDataChanged('bills');
+                    if (isSupabaseConfigured()) {
+                      deleteStudentFromSupabase(stdId).catch(console.error);
+                    }
+                    window.dispatchEvent(new Event('pesantren_db_sync'));
+                    setTightDeleteStudent(null);
+                    showAlert('success', 'Data santri berhasil dihapus selamanya melalui prosedur ketat.');
+                  } catch (err) {
+                    console.error('Error deleting student:', err);
+                    showAlert('danger', 'Gagal memproses penghapusan santri.');
+                  }
                 }}
                 className={`px-5 py-2 font-black rounded-xl text-white transition ${
                   (tightDeleteInputName === tightDeleteStudent.fullName && tightDeleteInputCode === 'HAPUS-SANTRI-PERMANEN-ALASYARIYAH')
@@ -10956,6 +11041,7 @@ export default function AdminDashboard({
           </div>
         </div>
       )}
+          </ErrorBoundary>
         </motion.div>
       </AnimatePresence>
 
@@ -12403,12 +12489,18 @@ export default function AdminDashboard({
         </div>
       )}
 
-      {/* Custom Confirmation Modal (Iframe safe) */}
+      {/* Custom Confirmation Modal (Iframe safe & high z-index) */}
       {confirmDialog && confirmDialog.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm font-sans">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-slate-100 text-left space-y-4 animate-fade-in my-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center gap-3 text-red-650">
-              <span className="text-2xl">️</span>
+        <div 
+          onClick={() => setConfirmDialog(null)}
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm font-sans"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-slate-150 text-left space-y-4 animate-fade-in my-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center gap-3 text-red-600">
+              <span className="text-2xl">⚠️</span>
               <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wide">{confirmDialog.title}</h3>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed font-semibold">
@@ -12418,13 +12510,21 @@ export default function AdminDashboard({
               <button
                 type="button"
                 onClick={() => {
-                  confirmDialog.onConfirm();
-                  setConfirmDialog(null);
+                  try {
+                    confirmDialog.onConfirm();
+                  } catch (e) {
+                    console.error('Error executing confirm dialog action:', e);
+                  } finally {
+                    setConfirmDialog(null);
+                  }
                 }}
-                className="px-4 py-2.5 bg-emerald-750 hover:bg-emerald-800 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer flex-1 text-center shadow-md transition border border-emerald-600 flex items-center justify-center gap-1.5"
+                className={`px-4 py-2.5 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer flex-1 text-center shadow-md transition flex items-center justify-center gap-1.5 ${
+                  confirmDialog.title.toLowerCase().includes('hapus') 
+                    ? 'bg-red-600 hover:bg-red-700 border border-red-700' 
+                    : 'bg-emerald-700 hover:bg-emerald-800 border border-emerald-700'
+                }`}
               >
-                
-                <span>Konfirmasi & Lanjutkan</span>
+                <span>{confirmDialog.title.toLowerCase().includes('hapus') ? 'Ya, Hapus Sekarang' : 'Konfirmasi & Lanjutkan'}</span>
               </button>
               <button
                 type="button"
