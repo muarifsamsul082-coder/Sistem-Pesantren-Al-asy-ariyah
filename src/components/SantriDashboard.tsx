@@ -8,20 +8,11 @@ import {
 import { Student, Bill, Announcement, PortalSettings, SecurityLog, compressImage } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
 import { isSupabaseConfigured, pushStudentToSupabase, pushBillToSupabase, markLocalDataChanged } from '../lib/supabase';
+import { generateDynamicQrisString, getUniqueTransferCode } from '../lib/qris';
 
 const isImageUrl = (str?: string): boolean => {
   if (!str) return false;
   return str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/') || str.startsWith('data:image/');
-};
-
-// Deterministic unique 3-digit transfer code between 100 and 500
-const getUniqueTransferCode = (billId: string, baseAmount: number): number => {
-  let hash = 0;
-  for (let i = 0; i < billId.length; i++) {
-    hash = (hash * 31 + billId.charCodeAt(i)) % 401;
-  }
-  // Code range: 100 to 500 (inclusive)
-  return 100 + (Math.abs(hash) % 401);
 };
 
 const getCityFromAddress = (addressStr?: string) => {
@@ -117,11 +108,21 @@ export default function SantriDashboard({
       setQrCodeDataUrl('');
       return;
     }
-    const qrString = `TRANSFER ONLINE PESANTREN\nBANK: ${currentRekening.bankName}\nNO. REKENING: ${currentRekening.accountNumber}\nPENERIMA: ${currentRekening.accountName}\nTOTAL TRANSFER: Rp ${finalTransferAmount.toLocaleString('id-ID')}\nKODE UNIK: ${uniqueCode}\nTAGIHAN: ${selectedBill.title}\nSANTRI: ${student.fullName} (NIS: ${student.nis})`;
+    // Dynamic QRIS Payload with embedded exact nominal amount for instant payment scanning in DANA, GoPay, and m-banking
+    const qrisPayload = generateDynamicQrisString({
+      merchantName: settings.schoolName || 'PONPES AL-ASYARIYAH',
+      merchantCity: getCityFromAddress(settings.address) || 'SEMARANG',
+      amount: finalTransferAmount,
+      billId: String(selectedBill.id),
+      bankName: currentRekening.bankName,
+      accountNumber: currentRekening.accountNumber,
+      accountName: currentRekening.accountName
+    });
     
-    QRCode.toDataURL(qrString, {
-      width: 260,
-      margin: 1,
+    QRCode.toDataURL(qrisPayload, {
+      width: 280,
+      margin: 2,
+      errorCorrectionLevel: 'M',
       color: {
         dark: '#064e3b',
         light: '#ffffff',
@@ -129,7 +130,7 @@ export default function SantriDashboard({
     })
       .then(url => setQrCodeDataUrl(url))
       .catch(err => console.error('Failed to generate transfer QR code:', err));
-  }, [selectedBill, currentRekening, finalTransferAmount, uniqueCode, student.fullName, student.nis]);
+  }, [selectedBill, currentRekening, finalTransferAmount, uniqueCode, student.fullName, student.nis, settings.schoolName, settings.address]);
 
   // Initialize selection when opening bill
   React.useEffect(() => {
@@ -693,30 +694,40 @@ export default function SantriDashboard({
                         </div>
 
                         {/* QR CODE DISPLAY LANGSUNG SESUAI BANK DAN JUMLAH */}
-                        <div className="p-4 bg-emerald-50/60 rounded-2xl border-2 border-dashed border-emerald-400/80 space-y-3">
-                          <div className="flex items-center justify-between">
+                        <div className="p-4 bg-emerald-50/70 rounded-2xl border-2 border-dashed border-emerald-400/90 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex items-center gap-1.5">
                               <QrCode className="h-4 w-4 text-emerald-800" />
                               <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
-                                QR Code Transfer {currentRekening.bankName}
+                                QR Transfer {currentRekening.bankName} (QRIS Dinamis)
                               </span>
                             </div>
-                            <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
-                              Siap Scan
+                            <span className="text-[9.5px] font-mono font-black text-emerald-850 bg-emerald-200/80 border border-emerald-300 px-2 py-0.5 rounded-full shadow-2xs">
+                              ✓ Nominal Otomatis Terisi
                             </span>
+                          </div>
+
+                          <div className="p-2.5 bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-xl text-[10.5px] space-y-1 shadow-xs border border-emerald-700/60">
+                            <div className="flex items-center gap-1 text-amber-300 font-extrabold text-[11px]">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              <span>Scan Langsung via DANA / Mobile Banking</span>
+                            </div>
+                            <p className="text-emerald-100/90 leading-relaxed font-sans">
+                              Scan kode QR di bawah menggunakan kamera scan aplikasi <strong>DANA</strong>, <strong>BCA Mobile</strong>, <strong>Livin by Mandiri</strong>, <strong>BRImo</strong>, <strong>BNI Mobile</strong>, atau <strong>GoPay</strong>. Nominal pembayaran tagihan khusus <strong>Rp {finalTransferAmount.toLocaleString('id-ID')}</strong> akan langsung otomatis muncul di layar ponsel!
+                            </p>
                           </div>
 
                           <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3.5 rounded-xl border border-emerald-100 shadow-2xs">
                             {/* QR Code Canvas/Image */}
-                            <div className="shrink-0 bg-white p-2 rounded-xl border border-emerald-200 shadow-xs flex flex-col items-center">
+                            <div className="shrink-0 bg-white p-2.5 rounded-xl border border-emerald-200 shadow-xs flex flex-col items-center">
                               {qrCodeDataUrl ? (
                                 <img 
                                   src={qrCodeDataUrl} 
-                                  alt={`QR Transfer ${currentRekening.bankName}`} 
-                                  className="w-36 h-36 object-contain" 
+                                  alt={`QR Transfer ${currentRekening.bankName} Rp ${finalTransferAmount}`} 
+                                  className="w-40 h-40 object-contain" 
                                 />
                               ) : (
-                                <div className="w-36 h-36 bg-slate-100 animate-pulse rounded-lg flex items-center justify-center text-slate-400 font-mono text-[10px]">
+                                <div className="w-40 h-40 bg-slate-100 animate-pulse rounded-lg flex items-center justify-center text-slate-400 font-mono text-[10px]">
                                   Membuat QR...
                                 </div>
                               )}
@@ -724,9 +735,9 @@ export default function SantriDashboard({
                                 <a
                                   href={qrCodeDataUrl}
                                   download={`QR_Transfer_${currentRekening.bankName.replace(/\s+/g, '_')}_${finalTransferAmount}.png`}
-                                  className="mt-2 text-[9px] font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 transition"
+                                  className="mt-2 text-[9.5px] font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 transition"
                                 >
-                                  <Download className="h-3 w-3" /> Unduh QR
+                                  <Download className="h-3 w-3" /> Unduh Gambar QR
                                 </a>
                               )}
                             </div>
@@ -768,7 +779,7 @@ export default function SantriDashboard({
                                   </span>
                                 </div>
                                 <p className="text-[9.5px] text-amber-800 leading-tight">
-                                  Pastikan mentransfer tepat hingga 3 digit terakhir (**Rp {finalTransferAmount.toLocaleString('id-ID')}**) agar otomatis terverifikasi.
+                                  Pastikan mentransfer tepat hingga 3 digit kode unik (**Rp {finalTransferAmount.toLocaleString('id-ID')}**) agar otomatis terverifikasi sistem.
                                 </p>
                               </div>
                             </div>
@@ -1234,25 +1245,14 @@ export default function SantriDashboard({
 
                 <div className="flex justify-end">
                   {/* Posisi Kanan Model Rata Kiri */}
-                  <div className="text-left space-y-1 relative w-[280px] pl-2 font-sans">
+                  <div className="text-left space-y-1 relative w-[290px] font-sans">
                     <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
                     <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, Bendahara Pesantren</p>
                     
                     <div className="h-24 w-full relative flex items-center justify-start select-none py-1">
-                      {/* Tanda tangan rendered in background */}
-                      <div className="z-10 relative flex items-center justify-start">
-                        {isImageUrl(settings.ttdBendaharaUrl || settings.ttdPengurusUrl) ? (
-                          <img src={settings.ttdBendaharaUrl || settings.ttdPengurusUrl} alt="TTD Pengurus" className="h-20 max-w-[200px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
-                        ) : (
-                          <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
-                            {settings.ttdBendaharaUrl || settings.ttdPengurusUrl || 'Bendahara Pesantren'}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Stempel rendered on top overlapping */}
+                      {/* Stempel: Berada di SEBELAH KIRI tanda tangan */}
                       {(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) && (
-                        <div className="z-20 absolute left-[65px] top-[-5px] pointer-events-none opacity-85">
+                        <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
                           {isImageUrl(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) ? (
                             <img src={settings.stempelBendaharaUrl || settings.stempelPesantrenUrl} alt="Stempel Pesantren" className="h-24 w-24 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
@@ -1262,6 +1262,17 @@ export default function SantriDashboard({
                           )}
                         </div>
                       )}
+
+                      {/* Tanda tangan: Berada di sebelah kanan stempel dengan teks rata kiri */}
+                      <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+                        {isImageUrl(settings.ttdBendaharaUrl || settings.ttdPengurusUrl) ? (
+                          <img src={settings.ttdBendaharaUrl || settings.ttdPengurusUrl} alt="TTD Pengurus" className="h-20 max-w-[190px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
+                            {settings.ttdBendaharaUrl || settings.ttdPengurusUrl || 'Bendahara Pesantren'}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{settings.namaBendahara || settings.namaPengurus || 'Ustadzah Siti Aminah'}</p>

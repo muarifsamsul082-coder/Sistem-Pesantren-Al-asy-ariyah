@@ -1327,38 +1327,50 @@ export default function StaffDashboard({
                           </p>
                         </div>
 
-                        {/* Signature Block */}
-                        <div className="grid grid-cols-2 gap-4 border-t border-dashed border-slate-300 mt-6 pt-4 font-sans text-center">
-                          <div className="flex flex-col items-center justify-center text-center">
-                            {isImageUrl(getStaffConfig('keamanan').seal) ? (
-                              <img 
-                                src={getStaffConfig('keamanan').seal} 
-                                alt="Stempel Keamanan" 
-                                className="h-14 object-contain rotate-[-6deg] select-none mix-blend-multiply" 
-                                referrerPolicy="no-referrer" 
-                              />
-                            ) : (
-                              <div className="border border-emerald-600 border-dashed rounded p-1 text-[8px] uppercase font-mono font-black text-emerald-800 rotate-[-6deg] max-w-[124px] leading-tight mb-2">
-                                {getStaffConfig('keamanan').seal || '️ STEMPEL KEAMANAN'}
-                              </div>
-                            )}
-                          </div>
-                          <div className="space-y-0.5 text-right pr-6">
-                            <p className="text-[10px] text-slate-400">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toISOString().split('T')[0]}</p>
-                            <p className="text-[10px] text-emerald-950 font-black uppercase tracking-wide text-right">Mengetahui, Kabid Keamanan</p>
-                            <div className="h-8 flex items-center justify-end text-xs font-mono text-emerald-850 italic font-bold">
-                              {isImageUrl(getStaffConfig('keamanan').signature) ? (
-                                <img 
-                                  src={getStaffConfig('keamanan').signature} 
-                                  alt="Tanda Tangan" 
-                                  className="h-7 object-contain select-none" 
-                                  referrerPolicy="no-referrer" 
-                                />
-                              ) : (
-                                <span>{getStaffConfig('keamanan').signature || 'M. Hasanuddin'}</span>
+                        {/* Signature Block: 1 penanda tangan di sebelah kanan rata kiri, stempel di sebelah kiri */}
+                        <div className="border-t border-dashed border-slate-300 mt-6 pt-4 flex justify-end font-sans">
+                          <div className="w-[300px] text-left space-y-1 relative">
+                            <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toISOString().split('T')[0]}</p>
+                            <p className="text-[10px] text-emerald-950 font-bold uppercase tracking-wider">Mengetahui, Kabid Keamanan</p>
+
+                            <div className="h-20 w-full relative flex items-center justify-start select-none py-1">
+                              {/* Stempel: Berada di SEBELAH KIRI tanda tangan */}
+                              {(getStaffConfig('keamanan').seal) && (
+                                <div className="z-20 absolute -left-10 top-0 pointer-events-none opacity-85">
+                                  {isImageUrl(getStaffConfig('keamanan').seal) ? (
+                                    <img 
+                                      src={getStaffConfig('keamanan').seal} 
+                                      alt="Stempel Keamanan" 
+                                      className="h-20 w-20 object-contain rotate-[-6deg] select-none mix-blend-multiply" 
+                                      referrerPolicy="no-referrer" 
+                                    />
+                                  ) : (
+                                    <div className="border border-emerald-600 border-dashed rounded p-1 text-[8px] uppercase font-mono font-black text-emerald-800 rotate-[-6deg] max-w-[124px] leading-tight mb-2 bg-white/80">
+                                      {getStaffConfig('keamanan').seal || 'STEMPEL KEAMANAN'}
+                                    </div>
+                                  )}
+                                </div>
                               )}
+
+                              {/* Tanda tangan: Berada di sebelah kanan stempel dengan teks rata kiri */}
+                              <div className="z-10 relative flex items-center justify-start pl-10">
+                                {isImageUrl(getStaffConfig('keamanan').signature) ? (
+                                  <img 
+                                    src={getStaffConfig('keamanan').signature} 
+                                    alt="Tanda Tangan" 
+                                    className="h-16 max-w-[190px] object-contain select-none mix-blend-multiply" 
+                                    referrerPolicy="no-referrer" 
+                                  />
+                                ) : (
+                                  <span className="text-sm font-serif italic text-emerald-900 font-bold underline">
+                                    {getStaffConfig('keamanan').signature || 'M. Hasanuddin'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-[11px] font-bold text-slate-900 underline leading-none text-right">{deptName || getStaffConfig('keamanan').name || session?.fullName || 'Ustadz Pengurus Keamanan'}</p>
+
+                            <p className="text-xs font-black text-slate-900 underline leading-none uppercase">{deptName || getStaffConfig('keamanan').name || session?.fullName || 'Ustadz Pengurus Keamanan'}</p>
+                            <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Kepala Bidang Keamanan & Ketertiban</p>
                           </div>
                         </div>
                       </>
@@ -2744,23 +2756,23 @@ export default function StaffDashboard({
                   
                   {/* TTD and overlapping Stempel */}
                   <div className="min-h-[88px] w-full relative flex items-center justify-start select-none py-1">
-                    {/* TTD in background */}
-                    <div className="z-10 relative flex items-center justify-start">
-                      {isImageUrl(config.signature) ? (
-                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'Syarifudin'}</span>
-                      )}
-                    </div>
-
-                    {/* Overlapping Stempel */}
-                    <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
+                    {/* Stempel on the LEFT */}
+                    <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
                       {isImageUrl(config.seal) ? (
                         <img src={config.seal} alt="Stempel Biro" className="h-24 w-24 object-contain select-none mix-blend-multiply rotate-[-6deg]" referrerPolicy="no-referrer" />
                       ) : (
                         <div className="border border-indigo-600 border-double rounded h-16 w-16 flex items-center justify-center text-[7px] uppercase select-none font-bold text-indigo-800 rotate-[-6deg] leading-tight text-center bg-white/75">
                           TTD
                         </div>
+                      )}
+                    </div>
+
+                    {/* TTD in background */}
+                    <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+                      {isImageUrl(config.signature) ? (
+                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'Syarifudin'}</span>
                       )}
                     </div>
                   </div>
@@ -2899,23 +2911,23 @@ export default function StaffDashboard({
                   
                   {/* TTD and overlapping Stempel */}
                   <div className="min-h-[88px] w-full relative flex items-center justify-start select-none py-1">
-                    {/* TTD in background */}
-                    <div className="z-10 relative flex items-center justify-start">
-                      {isImageUrl(config.signature) ? (
-                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'M. Hasanuddin'}</span>
-                      )}
-                    </div>
-
-                    {/* Overlapping Stempel */}
-                    <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
+                    {/* Stempel on the LEFT */}
+                    <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
                       {isImageUrl(config.seal) ? (
                         <img src={config.seal} alt="Stempel Biro" className="h-24 w-24 object-contain select-none mix-blend-multiply rotate-[-5deg]" referrerPolicy="no-referrer" />
                       ) : (
                         <div className="border border-emerald-600 border-double rounded h-16 w-16 flex items-center justify-center text-[7px] uppercase select-none font-bold text-emerald-800 rotate-[-5deg] leading-tight text-center bg-white/75">
                           TTD
                         </div>
+                      )}
+                    </div>
+
+                    {/* TTD in background */}
+                    <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+                      {isImageUrl(config.signature) ? (
+                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'M. Hasanuddin'}</span>
                       )}
                     </div>
                   </div>
@@ -3056,23 +3068,23 @@ export default function StaffDashboard({
                   
                   {/* TTD and overlapping Stempel */}
                   <div className="min-h-[88px] w-full relative flex items-center justify-start select-none py-1">
-                    {/* TTD in background */}
-                    <div className="z-10 relative flex items-center justify-start">
-                      {isImageUrl(config.signature) ? (
-                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'dr. Fatimah'}</span>
-                      )}
-                    </div>
-
-                    {/* Overlapping Stempel */}
-                    <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
+                    {/* Stempel on the LEFT */}
+                    <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
                       {isImageUrl(config.seal) ? (
                         <img src={config.seal} alt="Stempel Biro" className="h-24 w-24 object-contain select-none mix-blend-multiply rotate-[-4deg]" referrerPolicy="no-referrer" />
                       ) : (
                         <div className="border border-rose-600 border-double rounded h-16 w-16 flex items-center justify-center text-[7px] uppercase select-none font-bold text-rose-800 rotate-[-4deg] leading-tight text-center bg-white/75">
                           TTD
                         </div>
+                      )}
+                    </div>
+
+                    {/* TTD in background */}
+                    <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+                      {isImageUrl(config.signature) ? (
+                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'dr. Fatimah'}</span>
                       )}
                     </div>
                   </div>

@@ -57,6 +57,18 @@ export const DEFAULT_SETTINGS: PortalSettings = {
   ppdbOpen: true,
   ppdbStartDate: "",
   ppdbEndDate: "",
+  pcsbFeePendaftaran: 150000,
+  pcsbFeeSarpras: 1500000,
+  pcsbFeeSeragam: 750000,
+  pcsbFeeKitab: 450000,
+  pcsbFeeKesehatan: 350000,
+  pcsbFeeSyahriyah: 200000,
+  pcsbEnablePendaftaran: true,
+  pcsbEnableSarpras: true,
+  pcsbEnableSeragam: true,
+  pcsbEnableKitab: true,
+  pcsbEnableKesehatan: true,
+  pcsbEnableSyahriyah: true,
   pesantrenBankName: "",
   pesantrenBankAccountNumber: "",
   pesantrenBankAccountName: "",
@@ -451,7 +463,11 @@ export default function App() {
     const syncServerSettings = async () => {
       try {
         const currentLocal = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
-        if (isLocalDataRecentlyChanged('settings')) {
+        const lastModStr = localStorage.getItem('pesantren_settings_last_modified');
+        const lastModTime = lastModStr ? parseInt(lastModStr, 10) : 0;
+        const isLocallyModifiedRecently = (Date.now() - lastModTime < 35000) || isLocalDataRecentlyChanged('settings');
+
+        if (isLocallyModifiedRecently) {
           // If locally changed recently, push local settings to server rather than overwriting
           fetch('/api/settings', {
             method: 'POST',
@@ -466,12 +482,14 @@ export default function App() {
           const json = await res.json();
           if (json && json.success && json.settings) {
             const remoteSettings = json.settings;
+            // Merge order: DEFAULT -> remoteSettings -> currentLocal (local modifications preserved)
             const mergedSettings: PortalSettings = {
-              ...currentLocal,
+              ...DEFAULT_SETTINGS,
               ...remoteSettings,
-              ppdbOpen: typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : currentLocal.ppdbOpen,
-              ppdbStartDate: remoteSettings.ppdbStartDate !== undefined ? remoteSettings.ppdbStartDate : (currentLocal.ppdbStartDate || ''),
-              ppdbEndDate: remoteSettings.ppdbEndDate !== undefined ? remoteSettings.ppdbEndDate : (currentLocal.ppdbEndDate || ''),
+              ...currentLocal,
+              ppdbOpen: typeof currentLocal.ppdbOpen === 'boolean' ? currentLocal.ppdbOpen : (typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : DEFAULT_SETTINGS.ppdbOpen),
+              ppdbStartDate: currentLocal.ppdbStartDate || remoteSettings.ppdbStartDate || '',
+              ppdbEndDate: currentLocal.ppdbEndDate || remoteSettings.ppdbEndDate || '',
             };
             const adjusted = autoAdjustPpdbSettings(mergedSettings);
             setSettings(adjusted);
@@ -797,13 +815,18 @@ export default function App() {
       refreshCloudData();
     };
 
+    const handleSettingsUpdated = () => {
+      const current = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
+      setSettings(autoAdjustPpdbSettings(current));
+    };
+
     const handleWindowFocus = () => {
       refreshCloudData();
     };
 
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('pesantren_db_sync', handleStorageChange);
-    window.addEventListener('pesantren_settings_updated', handleStorageChange);
+    window.addEventListener('pesantren_settings_updated', handleSettingsUpdated);
     window.addEventListener('focus', handleWindowFocus);
 
     // Restore login session: use sessionStorage with localStorage fallback so closing tab or refreshing never abruptly kicks user out
@@ -867,7 +890,7 @@ export default function App() {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('pesantren_db_sync', handleStorageChange);
-      window.removeEventListener('pesantren_settings_updated', handleStorageChange);
+      window.removeEventListener('pesantren_settings_updated', handleSettingsUpdated);
       window.removeEventListener('focus', handleWindowFocus);
       if (realtimeChannel) realtimeChannel.unsubscribe();
       if (intervalId) clearInterval(intervalId);
@@ -1279,7 +1302,7 @@ export default function App() {
           )}
 
           {currentView === 'profile' && (
-            <div className="flex-grow flex flex-col bg-slate-50">
+            <div className="flex-grow flex flex-col bg-emerald-950">
               <PublicPortal 
                 news={news}
                 announcements={announcements}
@@ -1294,7 +1317,7 @@ export default function App() {
           )}
 
           {currentView === 'news' && (
-            <div className="flex-grow flex flex-col bg-slate-50 py-8">
+            <div className="flex-grow flex flex-col bg-emerald-950 py-8">
               <PublicPortal 
                 news={news}
                 announcements={announcements}
@@ -1309,7 +1332,7 @@ export default function App() {
           )}
 
           {currentView === 'announcements' && (
-            <div className="flex-grow flex flex-col bg-slate-50 py-8">
+            <div className="flex-grow flex flex-col bg-emerald-950 py-8">
               <PublicPortal 
                 news={news}
                 announcements={announcements}

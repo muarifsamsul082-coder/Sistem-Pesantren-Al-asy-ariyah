@@ -1250,6 +1250,40 @@ export default function AdminDashboard({
   const [saveStatus, setSaveStatus] = React.useState<'saved' | 'saving' | 'idle'>('idle');
   const [isSettingsDirty, setIsSettingsDirty] = React.useState(false);
 
+  // Local draft state for PPDB Fee Settings in Bills tab to prevent bounce-back ("mental") while typing or toggling
+  const [pcsbFeeDraft, setPcsbFeeDraft] = React.useState<Record<string, number | string>>({});
+  const [feeSaveFeedback, setFeeSaveFeedback] = React.useState<string | null>(null);
+
+  const getFeeInputValue = (key: string, defaultVal: number): number | string => {
+    if (pcsbFeeDraft[key] !== undefined) return pcsbFeeDraft[key];
+    const settingVal = (settings as any)[key];
+    return settingVal !== undefined ? settingVal : defaultVal;
+  };
+
+  const handleFeeInputChange = (key: string, val: string) => {
+    setPcsbFeeDraft(prev => ({ ...prev, [key]: val }));
+  };
+
+  const handleFeeInputCommit = (key: keyof PortalSettings, val: string | number, defaultVal: number) => {
+    const num = typeof val === 'number' ? val : (val === '' ? defaultVal : Number(val));
+    setPcsbFeeDraft(prev => ({ ...prev, [key]: num }));
+    updateAndPersistSettings({
+      ...settings,
+      [key]: num
+    });
+    setFeeSaveFeedback('✓ Tersimpan');
+    setTimeout(() => setFeeSaveFeedback(null), 2500);
+  };
+
+  const handleFeeToggle = (key: keyof PortalSettings, checked: boolean) => {
+    updateAndPersistSettings({
+      ...settings,
+      [key]: checked
+    });
+    setFeeSaveFeedback('✓ Tersimpan');
+    setTimeout(() => setFeeSaveFeedback(null), 2500);
+  };
+
   // Sync editSettings with upstream settings only if user does not have un-saved local changes
   React.useEffect(() => {
     if (!isSettingsDirty) {
@@ -1604,21 +1638,21 @@ export default function AdminDashboard({
             <p class="text-xs text-slate-900 font-bold uppercase tracking-wide mt-1">Pengasuh Pesantren</p>
 
             <div class="relative min-h-[92px] w-full flex items-center justify-start my-1">
-              <!-- Wet Signature: diperbesar sesuai lebar tanda tangan -->
-              <div class="z-10 relative flex items-center justify-start">
+              <!-- Stempel: Berada di sebelah kiri tanda tangan -->
+              ${settings.stempelPengasuhUrl 
+                ? `<div class="z-20 absolute -left-8 sm:-left-10 -top-1 pointer-events-none opacity-85">
+                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" />
+                   </div>`
+                : ''
+              }
+
+              <!-- Wet Signature: sebelah kanan stempel dengan teks rata kiri -->
+              <div class="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
                 ${settings.ttdPengasuhUrl 
                   ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-22 max-w-[210px] object-contain mix-blend-multiply" />`
                   : `<span class="text-sm font-serif italic text-slate-900 font-bold underline">${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
                 }
               </div>
-
-              <!-- Overlapping Stamp: disesuaikan menyatu dengan TTD -->
-              ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
-                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" />
-                   </div>`
-                : ''
-              }
             </div>
 
             <!-- Nama Pengasuh: Rata Kiri -->
@@ -1828,21 +1862,21 @@ export default function AdminDashboard({
             <p class="text-xs text-slate-900 font-bold uppercase tracking-wide mt-1">Pengasuh Pesantren</p>
 
             <div class="relative min-h-[92px] w-full flex items-center justify-start my-1">
-              <!-- Wet signature: diperbesar sesuai lebar tanda tangan -->
-              <div class="z-10 relative flex items-center justify-start">
+              <!-- Stempel: Berada di sebelah kiri tanda tangan -->
+              ${settings.stempelPengasuhUrl 
+                ? `<div class="z-20 absolute -left-8 sm:-left-10 -top-1 pointer-events-none opacity-85">
+                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" />
+                   </div>`
+                : ''
+              }
+
+              <!-- Wet signature: sebelah kanan stempel dengan teks rata kiri -->
+              <div class="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
                 ${settings.ttdPengasuhUrl 
                   ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-22 max-w-[210px] object-contain mix-blend-multiply" />`
                   : `<span class="text-sm font-serif italic text-slate-900 font-bold underline">${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
                 }
               </div>
-
-              <!-- Overlapping Stamp: disesuaikan menyatu dengan TTD -->
-              ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
-                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" />
-                   </div>`
-                : ''
-              }
             </div>
 
             <!-- Nama Pengasuh: Rata Kiri -->
@@ -3255,17 +3289,25 @@ export default function AdminDashboard({
   };
 
   // Save Portal Settings
-    // Helper to immediately update and persist settings across local & cloud
+    // Helper to immediately update and persist settings across local, server & cloud
   const updateAndPersistSettings = (newSettings: PortalSettings) => {
     setSettings(newSettings);
     setEditSettings(newSettings);
     localStorage.setItem('pesantren_settings', JSON.stringify(newSettings));
+    localStorage.setItem('pesantren_settings_last_modified', String(Date.now()));
     markLocalDataChanged('settings');
+
+    // Immediately push to /api/settings server storage so background polling doesn't overwrite
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSettings)
+    }).catch(err => console.error('Server auto-save settings error:', err));
+
     if (isSupabaseConfigured()) {
       pushSettingsToSupabase(newSettings).catch(err => console.error('Cloud auto-save settings error:', err));
     }
     window.dispatchEvent(new Event('pesantren_settings_updated'));
-    window.dispatchEvent(new Event('pesantren_db_sync'));
   };
 
   const handleSaveSettings = (e: React.FormEvent) => {
@@ -6479,17 +6521,24 @@ export default function AdminDashboard({
 
             {/* Aturan Penagihan Santri Baru Card */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 space-y-4">
-              <h3 className="font-bold text-base text-emerald-950 flex items-center gap-1.5 border-b border-gray-100 pb-2">
-                <Settings className="h-4.5 w-4.5 text-emerald-700" />
-                Aturan Penagihan Santri Baru
-              </h3>
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                <h3 className="font-bold text-base text-emerald-950 flex items-center gap-1.5">
+                  <Settings className="h-4.5 w-4.5 text-emerald-700" />
+                  Aturan Penagihan Santri Baru
+                </h3>
+                {feeSaveFeedback && (
+                  <span className="text-[10px] font-mono font-black text-emerald-900 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full animate-fade-in">
+                    {feeSaveFeedback}
+                  </span>
+                )}
+              </div>
               
               <p className="text-[10px] text-gray-500 leading-normal">
-                Atur nominal biaya yang otomatis ditagihkan kepada calon santri baru saat pendaftarannya disetujui (diterima).
+                Atur nominal biaya yang otomatis ditagihkan kepada calon santri baru saat pendaftarannya disetujui (diterima). Nilai tersimpan permanen dan otomatis disinkronkan.
               </p>
               
               <div className="space-y-3.5 pt-1 text-xs">
-                {/* Biaya Pendaftaran */}
+                {/* 1. Biaya Pendaftaran */}
                 <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-[10.5px] font-bold text-emerald-950">1. Biaya Pendaftaran (PCSB)</label>
@@ -6497,12 +6546,7 @@ export default function AdminDashboard({
                       <input 
                         type="checkbox" 
                         checked={settings.pcsbEnablePendaftaran !== false}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbEnablePendaftaran: e.target.checked
-                          });
-                        }}
+                        onChange={(e) => handleFeeToggle('pcsbEnablePendaftaran', e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
@@ -6513,20 +6557,17 @@ export default function AdminDashboard({
                       <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
                       <input
                         type="number"
-                        value={settings.pcsbFeePendaftaran !== undefined ? settings.pcsbFeePendaftaran : 150000}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbFeePendaftaran: Number(e.target.value)
-                          });
-                        }}
+                        value={getFeeInputValue('pcsbFeePendaftaran', 150000)}
+                        onChange={(e) => handleFeeInputChange('pcsbFeePendaftaran', e.target.value)}
+                        onBlur={(e) => handleFeeInputCommit('pcsbFeePendaftaran', e.target.value, 150000)}
                         className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        placeholder="150000"
                       />
                     </div>
                   )}
                 </div>
 
-                {/* Infaq Sarpras */}
+                {/* 2. Infaq Sarpras */}
                 <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-[10.5px] font-bold text-emerald-950">2. Infaq Pengembangan Sarpras</label>
@@ -6534,12 +6575,7 @@ export default function AdminDashboard({
                       <input 
                         type="checkbox" 
                         checked={settings.pcsbEnableSarpras !== false}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbEnableSarpras: e.target.checked
-                          });
-                        }}
+                        onChange={(e) => handleFeeToggle('pcsbEnableSarpras', e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
@@ -6550,20 +6586,17 @@ export default function AdminDashboard({
                       <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
                       <input
                         type="number"
-                        value={settings.pcsbFeeSarpras !== undefined ? settings.pcsbFeeSarpras : 1500000}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbFeeSarpras: Number(e.target.value)
-                          });
-                        }}
+                        value={getFeeInputValue('pcsbFeeSarpras', 1500000)}
+                        onChange={(e) => handleFeeInputChange('pcsbFeeSarpras', e.target.value)}
+                        onBlur={(e) => handleFeeInputCommit('pcsbFeeSarpras', e.target.value, 1500000)}
                         className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        placeholder="1500000"
                       />
                     </div>
                   )}
                 </div>
 
-                {/* Seragam Resmi */}
+                {/* 3. Seragam Resmi */}
                 <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-[10.5px] font-bold text-emerald-950">3. Seragam & Atribut Santri</label>
@@ -6571,12 +6604,7 @@ export default function AdminDashboard({
                       <input 
                         type="checkbox" 
                         checked={settings.pcsbEnableSeragam !== false}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbEnableSeragam: e.target.checked
-                          });
-                        }}
+                        onChange={(e) => handleFeeToggle('pcsbEnableSeragam', e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
@@ -6587,20 +6615,17 @@ export default function AdminDashboard({
                       <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
                       <input
                         type="number"
-                        value={settings.pcsbFeeSeragam !== undefined ? settings.pcsbFeeSeragam : 750000}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbFeeSeragam: Number(e.target.value)
-                          });
-                        }}
+                        value={getFeeInputValue('pcsbFeeSeragam', 750000)}
+                        onChange={(e) => handleFeeInputChange('pcsbFeeSeragam', e.target.value)}
+                        onBlur={(e) => handleFeeInputCommit('pcsbFeeSeragam', e.target.value, 750000)}
                         className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        placeholder="750000"
                       />
                     </div>
                   )}
                 </div>
 
-                {/* Paket Kitab */}
+                {/* 4. Paket Kitab */}
                 <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-[10.5px] font-bold text-emerald-950">4. Paket Kitab Kuning & Buku</label>
@@ -6608,12 +6633,7 @@ export default function AdminDashboard({
                       <input 
                         type="checkbox" 
                         checked={settings.pcsbEnableKitab !== false}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbEnableKitab: e.target.checked
-                          });
-                        }}
+                        onChange={(e) => handleFeeToggle('pcsbEnableKitab', e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
@@ -6624,20 +6644,17 @@ export default function AdminDashboard({
                       <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
                       <input
                         type="number"
-                        value={settings.pcsbFeeKitab !== undefined ? settings.pcsbFeeKitab : 450000}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbFeeKitab: Number(e.target.value)
-                          });
-                        }}
+                        value={getFeeInputValue('pcsbFeeKitab', 450000)}
+                        onChange={(e) => handleFeeInputChange('pcsbFeeKitab', e.target.value)}
+                        onBlur={(e) => handleFeeInputCommit('pcsbFeeKitab', e.target.value, 450000)}
                         className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        placeholder="450000"
                       />
                     </div>
                   )}
                 </div>
 
-                {/* Kas Kesehatan */}
+                {/* 5. Kas Kesehatan */}
                 <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-[10.5px] font-bold text-emerald-950">5. Kas Kesehatan & Lemari</label>
@@ -6645,12 +6662,7 @@ export default function AdminDashboard({
                       <input 
                         type="checkbox" 
                         checked={settings.pcsbEnableKesehatan !== false}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbEnableKesehatan: e.target.checked
-                          });
-                        }}
+                        onChange={(e) => handleFeeToggle('pcsbEnableKesehatan', e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
@@ -6661,20 +6673,17 @@ export default function AdminDashboard({
                       <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
                       <input
                         type="number"
-                        value={settings.pcsbFeeKesehatan !== undefined ? settings.pcsbFeeKesehatan : 350000}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbFeeKesehatan: Number(e.target.value)
-                          });
-                        }}
+                        value={getFeeInputValue('pcsbFeeKesehatan', 350000)}
+                        onChange={(e) => handleFeeInputChange('pcsbFeeKesehatan', e.target.value)}
+                        onBlur={(e) => handleFeeInputCommit('pcsbFeeKesehatan', e.target.value, 350000)}
                         className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        placeholder="350000"
                       />
                     </div>
                   )}
                 </div>
 
-                {/* SPP Bulanan */}
+                {/* 6. SPP Bulanan */}
                 <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-[10.5px] font-bold text-emerald-950">6. SPP Bulanan (Syahriyah)</label>
@@ -6682,12 +6691,7 @@ export default function AdminDashboard({
                       <input 
                         type="checkbox" 
                         checked={settings.pcsbEnableSyahriyah !== false}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbEnableSyahriyah: e.target.checked
-                          });
-                        }}
+                        onChange={(e) => handleFeeToggle('pcsbEnableSyahriyah', e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
@@ -6698,18 +6702,54 @@ export default function AdminDashboard({
                       <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
                       <input
                         type="number"
-                        value={settings.pcsbFeeSyahriyah !== undefined ? settings.pcsbFeeSyahriyah : 200000}
-                        onChange={(e) => {
-                          updateAndPersistSettings({
-                            ...settings,
-                            pcsbFeeSyahriyah: Number(e.target.value)
-                          });
-                        }}
+                        value={getFeeInputValue('pcsbFeeSyahriyah', 200000)}
+                        onChange={(e) => handleFeeInputChange('pcsbFeeSyahriyah', e.target.value)}
+                        onBlur={(e) => handleFeeInputCommit('pcsbFeeSyahriyah', e.target.value, 200000)}
                         className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        placeholder="200000"
                       />
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Total Summary and Explicit Save Button */}
+              <div className="pt-3 border-t border-gray-150 space-y-2.5">
+                <div className="flex justify-between items-center text-xs font-bold text-emerald-950">
+                  <span>Total Tagihan Masuk Aktif:</span>
+                  <span className="font-mono text-emerald-800 text-sm">
+                    Rp {(
+                      ((settings.pcsbEnablePendaftaran !== false) ? Number(getFeeInputValue('pcsbFeePendaftaran', 150000)) : 0) +
+                      ((settings.pcsbEnableSarpras !== false) ? Number(getFeeInputValue('pcsbFeeSarpras', 1500000)) : 0) +
+                      ((settings.pcsbEnableSeragam !== false) ? Number(getFeeInputValue('pcsbFeeSeragam', 750000)) : 0) +
+                      ((settings.pcsbEnableKitab !== false) ? Number(getFeeInputValue('pcsbFeeKitab', 450000)) : 0) +
+                      ((settings.pcsbEnableKesehatan !== false) ? Number(getFeeInputValue('pcsbFeeKesehatan', 350000)) : 0) +
+                      ((settings.pcsbEnableSyahriyah !== false) ? Number(getFeeInputValue('pcsbFeeSyahriyah', 200000)) : 0)
+                    ).toLocaleString('id-ID')}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const commitSettings: PortalSettings = {
+                      ...settings,
+                      pcsbFeePendaftaran: Number(getFeeInputValue('pcsbFeePendaftaran', 150000)),
+                      pcsbFeeSarpras: Number(getFeeInputValue('pcsbFeeSarpras', 1500000)),
+                      pcsbFeeSeragam: Number(getFeeInputValue('pcsbFeeSeragam', 750000)),
+                      pcsbFeeKitab: Number(getFeeInputValue('pcsbFeeKitab', 450000)),
+                      pcsbFeeKesehatan: Number(getFeeInputValue('pcsbFeeKesehatan', 350000)),
+                      pcsbFeeSyahriyah: Number(getFeeInputValue('pcsbFeeSyahriyah', 200000)),
+                    };
+                    updateAndPersistSettings(commitSettings);
+                    setFeeSaveFeedback('✓ Berhasil Disimpan Permanen!');
+                    setTimeout(() => setFeeSaveFeedback(null), 3000);
+                  }}
+                  className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  Simpan Pengaturan Tagihan Santri Baru
+                </button>
               </div>
             </div>
           </div>
@@ -10980,20 +11020,9 @@ export default function AdminDashboard({
                   <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, Bendahara Pesantren</p>
                   
                   <div className="h-24 w-full relative flex items-center justify-start select-none py-1">
-                    {/* Tanda tangan rendered in background */}
-                    <div className="z-10 relative flex items-center justify-start">
-                      {isImageUrl(settings.ttdBendaharaUrl) ? (
-                        <img src={settings.ttdBendaharaUrl} alt="TTD Bendahara" className="h-20 max-w-[200px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
-                          {settings.ttdBendaharaUrl || 'Bendahara Pesantren'}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Stempel rendered on top overlapping */}
+                    {/* Stempel rendered on the LEFT */}
                     {settings.stempelBendaharaUrl && (
-                      <div className="z-20 absolute left-[65px] top-[-5px] pointer-events-none opacity-85">
+                      <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
                         {isImageUrl(settings.stempelBendaharaUrl) ? (
                           <img src={settings.stempelBendaharaUrl} alt="Stempel Bendahara" className="h-24 w-24 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                         ) : (
@@ -11003,6 +11032,17 @@ export default function AdminDashboard({
                         )}
                       </div>
                     )}
+
+                    {/* Tanda tangan on the right with text rata kiri */}
+                    <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+                      {isImageUrl(settings.ttdBendaharaUrl) ? (
+                        <img src={settings.ttdBendaharaUrl} alt="TTD Bendahara" className="h-20 max-w-[200px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
+                          {settings.ttdBendaharaUrl || 'Bendahara Pesantren'}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{settings.namaBendahara || "Ustadzah Siti Aminah"}</p>
@@ -11679,7 +11719,15 @@ export default function AdminDashboard({
 
                       <div className="relative min-h-[70px] sm:min-h-[85px] w-full flex items-center justify-start my-1">
                         {/* Wet signature: Berada DI ATAS nama pengasuh */}
-                        <div className="z-10 relative flex items-center justify-start">
+                        {/* Stempel: Berada di SEBELAH KIRI tanda tangan */}
+                        {settings.stempelPengasuhUrl && (
+                          <div className="z-20 absolute -left-8 sm:-left-10 -top-1 pointer-events-none opacity-85">
+                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 sm:h-24 sm:w-24 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          </div>
+                        )}
+
+                        {/* Signature on the right, text rata kiri */}
+                        <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
                           {settings.ttdPengasuhUrl ? (
                             <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-16 sm:h-20 max-w-[180px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
@@ -11688,13 +11736,6 @@ export default function AdminDashboard({
                             </span>
                           )}
                         </div>
-
-                        {/* Overlapping Stamp: Berada di SEBELAH KIRI nama pengasuh */}
-                        {settings.stempelPengasuhUrl && (
-                          <div className="z-20 absolute left-[55px] sm:left-[65px] -top-1 pointer-events-none opacity-85">
-                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 sm:h-24 sm:w-24 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
-                          </div>
-                        )}
                       </div>
 
                       <div className="pt-0.5">

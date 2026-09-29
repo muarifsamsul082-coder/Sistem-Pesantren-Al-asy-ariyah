@@ -650,17 +650,17 @@ export default function Navbar({
 
             {/* Public Links (Visible only when NOT logged in) */}
             {!session && (
-              <div className="hidden md:flex items-center space-x-2">
+              <div className="hidden md:flex items-center space-x-1.5">
                 {menuItems.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => handleNavClick(item.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
                       item.highlight
-                        ? 'bg-amber-400 text-emerald-950 hover:bg-amber-300 shadow-sm'
+                        ? 'bg-amber-400 text-emerald-950 hover:bg-amber-300 shadow-sm font-extrabold'
                         : currentView === item.id
-                        ? 'bg-emerald-800/90 text-amber-300 border border-emerald-600/70 shadow-xs'
-                        : 'text-emerald-100 hover:bg-emerald-800/50 hover:text-white'
+                        ? 'bg-emerald-900/80 text-amber-300 border border-emerald-700/60 shadow-xs font-extrabold'
+                        : 'text-emerald-100 hover:bg-emerald-900/50 hover:text-amber-200'
                     }`}
                   >
                     {item.label}

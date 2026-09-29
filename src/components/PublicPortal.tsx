@@ -210,17 +210,17 @@ export default function PublicPortal({
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-6"
           >
-            <div className="text-center space-y-1">
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-amber-400 text-emerald-950 font-mono font-black text-xs uppercase tracking-widest rounded-full shadow-sm">
-                <Newspaper className="h-3.5 w-3.5 text-emerald-950" /> Kabar Pesantren
+            <div className="text-center space-y-2">
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-400 text-emerald-950 font-mono font-black text-xs uppercase tracking-widest rounded-full shadow-lg border border-amber-300">
+                <Newspaper className="h-4 w-4 text-emerald-950" /> Kabar Pesantren
               </span>
-              <h3 className="text-2xl md:text-3xl font-black text-white font-sans tracking-tight pt-1 drop-shadow-sm">
+              <h3 className="text-2xl md:text-3xl font-black text-white font-sans tracking-tight pt-1 drop-shadow-md">
                 Berita & Kegiatan Terbaru
               </h3>
-              <p className="text-xs text-emerald-200/90 font-medium max-w-md mx-auto">
+              <p className="text-xs text-amber-200/90 font-medium max-w-md mx-auto">
                 Kabar terkini seputar aktivitas pendidikan, kajian kitab, dan agenda santri
               </p>
-              <div className="w-16 h-1 bg-amber-400 mx-auto mt-2 rounded-full" />
+              <div className="w-16 h-1 bg-amber-400 mx-auto mt-2 rounded-full shadow-sm" />
             </div>
 
             {news.length > 0 ? (
@@ -324,7 +324,7 @@ export default function PublicPortal({
                 {/* Grid for all other articles when inside News Tab specifically */}
                 {currentView === 'news' && (
                   <div className="max-w-6xl mx-auto pt-8">
-                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Arsip Berita & Kegiatan</h4>
+                    <h4 className="text-sm font-bold text-amber-200 uppercase tracking-wider mb-4">Arsip Berita & Kegiatan</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                       {news.map((item, idx) => (
                         <motion.div 
@@ -332,22 +332,22 @@ export default function PublicPortal({
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.4, delay: idx * 0.08 }}
-                          whileHover={{ y: -6, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }}
-                          className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-xs flex flex-col justify-between transition-all"
+                          whileHover={{ y: -6, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3)" }}
+                          className="bg-emerald-900/40 backdrop-blur-md rounded-2xl border border-emerald-700/50 overflow-hidden shadow-lg flex flex-col justify-between transition-all text-white"
                         >
                           <div>
-                            <div className="relative h-44 w-full bg-slate-100 overflow-hidden">
+                            <div className="relative h-44 w-full bg-slate-900 overflow-hidden">
                               <img src={item.image} alt={item.title} className="w-full h-full object-cover hover:scale-105 transition duration-500" referrerPolicy="no-referrer" />
-                              <span className="absolute top-2.5 left-2.5 bg-emerald-800 text-white text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full tracking-wider">
+                              <span className="absolute top-2.5 left-2.5 bg-amber-400 text-emerald-950 text-[8px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider shadow-xs">
                                 {item.category}
                               </span>
                             </div>
                             <div className="p-4 space-y-2 text-left">
-                              <span className="text-[9px] font-mono font-semibold text-slate-400">{item.date}</span>
-                              <h5 className="font-extrabold text-sm text-slate-900 leading-snug line-clamp-2 hover:text-emerald-800 transition-colors cursor-pointer" onClick={() => setSelectedArticle(item)}>
+                              <span className="text-[9px] font-mono font-semibold text-emerald-300">{item.date}</span>
+                              <h5 className="font-extrabold text-sm text-white leading-snug line-clamp-2 hover:text-amber-300 transition-colors cursor-pointer" onClick={() => setSelectedArticle(item)}>
                                 {item.title}
                               </h5>
-                              <p className="text-slate-500 text-xs leading-relaxed line-clamp-3">
+                              <p className="text-emerald-150/90 text-xs leading-relaxed line-clamp-3 font-sans">
                                 {item.excerpt}
                               </p>
                             </div>
@@ -355,7 +355,7 @@ export default function PublicPortal({
                           <div className="p-4 pt-0">
                             <button 
                               onClick={() => setSelectedArticle(item)}
-                              className="w-full py-1.5 bg-slate-50 hover:bg-emerald-50 text-emerald-850 hover:text-emerald-900 border border-slate-100 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                              className="w-full py-1.5 bg-emerald-800/60 hover:bg-emerald-700 text-amber-200 hover:text-white border border-emerald-600/50 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer"
                             >
                               Baca Artikel <ArrowRight className="h-3 w-3" />
                             </button>
@@ -367,7 +367,7 @@ export default function PublicPortal({
                 )}
               </div>
             ) : (
-              <div className="bg-white rounded-2xl p-12 text-center border border-emerald-50 text-gray-400 text-xs font-semibold max-w-5xl mx-auto">
+              <div className="bg-emerald-900/30 backdrop-blur-md rounded-2xl p-12 text-center border border-emerald-700/50 text-emerald-200 text-xs font-semibold max-w-5xl mx-auto">
                 Belum ada berita atau kegiatan terbaru.
               </div>
             )}
@@ -385,17 +385,17 @@ export default function PublicPortal({
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-6"
           >
-            <div className="text-center space-y-1">
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-amber-400 text-emerald-950 font-mono font-black text-xs uppercase tracking-widest rounded-full shadow-sm">
-                <Bell className="h-3.5 w-3.5 text-emerald-950" /> Informasi Penting
+            <div className="text-center space-y-2">
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-400 text-emerald-950 font-mono font-black text-xs uppercase tracking-widest rounded-full shadow-lg border border-amber-300">
+                <Bell className="h-4 w-4 text-emerald-950" /> Informasi Penting
               </span>
-              <h3 className="text-2xl md:text-3xl font-black text-white font-sans tracking-tight pt-1 drop-shadow-sm">
+              <h3 className="text-2xl md:text-3xl font-black text-white font-sans tracking-tight pt-1 drop-shadow-md">
                 Pengumuman & Maklumat Resmi
               </h3>
-              <p className="text-xs text-emerald-200/90 font-medium max-w-md mx-auto">
+              <p className="text-xs text-amber-200/90 font-medium max-w-md mx-auto">
                 Pemberitahuan resmi dari Pengasuh dan Pengurus Pondok Pesantren
               </p>
-              <div className="w-16 h-1 bg-amber-400 mx-auto mt-2 rounded-full" />
+              <div className="w-16 h-1 bg-amber-400 mx-auto mt-2 rounded-full shadow-sm" />
             </div>
 
             {publicAnnouncements.length > 0 ? (

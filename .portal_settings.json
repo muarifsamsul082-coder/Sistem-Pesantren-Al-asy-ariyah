@@ -62,5 +62,17 @@
     "1A MA Diniyah",
     "2A MA Diniyah",
     "3A MA Diniyah"
-  ]
+  ],
+  "pcsbEnablePendaftaran": true,
+  "pcsbEnableSarpras": true,
+  "pcsbEnableSeragam": true,
+  "pcsbEnableKitab": true,
+  "pcsbEnableKesehatan": true,
+  "pcsbEnableSyahriyah": true,
+  "pcsbFeePendaftaran": 150000,
+  "pcsbFeeSarpras": 1500000,
+  "pcsbFeeSeragam": 750000,
+  "pcsbFeeKitab": 450000,
+  "pcsbFeeKesehatan": 350000,
+  "pcsbFeeSyahriyah": 200000
 }

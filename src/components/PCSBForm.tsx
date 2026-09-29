@@ -401,21 +401,24 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-3xl mx-auto border border-emerald-200">
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-3xl mx-auto border border-emerald-300">
       <div 
-        className="px-6 py-7 text-white bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 border-b border-emerald-800 shadow-sm"
-        style={{ backgroundColor: '#064e3b' }}
+        className="px-6 py-6 border-b border-emerald-800 shadow-md relative overflow-hidden bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-950"
+        style={{ backgroundColor: '#022c22', color: '#ffffff' }}
       >
-        <div className="flex items-center gap-3.5">
-          <div className="bg-amber-400 p-2.5 rounded-xl text-emerald-950 shrink-0 shadow-md">
-            <Sparkles className="h-6 w-6 animate-pulse text-emerald-950" />
+        <div className="flex items-center gap-4 relative z-10">
+          <div className="bg-amber-400 p-3.5 rounded-2xl text-emerald-950 shrink-0 shadow-lg border border-amber-300">
+            <Sparkles className="h-6 w-6 text-emerald-950" />
           </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide drop-shadow-sm">
+          <div className="min-w-0">
+            <span className="inline-block px-3 py-0.5 bg-amber-400 text-emerald-950 font-mono font-black text-[10.5px] uppercase tracking-wider rounded-md mb-1.5 shadow-sm">
+              PENDAFTARAN RESMI 2026/2027
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black tracking-wide text-white drop-shadow-md leading-snug" style={{ color: '#ffffff' }}>
               Formulir Pendaftaran Calon Santri Baru (PCSB)
             </h2>
-            <p className="text-amber-300 font-bold text-xs mt-1 drop-shadow-xs">
-              {settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"} • Tahun Ajaran 2026/2027
+            <p className="font-bold text-xs mt-1 text-amber-300 drop-shadow-xs" style={{ color: '#fde047' }}>
+              {settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"} • Penerimaan Santri Baru Online
             </p>
           </div>
         </div>
@@ -426,7 +429,7 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
         {/* Section 1: Data Calon Santri */}
         <div>
           <div className="flex items-center gap-2.5 pb-2.5 mb-4 border-b-2 border-emerald-600/30">
-            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+            <span className="px-3 py-1 bg-emerald-800 text-white font-mono font-black text-xs rounded-lg shadow-xs border border-emerald-700">
               I
             </span>
             <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
@@ -540,7 +543,7 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
         {/* Section 2: Data Orang Tua / Wali */}
         <div>
           <div className="flex items-center gap-2.5 pb-2.5 mb-4 border-b-2 border-emerald-600/30">
-            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+            <span className="px-3 py-1 bg-emerald-800 text-white font-mono font-black text-xs rounded-lg shadow-xs border border-emerald-700">
               II
             </span>
             <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
@@ -636,7 +639,7 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
         {/* Section 3: Rincian Biaya & Pilihan Pembayaran */}
         <div>
           <div className="flex items-center gap-2.5 pb-2.5 mb-4 border-b-2 border-emerald-600/30">
-            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+            <span className="px-3 py-1 bg-emerald-800 text-white font-mono font-black text-xs rounded-lg shadow-xs border border-emerald-700">
               III
             </span>
             <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
@@ -728,7 +731,7 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
         {/* Section 4: Berkas Persyaratan Kelengkapan */}
         <div>
           <div className="flex items-center gap-2.5 pb-2.5 mb-4 border-b-2 border-emerald-600/30">
-            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+            <span className="px-3 py-1 bg-emerald-800 text-white font-mono font-black text-xs rounded-lg shadow-xs border border-emerald-700">
               IV
             </span>
             <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
@@ -811,7 +814,7 @@ export default function PCSBForm({ onSubmit, ppdbOpen, ppdbStartDate, ppdbEndDat
         {/* Section 5: Rincian Tagihan Pendaftaran & Biaya Awal (Wajib) */}
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
           <div className="flex items-center gap-2.5 pb-2.5 mb-2 border-b-2 border-emerald-600/30">
-            <span className="px-2.5 py-1 bg-emerald-850 text-amber-300 font-mono font-bold text-xs rounded-lg shadow-2xs">
+            <span className="px-3 py-1 bg-emerald-800 text-white font-mono font-black text-xs rounded-lg shadow-xs border border-emerald-700">
               V
             </span>
             <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
