@@ -1910,6 +1910,7 @@ export default function AdminDashboard({
   const [bankFormName, setBankFormName] = React.useState('');
   const [bankFormNumber, setBankFormNumber] = React.useState('');
   const [bankFormOwner, setBankFormOwner] = React.useState('');
+  const [bankFormQrisString, setBankFormQrisString] = React.useState('');
   const [printSecurityLog, setPrintSecurityLog] = React.useState<any>(null);
   const [printDisciplineLog, setPrintDisciplineLog] = React.useState<any>(null);
   const [printHealthLog, setPrintHealthLog] = React.useState<any>(null);
@@ -6404,10 +6405,39 @@ export default function AdminDashboard({
             </h3>
 
             <form onSubmit={handleAddBill} className="space-y-3 bg-slate-50 p-4 border border-slate-200 rounded-xl text-xs">
-              <span className="text-[10px] uppercase font-bold text-slate-700 block">Buat Tagihan Baru</span>
-              
-              <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-[10px] text-blue-900 font-semibold leading-relaxed mb-2">
-                Tagihan paket santri baru diterbitkan otomatis saat status berkas pendaftaran disetujui.
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-slate-700 block">Buat Tagihan Pembayaran</span>
+                <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
+                  {billCreationMode === 'paket_santri_baru' ? 'Mode Paket Santri Baru' : 'Mode Tagihan Tunggal'}
+                </span>
+              </div>
+
+              {/* Mode Selector Toggle */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/80 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setBillCreationMode('tunggal')}
+                  className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                    billCreationMode === 'tunggal'
+                      ? 'bg-emerald-800 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Tagihan Reguler (Tunggal)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillCreationMode('paket_santri_baru')}
+                  className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                    billCreationMode === 'paket_santri_baru'
+                      ? 'bg-emerald-800 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                  Paket Tagihan Santri Baru
+                </button>
               </div>
 
               <div>
@@ -6416,18 +6446,18 @@ export default function AdminDashboard({
                   <button
                     type="button"
                     onClick={() => setBillRecipientType('single')}
-                    className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition ${
+                    className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition cursor-pointer ${
                       billRecipientType === 'single'
                         ? 'bg-emerald-800 text-white border-emerald-800 shadow-sm'
                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                   >
-                    Santri Tertentu
+                    {billCreationMode === 'paket_santri_baru' ? 'Pilih Santri Baru' : 'Santri Tertentu'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setBillRecipientType('all')}
-                    className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition ${
+                    className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition cursor-pointer ${
                       billRecipientType === 'all'
                         ? 'bg-emerald-800 text-white border-emerald-800 shadow-sm'
                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
@@ -6439,7 +6469,9 @@ export default function AdminDashboard({
 
                 {billRecipientType === 'single' ? (
                   <div>
-                    <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">Pilih Santri Penerima</label>
+                    <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">
+                      {billCreationMode === 'paket_santri_baru' ? 'Pilih Calon / Santri Baru Penerima' : 'Pilih Santri Penerima'}
+                    </label>
                     <select
                       required
                       value={selectedStudentId}
@@ -6454,44 +6486,184 @@ export default function AdminDashboard({
                   </div>
                 ) : (
                   <div className="p-2.5 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-lg text-[11px] leading-relaxed font-semibold flex items-center gap-1.5">
-                    <span>Tagihan massal akan diterbitkan serentak untuk seluruh ({students.filter(s => s.status !== 'Alumni' && s.status !== 'Berhenti').length}) santri aktif.</span>
+                    <span>Tagihan akan diterbitkan serentak untuk seluruh ({students.filter(s => s.status !== 'Alumni' && s.status !== 'Berhenti').length}) santri aktif.</span>
                   </div>
                 )}
               </div>
 
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">Nama Tagihan</label>
-                <input
-                  type="text"
-                  required
-                  value={billTitle}
-                  onChange={(e) => setBillTitle(e.target.value)}
-                  className="w-full px-2 py-1.5 border border-emerald-100 rounded-lg bg-white font-medium text-xs"
-                />
-              </div>
+              {billCreationMode === 'paket_santri_baru' ? (
+                /* Paket Tagihan Santri Baru Form */
+                <div className="space-y-2.5 p-3 bg-white rounded-xl border border-emerald-100 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-1">
+                    <span className="text-[10.5px] font-extrabold text-emerald-950 uppercase tracking-wide">
+                      Komponen Paket Santri Baru:
+                    </span>
+                    <span className="text-[9.5px] text-gray-400 font-mono">Pilih item yang ditagihkan</span>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">Jumlah (Rupiah)</label>
-                  <input
-                    type="number"
-                    required
-                    value={billAmount}
-                    onChange={(e) => setBillAmount(Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-emerald-100 rounded-lg bg-white font-medium text-xs font-mono"
-                  />
+                  {/* 1. Biaya Pendaftaran */}
+                  <div className="flex items-center justify-between gap-2 p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold text-slate-800 select-none">
+                      <input 
+                        type="checkbox"
+                        checked={paketPendaftaranChecked}
+                        onChange={(e) => setPaketPendaftaranChecked(e.target.checked)}
+                        className="rounded text-emerald-700"
+                      />
+                      <span>Biaya Pendaftaran (PCSB)</span>
+                    </label>
+                    <input 
+                      type="number"
+                      value={paketPendaftaranAmount}
+                      onChange={(e) => setPaketPendaftaranAmount(Number(e.target.value))}
+                      disabled={!paketPendaftaranChecked}
+                      className="w-24 px-1.5 py-0.5 border border-slate-300 rounded text-right font-mono text-[11px] font-bold"
+                    />
+                  </div>
+
+                  {/* 2. Seragam */}
+                  <div className="flex items-center justify-between gap-2 p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold text-slate-800 select-none">
+                      <input 
+                        type="checkbox"
+                        checked={paketSeragamChecked}
+                        onChange={(e) => setPaketSeragamChecked(e.target.checked)}
+                        className="rounded text-emerald-700"
+                      />
+                      <span>Seragam Resmi (3 Stel)</span>
+                    </label>
+                    <input 
+                      type="number"
+                      value={paketSeragamAmount}
+                      onChange={(e) => setPaketSeragamAmount(Number(e.target.value))}
+                      disabled={!paketSeragamChecked}
+                      className="w-24 px-1.5 py-0.5 border border-slate-300 rounded text-right font-mono text-[11px] font-bold"
+                    />
+                  </div>
+
+                  {/* 3. Kitab & Buku */}
+                  <div className="flex items-center justify-between gap-2 p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold text-slate-800 select-none">
+                      <input 
+                        type="checkbox"
+                        checked={paketKitabChecked}
+                        onChange={(e) => setPaketKitabChecked(e.target.checked)}
+                        className="rounded text-emerald-700"
+                      />
+                      <span>Kitab Kuning & Panduan</span>
+                    </label>
+                    <input 
+                      type="number"
+                      value={paketKitabAmount}
+                      onChange={(e) => setPaketKitabAmount(Number(e.target.value))}
+                      disabled={!paketKitabChecked}
+                      className="w-24 px-1.5 py-0.5 border border-slate-300 rounded text-right font-mono text-[11px] font-bold"
+                    />
+                  </div>
+
+                  {/* 4. SPP Syahriyah Perdana */}
+                  <div className="flex items-center justify-between gap-2 p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold text-slate-800 select-none">
+                      <input 
+                        type="checkbox"
+                        checked={paketSppChecked}
+                        onChange={(e) => setPaketSppChecked(e.target.checked)}
+                        className="rounded text-emerald-700"
+                      />
+                      <span>Iuran SPP Syahriyah (Bulan 1)</span>
+                    </label>
+                    <input 
+                      type="number"
+                      value={paketSppAmount}
+                      onChange={(e) => setPaketSppAmount(Number(e.target.value))}
+                      disabled={!paketSppChecked}
+                      className="w-24 px-1.5 py-0.5 border border-slate-300 rounded text-right font-mono text-[11px] font-bold"
+                    />
+                  </div>
+
+                  {/* 5. Infaq Sarpras / Gedung */}
+                  <div className="flex items-center justify-between gap-2 p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold text-slate-800 select-none">
+                      <input 
+                        type="checkbox"
+                        checked={paketGedungChecked}
+                        onChange={(e) => setPaketGedungChecked(e.target.checked)}
+                        className="rounded text-emerald-700"
+                      />
+                      <span>Infaq Sarpras & Gedung</span>
+                    </label>
+                    <input 
+                      type="number"
+                      value={paketGedungAmount}
+                      onChange={(e) => setPaketGedungAmount(Number(e.target.value))}
+                      disabled={!paketGedungChecked}
+                      className="w-24 px-1.5 py-0.5 border border-slate-300 rounded text-right font-mono text-[11px] font-bold"
+                    />
+                  </div>
+
+                  {/* Total Summary */}
+                  <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex justify-between items-center text-xs font-bold text-emerald-950">
+                    <span>Total Paket Diterbitkan:</span>
+                    <span className="font-mono text-emerald-800 text-sm font-black">
+                      Rp {(
+                        (paketPendaftaranChecked ? Number(paketPendaftaranAmount) : 0) +
+                        (paketSeragamChecked ? Number(paketSeragamAmount) : 0) +
+                        (paketKitabChecked ? Number(paketKitabAmount) : 0) +
+                        (paketSppChecked ? Number(paketSppAmount) : 0) +
+                        (paketGedungChecked ? Number(paketGedungAmount) : 0)
+                      ).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">Batas Jatuh Tempo</label>
+                    <input
+                      type="date"
+                      required
+                      value={billDueDate}
+                      onChange={(e) => setBillDueDate(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-emerald-100 rounded-lg bg-white font-medium text-xs font-mono"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">Jatuh Tempo</label>
-                  <input
-                    type="date"
-                    required
-                    value={billDueDate}
-                    onChange={(e) => setBillDueDate(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-emerald-100 rounded-lg bg-white font-medium text-xs font-mono"
-                  />
-                </div>
-              </div>
+              ) : (
+                /* Single Bill Form */
+                <>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">Nama Tagihan</label>
+                    <input
+                      type="text"
+                      required
+                      value={billTitle}
+                      onChange={(e) => setBillTitle(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-emerald-100 rounded-lg bg-white font-medium text-xs"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">Jumlah (Rupiah)</label>
+                      <input
+                        type="number"
+                        required
+                        value={billAmount}
+                        onChange={(e) => setBillAmount(Number(e.target.value))}
+                        className="w-full px-2 py-1.5 border border-emerald-100 rounded-lg bg-white font-medium text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">Jatuh Tempo</label>
+                      <input
+                        type="date"
+                        required
+                        value={billDueDate}
+                        onChange={(e) => setBillDueDate(e.target.value)}
+                        className="w-full px-2 py-1.5 border border-emerald-100 rounded-lg bg-white font-medium text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-1">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -6510,12 +6682,22 @@ export default function AdminDashboard({
                 </p>
               </div>
 
-              <button
-                type="submit"
-                className="w-full py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-lg transition text-xs cursor-pointer shadow-xs uppercase tracking-wider"
-              >
-                Kirim Tagihan
-              </button>
+              {billCreationMode === 'paket_santri_baru' ? (
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl transition text-xs cursor-pointer shadow-md flex items-center justify-center gap-2 uppercase tracking-wide"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Simpan Tagihan untuk Santri Baru</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="w-full py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-lg transition text-xs cursor-pointer shadow-xs uppercase tracking-wider"
+                >
+                  Kirim Tagihan
+                </button>
+              )}
             </form>
           </div>
 
@@ -6922,12 +7104,13 @@ export default function AdminDashboard({
                     // Update existing
                     const updatedList = (editSettings.rekeningList || []).map(r => 
                       r.id === editingBankAccount.id 
-                        ? { ...r, bankName: bankFormName, accountNumber: bankFormNumber, accountName: bankFormOwner }
+                        ? { ...r, bankName: bankFormName, accountNumber: bankFormNumber, accountName: bankFormOwner, qrisString: bankFormQrisString.trim() || undefined }
                         : r
                     );
                     const updatedSettings = { ...editSettings, rekeningList: updatedList };
                     setEditSettings(updatedSettings);
                     setSettings(updatedSettings);
+                    updateAndPersistSettings(updatedSettings);
                     showAlert('success', 'Rekening berhasil diperbarui!');
                     setEditingBankAccount(null);
                   } else {
@@ -6937,18 +7120,21 @@ export default function AdminDashboard({
                       bankName: bankFormName,
                       accountNumber: bankFormNumber,
                       accountName: bankFormOwner,
+                      qrisString: bankFormQrisString.trim() || undefined,
                       isMain: (editSettings.rekeningList || []).length === 0
                     };
                     const updatedList = [...(editSettings.rekeningList || []), newAccount];
                     const updatedSettings = { ...editSettings, rekeningList: updatedList };
                     setEditSettings(updatedSettings);
                     setSettings(updatedSettings);
+                    updateAndPersistSettings(updatedSettings);
                     showAlert('success', 'Rekening baru berhasil ditambahkan!');
                   }
                   // Reset form
                   setBankFormName('');
                   setBankFormNumber('');
                   setBankFormOwner('');
+                  setBankFormQrisString('');
                 }} 
                 className="space-y-4 bg-teal-50/20 p-4 border border-teal-100 rounded-xl text-xs font-sans"
               >
@@ -6999,10 +7185,29 @@ export default function AdminDashboard({
                     type="text"
                     value={bankFormOwner}
                     onChange={(e) => setBankFormOwner(e.target.value)}
-                    placeholder="Contoh: PONPES AL-ASY'ARIYAH"
+                    placeholder="Contoh: MUARIF SAMSUL"
                     className="w-full px-2.5 py-2 border border-emerald-100 rounded-lg bg-white font-bold text-xs uppercase text-slate-800"
                     required
                   />
+                  <span className="text-[9px] text-gray-400 block mt-0.5">
+                    Nama ini yang otomatis tampil di aplikasi DANA atau Mobile Banking santri saat scan kode QRIS.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 block mb-1 uppercase tracking-wider">
+                    String / Payload QRIS Resmi (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={bankFormQrisString}
+                    onChange={(e) => setBankFormQrisString(e.target.value)}
+                    placeholder="Contoh: 00020101021126... (Jika memiliki QRIS resmi dari Bank/DANA)"
+                    className="w-full px-2.5 py-2 border border-emerald-100 rounded-lg bg-white font-medium text-xs font-mono text-slate-800"
+                  />
+                  <span className="text-[9px] text-gray-400 block mt-0.5">
+                    Jika diisi, QRIS dinamis tagihan akan langsung menggunakan QRIS resmi Anda dengan nominal yang otomatis terisi.
+                  </span>
                 </div>
 
                 <div className="flex gap-2">
@@ -7104,6 +7309,7 @@ export default function AdminDashboard({
                               setBankFormName(rek.bankName);
                               setBankFormNumber(rek.accountNumber);
                               setBankFormOwner(rek.accountName);
+                              setBankFormQrisString(rek.qrisString || '');
                             }}
                             className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                             title="Ubah Rekening"

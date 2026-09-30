@@ -168,6 +168,7 @@ export interface BankAccount {
   accountName: string;
   isMain?: boolean;
   type?: 'bank' | 'ewallet';
+  qrisString?: string;
 }
 
 export interface AcademicEvent {
@@ -245,6 +246,7 @@ export interface PortalSettings {
   pcsbEnableSyahriyah?: boolean;
   pesantrenBankAccountNumber?: string;
   pesantrenBankAccountName?: string;
+  qrisString?: string;
   rekeningList?: BankAccount[];
   availableFormalClasses?: string[];
   availableMadrasahClasses?: string[];

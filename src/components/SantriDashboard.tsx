@@ -108,15 +108,16 @@ export default function SantriDashboard({
       setQrCodeDataUrl('');
       return;
     }
-    // Dynamic QRIS Payload with embedded exact nominal amount for instant payment scanning in DANA, GoPay, and m-banking
+    // Dynamic QRIS Payload with embedded exact nominal amount and registered account owner name
     const qrisPayload = generateDynamicQrisString({
-      merchantName: settings.schoolName || 'PONPES AL-ASYARIYAH',
+      merchantName: currentRekening.accountName || settings.schoolName || 'PONPES AL-ASYARIYAH',
+      accountName: currentRekening.accountName,
       merchantCity: getCityFromAddress(settings.address) || 'SEMARANG',
       amount: finalTransferAmount,
       billId: String(selectedBill.id),
       bankName: currentRekening.bankName,
       accountNumber: currentRekening.accountNumber,
-      accountName: currentRekening.accountName
+      rawStaticQris: currentRekening.qrisString || settings.qrisString
     });
     
     QRCode.toDataURL(qrisPayload, {
@@ -130,7 +131,7 @@ export default function SantriDashboard({
     })
       .then(url => setQrCodeDataUrl(url))
       .catch(err => console.error('Failed to generate transfer QR code:', err));
-  }, [selectedBill, currentRekening, finalTransferAmount, uniqueCode, student.fullName, student.nis, settings.schoolName, settings.address]);
+  }, [selectedBill, currentRekening, finalTransferAmount, uniqueCode, student.fullName, student.nis, settings.schoolName, settings.address, settings.qrisString]);
 
   // Initialize selection when opening bill
   React.useEffect(() => {
@@ -699,21 +700,26 @@ export default function SantriDashboard({
                             <div className="flex items-center gap-1.5">
                               <QrCode className="h-4 w-4 text-emerald-800" />
                               <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
-                                QR Transfer {currentRekening.bankName} (QRIS Dinamis)
+                                QR Transfer {currentRekening.bankName} (Atas Nama: {currentRekening.accountName})
                               </span>
                             </div>
                             <span className="text-[9.5px] font-mono font-black text-emerald-850 bg-emerald-200/80 border border-emerald-300 px-2 py-0.5 rounded-full shadow-2xs">
-                              ✓ Nominal Otomatis Terisi
+                              ✓ Nominal & Pemilik Otomatis
                             </span>
                           </div>
 
-                          <div className="p-2.5 bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-xl text-[10.5px] space-y-1 shadow-xs border border-emerald-700/60">
-                            <div className="flex items-center gap-1 text-amber-300 font-extrabold text-[11px]">
-                              <Sparkles className="h-3.5 w-3.5" />
-                              <span>Scan Langsung via DANA / Mobile Banking</span>
+                          <div className="p-2.5 bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-xl text-[10.5px] space-y-1.5 shadow-xs border border-emerald-700/60">
+                            <div className="flex items-center justify-between text-amber-300 font-extrabold text-[11px]">
+                              <div className="flex items-center gap-1">
+                                <Sparkles className="h-3.5 w-3.5" />
+                                <span>Pindai QR / Transfer Langsung</span>
+                              </div>
+                              <span className="text-[9px] bg-amber-400/20 text-amber-200 border border-amber-400/30 px-2 py-0.5 rounded font-mono">
+                                Atas Nama: {currentRekening.accountName}
+                              </span>
                             </div>
                             <p className="text-emerald-100/90 leading-relaxed font-sans">
-                              Scan kode QR di bawah menggunakan kamera scan aplikasi <strong>DANA</strong>, <strong>BCA Mobile</strong>, <strong>Livin by Mandiri</strong>, <strong>BRImo</strong>, <strong>BNI Mobile</strong>, atau <strong>GoPay</strong>. Nominal pembayaran tagihan khusus <strong>Rp {finalTransferAmount.toLocaleString('id-ID')}</strong> akan langsung otomatis muncul di layar ponsel!
+                              Pindai kode QR menggunakan <strong>DANA</strong>, <strong>BCA Mobile</strong>, <strong>Livin by Mandiri</strong>, <strong>BRImo</strong>, <strong>BNI Mobile</strong>, atau <strong>GoPay</strong>. Nama penerima akan tampil sesuai rekening resmi: <strong>{currentRekening.accountName}</strong> dan nominal khusus <strong>Rp {finalTransferAmount.toLocaleString('id-ID')}</strong> akan langsung otomatis terisi!
                             </p>
                           </div>
 
@@ -723,7 +729,7 @@ export default function SantriDashboard({
                               {qrCodeDataUrl ? (
                                 <img 
                                   src={qrCodeDataUrl} 
-                                  alt={`QR Transfer ${currentRekening.bankName} Rp ${finalTransferAmount}`} 
+                                  alt={`QR Transfer ${currentRekening.bankName} a.n. ${currentRekening.accountName} Rp ${finalTransferAmount}`} 
                                   className="w-40 h-40 object-contain" 
                                 />
                               ) : (
@@ -745,10 +751,15 @@ export default function SantriDashboard({
                             {/* Rekening & Nominal Details */}
                             <div className="space-y-2 flex-1 min-w-0 text-left w-full">
                               <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                                <div className="text-[10px] text-slate-500 font-medium">Bank Tujuan Transfer:</div>
+                                <div className="flex justify-between items-center">
+                                  <div className="text-[10px] text-slate-500 font-medium">Bank / E-Wallet Tujuan:</div>
+                                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded uppercase">
+                                    Resmi
+                                  </span>
+                                </div>
                                 <div className="font-extrabold text-sm text-slate-900">{currentRekening.bankName}</div>
                                 
-                                <div className="text-[10px] text-slate-500 font-medium pt-1">Nomor Rekening Tujuan:</div>
+                                <div className="text-[10px] text-slate-500 font-medium pt-1">Nomor Rekening / No. DANA:</div>
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="font-mono text-sm font-black text-emerald-950 select-all tracking-wider">
                                     {currentRekening.accountNumber}
@@ -766,22 +777,60 @@ export default function SantriDashboard({
                                     <span>{copiedKey === 'rek' ? 'Disalin' : 'Salin'}</span>
                                   </button>
                                 </div>
-                                <div className="text-[10px] text-slate-600 font-semibold">
-                                  Atas Nama: <strong className="text-slate-900">{currentRekening.accountName}</strong>
+
+                                <div className="text-[10px] text-slate-600 font-semibold pt-0.5 flex justify-between items-center">
+                                  <span>Atas Nama: <strong className="text-slate-900">{currentRekening.accountName}</strong></span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText(currentRekening.accountName);
+                                      setCopiedKey('owner');
+                                      setTimeout(() => setCopiedKey(''), 2000);
+                                    }}
+                                    className="text-[9px] text-emerald-700 hover:underline font-bold cursor-pointer"
+                                  >
+                                    {copiedKey === 'owner' ? '✓ Disalin' : 'Salin Nama'}
+                                  </button>
                                 </div>
                               </div>
 
                               <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-amber-900 space-y-0.5">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-[10px] font-bold">Jumlah Transfer Wajib:</span>
-                                  <span className="font-mono font-black text-sm text-amber-950">
-                                    Rp {finalTransferAmount.toLocaleString('id-ID')}
-                                  </span>
+                                  <span className="text-[10px] font-bold">Total Wajib Ditransfer:</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-black text-sm text-amber-950">
+                                      Rp {finalTransferAmount.toLocaleString('id-ID')}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard?.writeText(String(finalTransferAmount));
+                                        setCopiedKey('amt');
+                                        setTimeout(() => setCopiedKey(''), 2000);
+                                      }}
+                                      className="p-0.5 rounded bg-amber-200 text-amber-900 hover:bg-amber-300 transition cursor-pointer text-[9px] font-bold px-1"
+                                      title="Salin Nominal"
+                                    >
+                                      {copiedKey === 'amt' ? '✓' : 'Salin'}
+                                    </button>
+                                  </div>
                                 </div>
-                                <p className="text-[9.5px] text-amber-800 leading-tight">
-                                  Pastikan mentransfer tepat hingga 3 digit kode unik (**Rp {finalTransferAmount.toLocaleString('id-ID')}**) agar otomatis terverifikasi sistem.
+                                <p className="text-[9px] text-amber-800 leading-tight">
+                                  Transfer tepat hingga 3 digit kode unik (**Rp {finalTransferAmount.toLocaleString('id-ID')}**) ke rekening a.n. <strong>{currentRekening.accountName}</strong>.
                                 </p>
                               </div>
+
+                              {/* Direct action button for DANA users */}
+                              {currentRekening.bankName.toLowerCase().includes('dana') && (
+                                <a
+                                  href="https://link.dana.id"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="w-full py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-xs"
+                                >
+                                  <span>Buka Aplikasi DANA untuk Bayar</span>
+                                </a>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -845,13 +894,27 @@ export default function SantriDashboard({
                             </div>
                           </div>
 
-                          <button
-                            type="submit"
-                            className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
-                          >
-                            <UploadCloud className="h-4 w-4" />
-                            <span>Kirim Bukti Pembayaran ke Bendahara (Rp {finalTransferAmount.toLocaleString('id-ID')})</span>
-                          </button>
+                          <div className="space-y-2 pt-1">
+                            <button
+                              type="submit"
+                              className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+                            >
+                              <UploadCloud className="h-4 w-4" />
+                              <span>Kirim Bukti Pembayaran ke Bendahara (Rp {finalTransferAmount.toLocaleString('id-ID')})</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handlePaySimulate(e);
+                              }}
+                              className="w-full py-2 bg-emerald-100/90 hover:bg-emerald-200 text-emerald-950 font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 border border-emerald-300/80 shadow-2xs"
+                            >
+                              <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                              <span>Saya Sudah Scan / Transfer via DANA (Konfirmasi Langsung)</span>
+                            </button>
+                          </div>
                         </form>
                       </div>
                     )}
