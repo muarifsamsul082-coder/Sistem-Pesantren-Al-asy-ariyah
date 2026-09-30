@@ -152,11 +152,11 @@ export interface Bill {
   paymentMethod?: string;
   senderBank?: string;
   senderAccountNumber?: string;
-  verificationStatus?: 'Terverifikasi Otomatis' | 'Perlu Peninjauan' | 'Gagal';
+  verificationStatus?: 'Terverifikasi Otomatis' | 'Perlu Peninjauan' | 'Menunggu Verifikasi Manual' | 'Gagal' | string;
   verificationLogs?: {
     uploadedBy: string;
     uploadedAt: string;
-    verifiedAt: string;
+    verifiedAt?: string;
     aiResult: string;
   }[];
 }

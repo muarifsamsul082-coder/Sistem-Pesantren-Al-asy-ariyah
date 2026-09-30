@@ -4,7 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { 
   BarChart, Users, FileText, Newspaper, Settings, Check, X, Plus, Trash, Edit, 
   Search, CheckSquare, Bell, DollarSign, Wallet, GraduationCap, ArrowUpRight, Send, AlertCircle, Printer, Download, Upload, MessageSquare, LogOut, UploadCloud, Loader2, Sparkles,
-  CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, RefreshCw, Code, Save, Clock, Landmark, Info
+  CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, XCircle, RefreshCw, Code, Save, Clock, Landmark, Info
 } from 'lucide-react';
 import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, compressImage, isSameRoom } from '../types';
 import { downloadPrintableHTML, downloadPrintableTableHTML, PrintGuideAlert } from './PrintHelper';
@@ -3213,9 +3213,40 @@ export default function AdminDashboard({
     window.dispatchEvent(new Event('pesantren_db_sync'));
 
     if (targetBill && newStatus === 'Lunas') {
-      const student = students.find(s => s.id === targetBill.studentId);
+      const student = students.find(s => String(s.id) === String(targetBill.studentId));
       const recipientPhone = student?.parentPhone || '081234567890';
       const recipientName = student?.parentName || 'Wali Santri';
+      
+      // Update student's payment history for instant synchrony
+      if (student) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const newHist = {
+          id: 'pay-manual-' + Date.now(),
+          date: todayStr,
+          amount: Number(targetBill.amount) || 0,
+          description: `Pembayaran ${targetBill.title}`,
+          paymentMethod: targetBill.paymentMethod || 'Transfer Bank (Diverifikasi Admin)',
+          verifiedBy: 'Bendahara Pesantren'
+        };
+        const updatedStudents = students.map(s => {
+          if (String(s.id) === String(student.id)) {
+            const hist = s.paymentHistory || [];
+            return {
+              ...s,
+              paymentHistory: [newHist, ...hist.filter(h => h.description !== `Pembayaran ${targetBill.title}`)]
+            };
+          }
+          return s;
+        });
+        setStudents(updatedStudents);
+        try {
+          localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
+        } catch (e) {}
+        const updatedStudentObj = updatedStudents.find(s => String(s.id) === String(student.id));
+        if (updatedStudentObj && isSupabaseConfigured()) {
+          pushStudentToSupabase(updatedStudentObj).catch(e => console.error("Cloud push student payment error:", e));
+        }
+      }
       
       const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${recipientName},\n\nKami menginformasikan bahwa pembayaran tagihan *${targetBill.title}* atas nama santri *${targetBill.studentName}* senilai *Rp ${targetBill.amount.toLocaleString()}* telah DISETUJUI dan diverifikasi LUNAS oleh Bendahara Al-Asy'ariyah.\n\nTerima kasih banyak atas partisipasi dan kontribusi bapak/ibu wali santri.\n\nWassalamu'alaikum Wr. Wb.\n-- Bendahara Pondok Pesantren Al-Asy'ariyah --`;
       
@@ -6979,6 +7010,30 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              {/* Banner Notifikasi Antrean Bukti Pembayaran Manual */}
+              {bills.filter(b => b && b.status === 'Konfirmasi Pembayaran').length > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Clock className="h-4 w-4 text-amber-700 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="font-extrabold text-amber-950 block truncate">
+                        {bills.filter(b => b && b.status === 'Konfirmasi Pembayaran').length} Bukti Transfer Perlu Diverifikasi Manual
+                      </span>
+                      <span className="text-[10px] text-amber-800 line-clamp-1">
+                        Santri/wali telah mengunggah struk bukti transfer. Klik untuk memeriksa resi dan memvalidasi status lunas.
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBillFilter('Konfirmasi Pembayaran')}
+                    className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white font-extrabold rounded-lg text-[10px] shrink-0 cursor-pointer shadow-xs transition"
+                  >
+                    Buka Antrean
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-2 max-h-[450px] overflow-y-auto pr-1">
                 {filteredBills.map((b, idx) => (
                   <div key={b.id} className="p-2.5 bg-gray-50 rounded-xl border border-gray-150 text-xs flex justify-between items-center gap-2">
@@ -6994,15 +7049,31 @@ export default function AdminDashboard({
                     </div>
                     <div className="text-right shrink-0">
                       <button
-                        onClick={() => toggleBillStatus(b.id, b.status === 'Lunas' ? 'Belum Lunas' : 'Lunas')}
+                        onClick={() => {
+                          if (b.status === 'Konfirmasi Pembayaran' || b.paymentProofUrl) {
+                            setSelectedBillForLogs(b);
+                          } else {
+                            toggleBillStatus(b.id, b.status === 'Lunas' ? 'Belum Lunas' : 'Lunas');
+                          }
+                        }}
                         className={`px-2 py-1 text-[10px] font-bold rounded-md block text-center uppercase min-w-[75px] cursor-pointer ${
                           b.status === 'Lunas' ? 'bg-emerald-100 text-emerald-800' : 
-                          b.status === 'Konfirmasi Pembayaran' ? 'bg-amber-100 text-amber-800 animate-pulse' :
+                          b.status === 'Konfirmasi Pembayaran' ? 'bg-amber-100 text-amber-800 animate-pulse border border-amber-300' :
                           'bg-amber-50 text-amber-900 border border-amber-200'
                         }`}
                       >
-                        {b.status === 'Lunas' ? 'Lunas' : b.status === 'Konfirmasi Pembayaran' ? 'Periksa' : 'Belum Lunas'}
+                        {b.status === 'Lunas' ? 'Lunas' : b.status === 'Konfirmasi Pembayaran' ? '🔍 Periksa Resi' : 'Belum Lunas'}
                       </button>
+
+                      {b.paymentProofUrl && b.status !== 'Konfirmasi Pembayaran' && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBillForLogs(b)}
+                          className="text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[9px] font-bold block text-center mt-1 w-full py-0.5 px-1 rounded cursor-pointer transition"
+                        >
+                          Lihat Resi Bayar
+                        </button>
+                      )}
 
                       <button
                         type="button"
@@ -13910,20 +13981,26 @@ export default function AdminDashboard({
                     type="button"
                     onClick={() => {
                       toggleBillStatus(b.id, 'Lunas');
-                      showAlert('success', 'Status tagihan berhasil diverifikasi Lunas.');
+                      setSelectedBillForLogs(null);
+                      showAlert('success', 'Status tagihan berhasil diverifikasi LUNAS dan sinkron ke Supabase.');
                     }}
-                    className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl transition text-[11px] cursor-pointer shadow-xs"
+                    className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl transition text-[11px] cursor-pointer shadow-xs flex items-center gap-1.5"
                   >
-                    Setujui Lunas </button>
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-200" />
+                    <span>Setujui Lunas</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
                       toggleBillStatus(b.id, 'Belum Lunas');
-                      showAlert('success', 'Status tagihan ditolak (Kembali ke Belum Lunas).');
+                      setSelectedBillForLogs(null);
+                      showAlert('success', 'Status tagihan ditolak (Kembali ke Belum Lunas). Notifikasi dikirim ke wali santri.');
                     }}
-                    className="px-4 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold rounded-xl transition text-[11px] cursor-pointer"
+                    className="px-4 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold rounded-xl transition text-[11px] cursor-pointer flex items-center gap-1.5"
                   >
-                    Tolak / Belum Lunas </button>
+                    <XCircle className="h-3.5 w-3.5 text-rose-600" />
+                    <span>Tolak / Minta Upload Ulang</span>
+                  </button>
                 </div>
                 
                 <button

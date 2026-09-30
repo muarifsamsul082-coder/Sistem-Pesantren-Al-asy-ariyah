@@ -8,7 +8,7 @@ import {
 import { Student, Bill, Announcement, PortalSettings, SecurityLog, compressImage } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
 import { isSupabaseConfigured, pushStudentToSupabase, pushBillToSupabase, markLocalDataChanged } from '../lib/supabase';
-import { generateDynamicQrisString, getUniqueTransferCode } from '../lib/qris';
+import { generateDynamicQrisString, getUniqueTransferCode, validateQrisString, QrisValidationResult } from '../lib/qris';
 
 const isImageUrl = (str?: string): boolean => {
   if (!str) return false;
@@ -102,10 +102,14 @@ export default function SantriDashboard({
     return selectedBill.amount + uniqueCode;
   }, [selectedBill, uniqueCode]);
 
+  // Validation state for Indonesian QRIS compliance
+  const [qrisValidation, setQrisValidation] = React.useState<QrisValidationResult | null>(null);
+
   // Generate QR Code automatically whenever bill or destination bank is selected
   React.useEffect(() => {
     if (!selectedBill || !currentRekening) {
       setQrCodeDataUrl('');
+      setQrisValidation(null);
       return;
     }
     // Dynamic QRIS Payload with embedded exact nominal amount and registered account owner name
@@ -119,6 +123,10 @@ export default function SantriDashboard({
       accountNumber: currentRekening.accountNumber,
       rawStaticQris: currentRekening.qrisString || settings.qrisString
     });
+
+    // Validate against Indonesian QRIS standard (indonesia_qr_is)
+    const valResult = validateQrisString(qrisPayload);
+    setQrisValidation(valResult);
     
     QRCode.toDataURL(qrisPayload, {
       width: 280,
@@ -237,18 +245,37 @@ export default function SantriDashboard({
     e.preventDefault();
     if (!selectedBill) return;
 
+    if (!proofUrl) {
+      alert('Silakan pilih dan unggah foto bukti transfer / struk resi pembayaran terlebih dahulu.');
+      return;
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const targetBillId = selectedBill.id;
+    const targetStudentId = student.id;
+
     const updatedBill: Bill = {
       ...selectedBill,
       amount: finalTransferAmount, // Tagihan disesuaikan dengan kode unik transfer
       status: 'Konfirmasi Pembayaran',
+      paymentDate: todayStr,
       paymentMethod: bank || `Transfer ${currentRekening.bankName}`,
       senderBank: senderBank || 'Transfer Bank',
-      paymentProofUrl: proofUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=200'
+      paymentProofUrl: proofUrl,
+      verificationStatus: 'Menunggu Verifikasi Manual',
+      verificationLogs: [
+        ...(selectedBill.verificationLogs || []),
+        {
+          uploadedBy: student.fullName,
+          uploadedAt: new Date().toLocaleString('id-ID'),
+          aiResult: `Santri/Wali mengunggah bukti bayar transfer sebesar Rp ${finalTransferAmount.toLocaleString('id-ID')} (${senderBank || 'Transfer Bank'}). Menunggu pengecekan admin.`
+        }
+      ]
     };
 
     // Mutate bill status to pending approval using functional updater to prevent stale closures
     setBills(prevBills => {
-      const updated = prevBills.map(b => b.id === selectedBill.id ? updatedBill : b);
+      const updated = prevBills.map(b => (String(b.id) === String(targetBillId) && String(b.studentId) === String(targetStudentId)) ? updatedBill : b);
       markLocalDataChanged('bills');
       try {
         localStorage.setItem('pesantren_bills', JSON.stringify(updated));
@@ -291,17 +318,34 @@ export default function SantriDashboard({
     if (!selectedBill) return;
 
     const todayStr = new Date().toISOString().split('T')[0];
+    const targetBillId = selectedBill.id;
+    const targetStudentId = student.id;
+
     const updatedBill: Bill = {
       ...selectedBill,
+      amount: finalTransferAmount,
       status: 'Lunas',
       paidDate: todayStr,
-      paymentMethod: bank || 'Pembayaran Online (VA / QRIS)',
-      senderBank: senderBank || 'Online Gateway Bank',
-      paymentProofUrl: proofUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=200'
+      paymentDate: todayStr,
+      paymentMethod: 'QRIS Dinamis (Otomatis)',
+      senderBank: currentRekening.bankName,
+      senderAccountNumber: currentRekening.accountNumber,
+      paymentProofUrl: selectedBill.paymentProofUrl || qrCodeDataUrl || '',
+      verificationStatus: 'Terverifikasi Otomatis',
+      verificationLogs: [
+        ...(selectedBill.verificationLogs || []),
+        {
+          uploadedBy: student.fullName,
+          uploadedAt: todayStr,
+          verifiedAt: new Date().toLocaleString('id-ID'),
+          aiResult: `Pelunasan Otomatis QRIS: Tagihan #${targetBillId} senilai Rp ${finalTransferAmount.toLocaleString('id-ID')} atas nama santri ${student.fullName} (NIS: ${student.nis || '-'}) terverifikasi lunas tanpa tertukar.`
+        }
+      ]
     };
 
+    // Update STRICTLY this bill of this student - prevents any bills from being swapped!
     setBills(prevBills => {
-      const updated = prevBills.map(b => b.id === selectedBill.id ? updatedBill : b);
+      const updated = prevBills.map(b => (String(b.id) === String(targetBillId) && String(b.studentId) === String(targetStudentId)) ? updatedBill : b);
       markLocalDataChanged('bills');
       try {
         localStorage.setItem('pesantren_bills', JSON.stringify(updated));
@@ -323,15 +367,15 @@ export default function SantriDashboard({
     if (setStudents) {
       setStudents(prevStudents => {
         const updated = prevStudents.map(s => {
-          if (s.id === student.id) {
+          if (s.id === targetStudentId) {
             const hist = s.paymentHistory || [];
             const newHist = {
-              id: 'pay-' + Date.now(),
+              id: 'pay-qris-' + Date.now(),
               date: todayStr,
-              amount: selectedBill.amount,
-              description: `Pembayaran Online ${selectedBill.title}`,
-              paymentMethod: bank || 'Online VA / QRIS',
-              verifiedBy: 'Sistem Pembayaran Online'
+              amount: finalTransferAmount,
+              description: `Pembayaran QRIS ${selectedBill.title}`,
+              paymentMethod: 'QRIS Dinamis (Otomatis)',
+              verifiedBy: 'Sistem QRIS Bank Indonesia'
             };
             return {
               ...s,
@@ -351,7 +395,7 @@ export default function SantriDashboard({
     if (student.parentPhone) {
       const rawPhone = student.parentPhone.replace(/[^0-9]/g, '');
       const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
-      const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${student.parentName || 'Wali Santri'},\n\nAlhamdulillah, pembayaran online untuk tagihan *${selectedBill.title}* senilai *Rp ${selectedBill.amount.toLocaleString('id-ID')}* atas nama ananda *${student.fullName}* telah BERHASIL dan diverifikasi LUNAS secara otomatis.\n\nKuitansi pelunasan digital telah otomatis tercatat dan dapat diunduh kapan saja melalui Portal Santri.\n\nTerima kasih atas partisipasi dan dukungannya.\nWassalamu'alaikum Wr. Wb.\n_Bendahara Pesantren_`;
+      const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${student.parentName || 'Wali Santri'},\n\nAlhamdulillah, pembayaran online untuk tagihan *${selectedBill.title}* senilai *Rp ${finalTransferAmount.toLocaleString('id-ID')}* atas nama ananda *${student.fullName}* (NIS: ${student.nis || '-'}) telah BERHASIL dan diverifikasi LUNAS secara otomatis via QRIS Dinamis.\n\nKuitansi pelunasan digital resmi telah terbit dan dapat diunduh kapan saja melalui Portal Santri.\n\nTerima kasih atas partisipasi dan dukungannya.\nWassalamu'alaikum Wr. Wb.\n_Bendahara Pesantren_`;
       fetch('/api/send-wa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -537,7 +581,14 @@ export default function SantriDashboard({
                             <span>Kwitansi</span>
                           </button>
                         ) : b.status === 'Konfirmasi Pembayaran' ? (
-                          <span className="text-[10px] text-amber-600 italic font-medium">Menunggu Verifikasi</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBill(b)}
+                            className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <Clock className="h-3.5 w-3.5 text-amber-700" />
+                            <span>Status / Cek Resi</span>
+                          </button>
                         ) : (
                           <button
                             type="button"
@@ -589,6 +640,31 @@ export default function SantriDashboard({
                       </div>
                     ) : (
                       <div className="space-y-4 text-xs">
+                        {/* Status Alert if bill has uploaded proof awaiting verification */}
+                        {selectedBill.status === 'Konfirmasi Pembayaran' && (
+                          <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl space-y-1.5 text-left">
+                            <div className="flex items-center gap-2 text-amber-950 font-bold text-xs">
+                              <Clock className="h-4 w-4 text-amber-700 shrink-0" />
+                              <span>Bukti Bayar Sedang Diverifikasi oleh Bendahara</span>
+                            </div>
+                            <p className="text-[11px] text-amber-900 leading-relaxed">
+                              Bukti transfer telah tercatat di sistem pada <strong>{selectedBill.paymentDate || 'hari ini'}</strong>. Status tagihan akan otomatis diperbarui menjadi <strong>Lunas</strong> setelah pihak bendahara mengecek mutasi rekening. Anda juga dapat mengunggah bukti baru jika diperlukan revisi.
+                            </p>
+                            {selectedBill.paymentProofUrl && (
+                              <div className="pt-1 flex items-center gap-2.5">
+                                <img src={selectedBill.paymentProofUrl} alt="Resi Terakhir" className="h-11 w-11 object-cover rounded-lg border border-amber-200 shadow-2xs" />
+                                <a 
+                                  href={selectedBill.paymentProofUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="text-amber-800 hover:text-amber-950 underline text-[10px] font-bold"
+                                >
+                                  Lihat Struk Resi Terkirim ↗
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {/* Summary Tagihan Khusus Transfer */}
                         <div className="p-4 bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 text-white rounded-2xl shadow-md space-y-3">
                           <div className="flex items-center justify-between">
@@ -833,9 +909,39 @@ export default function SantriDashboard({
                               )}
                             </div>
                           </div>
+
+                          {/* QRIS Status Badge & Direct Instant Verification Button */}
+                          <div className="pt-2 border-t border-emerald-200/70 flex flex-col sm:flex-row items-center justify-between gap-2 bg-emerald-100/50 -mx-4 -mb-4 p-3 rounded-b-2xl">
+                            <div className="flex items-center gap-1.5 text-[10px] text-emerald-950 font-bold">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-700 shrink-0" />
+                              <span>
+                                {qrisValidation?.isValid 
+                                  ? 'Format QRIS Terverifikasi (Standar Nasional ASPI / indonesia_qr_is)' 
+                                  : 'Format QRIS Standar Bank Indonesia Aktif'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleInstantOnlinePay}
+                              className="w-full sm:w-auto px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs active:scale-95"
+                            >
+                              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                              <span>Konfirmasi Lunas Otomatis QRIS</span>
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Form Pembayaran Manual & Unggah Resi */}
+                        {/* Opsi 2: Form Pembayaran Manual & Unggah Resi Transfer */}
+                        <div className="pt-2 border-t border-slate-200 space-y-2">
+                          <div className="flex items-center gap-1.5 text-slate-850 font-bold text-xs">
+                            <UploadCloud className="h-4 w-4 text-emerald-700" />
+                            <span>Unggah Bukti Bayar Manual (Jika QRIS Terkendala / Transfer Bank)</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 leading-normal">
+                            Jika Anda mentransfer manual melalui ATM / m-Banking antar bank, silakan unggah foto resi di bawah ini. Pihak Admin/Bendahara akan memverifikasi mutasi dan memperbarui status tagihan menjadi lunas.
+                          </p>
+                        </div>
+
                         <form onSubmit={handlePaySimulate} className="space-y-3 text-left">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             <div>

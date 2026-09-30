@@ -1,5 +1,6 @@
 // QRIS & Transfer QR Generator for Online Payment
-// Conforms to EMVCo QR Code & Bank Indonesia ASPI QRIS MPM Specifications
+// Conforms to EMVCo QR Code & Bank Indonesia ASPI QRIS MPM Specifications (indonesia_qr_is)
+import QRCode from 'qrcode';
 
 // CRC-16/CCITT-FALSE calculation for QRIS (poly 0x1021, init 0xFFFF)
 export function calculateCRC16(data: string): string {
@@ -40,9 +41,15 @@ export interface DynamicQrisParams {
 
 /**
  * Converts a static QRIS string (e.g. from Bank BRI, BCA, BSI, DANA Bisnis, or GoPay)
- * into a Dynamic QRIS with an embedded nominal amount (Tag 54) and invoice reference (Tag 62).
+ * into a Dynamic QRIS with an embedded nominal amount (Tag 54), custom merchant name (Tag 59),
+ * and invoice reference (Tag 62).
  */
-export function convertStaticToDynamicQris(staticPayload: string, amount: number, billId?: string): string {
+export function convertStaticToDynamicQris(
+  staticPayload: string, 
+  amount: number, 
+  billId?: string,
+  accountName?: string
+): string {
   if (!staticPayload || !staticPayload.startsWith('000201')) {
     return '';
   }
@@ -74,20 +81,30 @@ export function convertStaticToDynamicQris(staticPayload: string, amount: number
     }
   }
 
+  // Update Merchant Name (Tag 59) if accountName is registered (resolves discrepancy where school name appears instead of registered owner)
+  if (accountName && accountName.trim()) {
+    const cleanAccountName = accountName.trim().replace(/[^A-Za-z0-9 ]/g, '').toUpperCase().slice(0, 25);
+    const tag59 = formatTLV('59', cleanAccountName);
+    const tag59Match = clean.match(/59(\d{2})/);
+    if (tag59Match && tag59Match.index !== undefined) {
+      const existingLen = parseInt(tag59Match[1], 10);
+      const startPos = tag59Match.index;
+      clean = clean.slice(0, startPos) + tag59 + clean.slice(startPos + 4 + existingLen);
+    }
+  }
+
   // Inject or update Bill ID in Tag 62 if provided
   if (billId) {
     const cleanBillId = billId.replace(/[^A-Za-z0-9]/g, '').slice(0, 15);
     const tag62Sub = formatTLV('01', cleanBillId) + formatTLV('05', 'TRANSFER') + formatTLV('07', 'TRF01');
     const tag62 = formatTLV('62', tag62Sub);
-    if (/62\d{2}/.test(clean)) {
-      clean = clean.replace(/62\d{2}[^]+?(?=(?:5802|59\d{2}|60\d{2}|61\d{2}|6304|$))/, tag62);
+    const tag62Match = clean.match(/62(\d{2})/);
+    if (tag62Match && tag62Match.index !== undefined) {
+      const existingLen = parseInt(tag62Match[1], 10);
+      const startPos = tag62Match.index;
+      clean = clean.slice(0, startPos) + tag62 + clean.slice(startPos + 4 + existingLen);
     } else {
-      const insertPoint = clean.indexOf('6304');
-      if (insertPoint !== -1) {
-        clean = clean.slice(0, insertPoint) + tag62 + clean.slice(insertPoint);
-      } else {
-        clean += tag62;
-      }
+      clean += tag62;
     }
   }
 
@@ -137,7 +154,7 @@ export function generateDynamicQrisString(params: DynamicQrisParams): string {
 
   // 1. If an official static QRIS string was uploaded/configured, convert it dynamically!
   if (rawStaticQris && rawStaticQris.trim().startsWith('000201')) {
-    const converted = convertStaticToDynamicQris(rawStaticQris, amount, billId);
+    const converted = convertStaticToDynamicQris(rawStaticQris, amount, billId, accountName);
     if (converted) return converted;
   }
 
@@ -191,7 +208,132 @@ export function generateDynamicQrisString(params: DynamicQrisParams): string {
     '6304';                             // 63: CRC header
 
   const crc = calculateCRC16(raw);
-  return raw + crc;
+  const fullPayload = raw + crc;
+
+  // Validate format against Bank Indonesia ASPI QRIS MPM standard before returning
+  const validation = validateQrisString(fullPayload);
+  if (!validation.isValid) {
+    console.warn('QRIS Validation Warning:', validation.error);
+  }
+
+  return fullPayload;
+}
+
+/**
+ * Generates an Indonesian standard QRIS string, validates it against Bank Indonesia ASPI specifications,
+ * and encodes it into a QR code data URL using the qrcode library to guarantee that banking applications
+ * can reliably scan and recognize the format (indonesia_qr_is).
+ */
+export async function generateValidatedQrisQrCode(
+  params: DynamicQrisParams,
+  options?: QRCode.QRCodeToDataURLOptions
+): Promise<{
+  payload: string;
+  dataUrl: string;
+  validation: QrisValidationResult;
+}> {
+  const payload = generateDynamicQrisString(params);
+  const validation = validateQrisString(payload);
+
+  // Encode with qrcode library with strict error-correction and sizing
+  const dataUrl = await QRCode.toDataURL(payload, {
+    width: options?.width || 300,
+    margin: options?.margin !== undefined ? options?.margin : 2,
+    errorCorrectionLevel: options?.errorCorrectionLevel || 'M',
+    color: options?.color || {
+      dark: '#064e3b',
+      light: '#ffffff'
+    }
+  });
+
+  return {
+    payload,
+    dataUrl,
+    validation
+  };
+}
+
+export interface QrisValidationResult {
+  isValid: boolean;
+  standard: 'indonesia_qr_is';
+  error?: string;
+  parsedTags?: Record<string, string>;
+  details?: {
+    merchantName?: string;
+    amount?: number;
+    currency?: string;
+    billReference?: string;
+  };
+}
+
+/**
+ * Parses EMVCo TLV string into key-value map of tag IDs to tag values
+ */
+export function parseQrisTLV(payload: string): Record<string, string> {
+  const tags: Record<string, string> = {};
+  let idx = 0;
+  while (idx < payload.length - 4) {
+    const tag = payload.substring(idx, idx + 2);
+    const lenStr = payload.substring(idx + 2, idx + 4);
+    const len = parseInt(lenStr, 10);
+    if (isNaN(len) || len < 0 || idx + 4 + len > payload.length) break;
+    const val = payload.substring(idx + 4, idx + 4 + len);
+    tags[tag] = val;
+    idx += 4 + len;
+  }
+  return tags;
+}
+
+/**
+ * Strictly validates whether a QR string conforms to the Indonesian QRIS Standard (indonesia_qr_is)
+ * and Bank Indonesia ASPI MPM specifications.
+ */
+export function validateQrisString(payload: string): QrisValidationResult {
+  if (!payload || typeof payload !== 'string' || payload.length < 20) {
+    return { isValid: false, standard: 'indonesia_qr_is', error: 'Payload QRIS kosong atau terlalu pendek' };
+  }
+  if (!payload.startsWith('000201')) {
+    return { isValid: false, standard: 'indonesia_qr_is', error: 'Format QRIS tidak diawali Tag 000201 (EMVCo Indicator)' };
+  }
+  const crcHeaderIdx = payload.lastIndexOf('6304');
+  if (crcHeaderIdx === -1 || crcHeaderIdx !== payload.length - 8) {
+    return { isValid: false, standard: 'indonesia_qr_is', error: 'Struktur QRIS tidak diakhiri Tag 6304 (CRC Checksum)' };
+  }
+  const dataBeforeCRC = payload.substring(0, crcHeaderIdx + 4);
+  const expectedCRC = payload.substring(crcHeaderIdx + 4).toUpperCase();
+  const calculatedCRC = calculateCRC16(dataBeforeCRC);
+  if (calculatedCRC !== expectedCRC) {
+    return { 
+      isValid: false, 
+      standard: 'indonesia_qr_is', 
+      error: `CRC-16 Checksum tidak cocok (Kalkulasi: ${calculatedCRC}, Pada payload: ${expectedCRC})` 
+    };
+  }
+
+  const tags = parseQrisTLV(payload);
+  if (!tags['01']) return { isValid: false, standard: 'indonesia_qr_is', error: 'Tag 01 (Point of Initiation) tidak ditemukan' };
+  if (!tags['26'] && !tags['51']) return { isValid: false, standard: 'indonesia_qr_is', error: 'Tag 26/51 (National Merchant Information) tidak ditemukan' };
+  if (!tags['52']) return { isValid: false, standard: 'indonesia_qr_is', error: 'Tag 52 (Merchant Category Code) tidak ditemukan' };
+  if (tags['52'] === '0000') return { isValid: false, standard: 'indonesia_qr_is', error: 'Tag 52 MCC 0000 tidak valid untuk perbankan' };
+  if (tags['53'] !== '360') return { isValid: false, standard: 'indonesia_qr_is', error: 'Tag 53 Currency harus IDR 360' };
+  if (tags['01'] === '12' && (!tags['54'] || isNaN(Number(tags['54'])))) {
+    return { isValid: false, standard: 'indonesia_qr_is', error: 'Tag 54 (Nominal Dinamis) harus berisi angka valid' };
+  }
+  if (tags['58'] !== 'ID') return { isValid: false, standard: 'indonesia_qr_is', error: 'Tag 58 Country Code harus ID' };
+  if (!tags['59']) return { isValid: false, standard: 'indonesia_qr_is', error: 'Tag 59 (Merchant Name) tidak ditemukan' };
+  if (!tags['60']) return { isValid: false, standard: 'indonesia_qr_is', error: 'Tag 60 (Merchant City) tidak ditemukan' };
+
+  return {
+    isValid: true,
+    standard: 'indonesia_qr_is',
+    parsedTags: tags,
+    details: {
+      merchantName: tags['59'],
+      amount: tags['54'] ? Number(tags['54']) : undefined,
+      currency: tags['53'] === '360' ? 'IDR' : tags['53'],
+      billReference: tags['62']
+    }
+  };
 }
 
 /**
