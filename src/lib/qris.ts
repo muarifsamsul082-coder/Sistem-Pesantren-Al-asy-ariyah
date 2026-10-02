@@ -364,3 +364,22 @@ export function getUniqueTransferCode(billId: string | number, baseAmount: numbe
   const finalCode = Math.min(500, Math.max(100, baseOffset + Math.abs(hash)));
   return finalCode;
 }
+
+/**
+ * Extracts city name from address string safely
+ */
+export function getCityFromAddress(addr?: string): string {
+  if (!addr) return 'Semarang';
+  const cleanAddr = addr.replace(/,\s*Indonesia/gi, '').trim();
+  const parts = cleanAddr.split(',');
+  if (parts.length >= 2) {
+    const cityPart = parts[parts.length - 2].trim();
+    return cityPart.replace(/^(Kabupaten|Kab\.|Kota)\s+/i, '').trim();
+  }
+  const match = cleanAddr.match(/(?:Kabupaten|Kab\.|Kota)\s+([A-Za-z\s]+)/i);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return parts[0]?.trim() || 'Semarang';
+}
+

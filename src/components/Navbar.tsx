@@ -21,7 +21,7 @@ interface NavbarProps {
   ppdbEndDate?: string;
   
   // Dashboard tab states for unified top-right hamburger menu
-  adminTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus';
+  adminTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus';
   setAdminTab?: (tab: any) => void;
   staffTab?: 'students' | 'history' | 'profile' | 'skck' | 'takzir_letter';
   setStaffTab?: (tab: any) => void;
@@ -939,6 +939,18 @@ export default function Navbar({
                     }`}
                   >
                     Tagihan & Keuangan SPP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAdminTabClick('laporan_keuangan')}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between ${
+                      adminTab === 'laporan_keuangan' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>Laporan Keuangan & Kas</span>
+                    <span className="text-[9px] bg-amber-400 text-emerald-950 font-black px-1.5 py-0.5 rounded-full font-mono">
+                      PUTRA/I
+                    </span>
                   </button>
                   <button
                     type="button"

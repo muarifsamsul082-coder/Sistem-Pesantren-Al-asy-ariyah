@@ -41,6 +41,20 @@ export interface PCSBRegistration {
   healthHistory?: string;
   paymentType?: 'Cicilan Bulanan' | 'Langsung Lunas';
   jenjangPendidikan?: string;
+  targetProgram?: string;
+  target_program?: string;
+  program?: string;
+  academicTrack?: string;
+  academicYear?: string;
+  nisn?: string;
+  fatherPhone?: string;
+  motherPhone?: string;
+  guardianPhone?: string;
+  paymentStatus?: string;
+  paymentProof?: string;
+  verifiedDocuments?: string[];
+  isLocked?: boolean;
+  studentId?: string;
 }
 
 export interface TahfidzLog {
@@ -369,6 +383,43 @@ export interface StaffUserItem {
   isConfirmed: boolean;
   registeredAt?: string;
   password?: string;
+}
+
+export interface FinancialExpense {
+  id: string;
+  bendaharaType: 'putra' | 'putri';
+  bendaharaName: string;
+  date: string;
+  category: string;
+  amount: number;
+  description: string;
+  recipient?: string;
+  receiptUrl?: string;
+  createdAt?: string;
+}
+
+export interface AlumniRecord {
+  id: string;
+  studentId?: string;
+  nis: string;
+  fullName: string;
+  gender: 'Laki-laki' | 'Perempuan';
+  classFormal?: string;
+  classMadrasah?: string;
+  tahunMasuk?: string;
+  tahunKeluar: string;
+  alumniReason?: string;
+  lastEducation?: string;
+  currentActivity?: string;
+  campusOrWorkplace?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  parentName?: string;
+  parentPhone?: string;
+  currentHafalan?: string;
+  photoUrl?: string;
+  createdAt?: string;
 }
 
 

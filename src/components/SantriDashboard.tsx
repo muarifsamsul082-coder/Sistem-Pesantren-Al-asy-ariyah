@@ -256,7 +256,7 @@ export default function SantriDashboard({
 
     const updatedBill: Bill = {
       ...selectedBill,
-      amount: finalTransferAmount, // Tagihan disesuaikan dengan kode unik transfer
+      amount: selectedBill.amount, // Tagihan asli tetap dipertahankan (e.g. 50.000) tidak diinflasikan
       status: 'Konfirmasi Pembayaran',
       paymentDate: todayStr,
       paymentMethod: bank || `Transfer ${currentRekening.bankName}`,
@@ -268,7 +268,7 @@ export default function SantriDashboard({
         {
           uploadedBy: student.fullName,
           uploadedAt: new Date().toLocaleString('id-ID'),
-          aiResult: `Santri/Wali mengunggah bukti bayar transfer sebesar Rp ${finalTransferAmount.toLocaleString('id-ID')} (${senderBank || 'Transfer Bank'}). Menunggu pengecekan admin.`
+          aiResult: `Santri/Wali mengunggah bukti transfer tagihan Rp ${selectedBill.amount.toLocaleString('id-ID')} (Nominal transfer unik: Rp ${finalTransferAmount.toLocaleString('id-ID')} via ${senderBank || 'Transfer Bank'}). Menunggu pengecekan admin.`
         }
       ]
     };
@@ -323,7 +323,7 @@ export default function SantriDashboard({
 
     const updatedBill: Bill = {
       ...selectedBill,
-      amount: finalTransferAmount,
+      amount: selectedBill.amount, // Tagihan asli tetap dipertahankan
       status: 'Lunas',
       paidDate: todayStr,
       paymentDate: todayStr,
@@ -338,7 +338,7 @@ export default function SantriDashboard({
           uploadedBy: student.fullName,
           uploadedAt: todayStr,
           verifiedAt: new Date().toLocaleString('id-ID'),
-          aiResult: `Pelunasan Otomatis QRIS: Tagihan #${targetBillId} senilai Rp ${finalTransferAmount.toLocaleString('id-ID')} atas nama santri ${student.fullName} (NIS: ${student.nis || '-'}) terverifikasi lunas tanpa tertukar.`
+          aiResult: `Pelunasan Otomatis QRIS: Tagihan #${targetBillId} senilai Rp ${selectedBill.amount.toLocaleString('id-ID')} atas nama santri ${student.fullName} (NIS: ${student.nis || '-'}) terverifikasi lunas tanpa tertukar.`
         }
       ]
     };
@@ -1418,30 +1418,31 @@ export default function SantriDashboard({
                     <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
                     <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, Bendahara Pesantren</p>
                     
-                    <div className="h-24 w-full relative flex items-center justify-start select-none py-1">
-                      {/* Stempel: Berada di SEBELAH KIRI tanda tangan */}
-                      {(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) && (
-                        <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
-                          {isImageUrl(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) ? (
-                            <img src={settings.stempelBendaharaUrl || settings.stempelPesantrenUrl} alt="Stempel Pesantren" className="h-24 w-24 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-18 w-18 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-12deg] leading-tight text-center bg-white/75 shadow-xs">
-                              {settings.stempelBendaharaUrl || settings.stempelPesantrenUrl}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Tanda tangan: Berada di sebelah kanan stempel dengan teks rata kiri */}
-                      <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+                    {/* Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih */}
+                    <div className="h-16 w-full relative flex items-center justify-start select-none my-2">
+                      {/* Tanda tangan: Posisi dasar di sebelah kiri teks */}
+                      <div className="z-10 relative flex items-center justify-start">
                         {isImageUrl(settings.ttdBendaharaUrl || settings.ttdPengurusUrl) ? (
-                          <img src={settings.ttdBendaharaUrl || settings.ttdPengurusUrl} alt="TTD Pengurus" className="h-20 max-w-[190px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                          <img src={settings.ttdBendaharaUrl || settings.ttdPengurusUrl} alt="TTD Pengurus" className="h-16 max-w-[170px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                         ) : (
                           <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
                             {settings.ttdBendaharaUrl || settings.ttdPengurusUrl || 'Bendahara Pesantren'}
                           </span>
                         )}
                       </div>
+
+                      {/* Stempel: Berada di SEBELAH KANAN tanda tangan dengan model tumpang tindih */}
+                      {(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) && (
+                        <div className="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                          {isImageUrl(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) ? (
+                            <img src={settings.stempelBendaharaUrl || settings.stempelPesantrenUrl} alt="Stempel Pesantren" className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/75 shadow-xs">
+                              {settings.stempelBendaharaUrl || settings.stempelPesantrenUrl}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{settings.namaBendahara || settings.namaPengurus || 'Ustadzah Siti Aminah'}</p>
@@ -1596,34 +1597,34 @@ export default function SantriDashboard({
                       </p>
                       <p className="text-[7.5px] text-slate-800 font-extrabold uppercase tracking-wider leading-tight mt-0.5">Pengasuh Pondok Pesantren,</p>
                       
-                      {/* Overlapping signature and stamp area */}
-                      <div className="relative min-h-[42px] flex flex-col items-center justify-end select-none my-0.5 w-32">
-                        {/* Signature: Berada DI ATAS nama pengasuh */}
-                        <div className="z-10 mb-0.5 flex items-center justify-center">
+                      {/* Overlapping signature and stamp area: 4 Spasi Kebawah (h-16), Stempel di KANAN model tumpang tindih */}
+                      <div className="h-16 w-36 relative flex items-center justify-start select-none my-1">
+                        {/* Signature: Rata Kiri */}
+                        <div className="z-10 relative flex items-center justify-start">
                           {isImageUrl(settings.ttdPengasuhUrl) ? (
-                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-9 max-w-[85px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-14 max-w-[120px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
-                            <span className="text-[7.5px] font-mono text-blue-900 italic font-extrabold">
+                            <span className="text-[8.5px] font-mono text-blue-900 italic font-extrabold underline">
                               {settings.namaPengasuh || "KH. Ahmad Wildan"}
                             </span>
                           )}
                         </div>
 
-                        {/* Stamp: Berada di SEBELAH KIRI nama pengasuh */}
+                        {/* Stamp: Berada di SEBELAH KANAN tanda tangan dengan model tumpang tindih */}
                         {settings.stempelPengasuhUrl && (
-                          <div className="z-20 absolute -left-3 -bottom-0.5 pointer-events-none opacity-85">
+                          <div className="z-20 absolute left-[50px] -top-1 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelPengasuhUrl) ? (
-                              <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-10 w-10 object-contain rotate-[-10deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                              <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-14 w-14 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="border border-double border-red-600/60 text-red-700/90 rounded-full h-8 w-8 flex items-center justify-center text-[5px] font-extrabold uppercase rotate-[-10deg] leading-none text-center bg-white/75">
+                              <div className="border border-double border-red-600/60 text-red-700/90 rounded-full h-12 w-12 flex items-center justify-center text-[5px] font-extrabold uppercase rotate-[-8deg] leading-none text-center bg-white/75">
                                 {settings.stempelPengasuhUrl}
                               </div>
                             )}
                           </div>
                         )}
-
-                        <p className="text-[8px] font-bold text-gray-900 underline leading-none uppercase truncate">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</p>
                       </div>
+
+                      <p className="text-[8px] font-bold text-gray-900 underline leading-none uppercase truncate">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</p>
                     </div>
                   </div>
                 </div>

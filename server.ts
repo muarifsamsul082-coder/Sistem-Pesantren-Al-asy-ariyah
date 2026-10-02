@@ -70,6 +70,7 @@ async function startServer() {
   const STAFF_CONFIGS_STORAGE_PATH = path.join(process.cwd(), '.portal_staff_configs.json');
   const ADMIN_NAME_STORAGE_PATH = path.join(process.cwd(), '.portal_admin_name.json');
   const WA_TOKEN_STORAGE_PATH = path.join(process.cwd(), '.portal_wa_token.json');
+  const EXPENSES_STORAGE_PATH = path.join(process.cwd(), '.portal_financial_expenses.json');
 
   // Static uploads serving
   const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
@@ -350,6 +351,55 @@ async function startServer() {
       }
     } catch (e) {
       console.error("Error saving bills:", e);
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  // Financial Expenses multi-device persistence (Bendahara Putra & Putri)
+  app.get("/api/financial-expenses", (req, res) => {
+    try {
+      if (fs.existsSync(EXPENSES_STORAGE_PATH)) {
+        const raw = fs.readFileSync(EXPENSES_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, expenses: Array.isArray(parsed) ? parsed : [] });
+      }
+    } catch (e) {
+      console.error("Error reading financial expenses file:", e);
+    }
+    return res.json({ success: true, expenses: [] });
+  });
+
+  app.post("/api/financial-expenses", (req, res) => {
+    try {
+      const incoming = req.body;
+      let list: any[] = [];
+      if (fs.existsSync(EXPENSES_STORAGE_PATH)) {
+        try {
+          list = JSON.parse(fs.readFileSync(EXPENSES_STORAGE_PATH, 'utf-8'));
+          if (!Array.isArray(list)) list = [];
+        } catch (e) {}
+      }
+
+      if (incoming && incoming.replace && Array.isArray(incoming.expenses)) {
+        list = incoming.expenses;
+        fs.writeFileSync(EXPENSES_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      } else if (Array.isArray(incoming)) {
+        fs.writeFileSync(EXPENSES_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
+        return res.json({ success: true, count: incoming.length });
+      } else if (incoming && incoming.id) {
+        const existingIdx = list.findIndex(e => e.id === incoming.id);
+        if (existingIdx >= 0) {
+          list[existingIdx] = incoming;
+        } else {
+          list.unshift(incoming);
+        }
+        fs.writeFileSync(EXPENSES_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
+      console.error("Error saving expenses:", e);
       return res.status(500).json({ success: false, error: String(e) });
     }
     return res.status(400).json({ success: false, error: "Invalid payload" });

@@ -99,26 +99,29 @@ export default function WhatsAppBroadcastPanel({
   const [directQueueModalOpen, setDirectQueueModalOpen] = useState(false);
   const [directQueueIndex, setDirectQueueIndex] = useState(0);
 
-  // Helper format phone
-  const cleanPhone = (phone: string): string => {
-    let p = (phone || '').replace(/[^0-9]/g, '');
+  // Helper format phone (strictly converts any numeric or string input safely)
+  const cleanPhone = (phone: any): string => {
+    let p = String(phone || '').replace(/[^0-9]/g, '');
     if (p.startsWith('0')) p = '62' + p.slice(1);
     else if (!p.startsWith('62') && p.length > 5) p = '62' + p;
     return p;
   };
 
-  const isValidPhone = (phone?: string): boolean => {
+  const isValidPhone = (phone?: any): boolean => {
     if (!phone) return false;
     const c = cleanPhone(phone);
     return c.length >= 10 && c.startsWith('62');
   };
 
-  // Calculate unpaid bills mapping for each student
+  // Calculate unpaid bills mapping for each student safely
   const studentUnpaidBillsMap = useMemo(() => {
     const map: Record<string, { count: number; total: number; items: Bill[] }> = {};
+    if (!Array.isArray(bills)) return map;
     bills.forEach(b => {
+      if (!b) return;
       if (b.status === 'Belum Lunas' || b.status === 'Konfirmasi Pembayaran') {
         const key = b.studentId || b.nis || b.studentName;
+        if (!key) return;
         if (!map[key]) {
           map[key] = { count: 0, total: 0, items: [] };
         }
@@ -130,13 +133,20 @@ export default function WhatsAppBroadcastPanel({
     return map;
   }, [bills]);
 
-  const getStudentUnpaidData = (std: Student) => {
-    return studentUnpaidBillsMap[std.id] || studentUnpaidBillsMap[std.nis] || studentUnpaidBillsMap[std.fullName] || { count: 0, total: 0, items: [] };
+  const getStudentUnpaidData = (std: any) => {
+    if (!std) return { count: 0, total: 0, items: [] };
+    return studentUnpaidBillsMap[std.id] || 
+           studentUnpaidBillsMap[std.nis] || 
+           studentUnpaidBillsMap[std.fullName] || 
+           { count: 0, total: 0, items: [] };
   };
 
-  // Filtered students list
+  // Filtered students list with comprehensive null & type guards
   const filteredStudents = useMemo(() => {
+    if (!Array.isArray(students)) return [];
     return students.filter(s => {
+      if (!s || !s.id) return false;
+
       // Status filter
       if (selectedStatus === 'Aktif' && s.status !== 'Aktif') return false;
 
@@ -168,10 +178,10 @@ export default function WhatsAppBroadcastPanel({
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchName = (s.fullName || '').toLowerCase().includes(q);
-        const matchNis = (s.nis || '').toLowerCase().includes(q);
-        const matchParent = (s.parentName || s.fatherName || s.motherName || '').toLowerCase().includes(q);
-        const matchPhone = (s.parentPhone || '').includes(q);
+        const matchName = String(s.fullName || '').toLowerCase().includes(q);
+        const matchNis = String(s.nis || '').toLowerCase().includes(q);
+        const matchParent = String(s.parentName || s.fatherName || s.motherName || '').toLowerCase().includes(q);
+        const matchPhone = String(s.parentPhone || '').includes(q);
         if (!matchName && !matchNis && !matchParent && !matchPhone) return false;
       }
 
@@ -188,7 +198,7 @@ export default function WhatsAppBroadcastPanel({
 
   // Selection handlers
   const handleToggleSelectAll = () => {
-    const validFiltered = filteredStudents.filter(s => isValidPhone(s.parentPhone));
+    const validFiltered = filteredStudents.filter(s => s && s.id && isValidPhone(s.parentPhone));
     if (selectedStudentIds.size >= validFiltered.length && validFiltered.length > 0) {
       setSelectedStudentIds(new Set());
     } else {
@@ -197,36 +207,39 @@ export default function WhatsAppBroadcastPanel({
   };
 
   const handleToggleStudent = (id: string) => {
+    if (!id) return;
     const next = new Set(selectedStudentIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelectedStudentIds(next);
   };
 
-  // Dynamic message template generator for a specific student
-  const generatePersonalizedMessage = (template: string, std: Student): string => {
-    const schoolName = settings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
+  // Dynamic message template generator for a specific student safely
+  const generatePersonalizedMessage = (template: string, std: any): string => {
+    if (!template || typeof template !== 'string') return '';
+    if (!std) return '';
+    const schoolName = settings?.schoolName || "Pondok Pesantren Al-Asy'ariyah";
     const waliName = std.parentName || std.fatherName || std.guardianName || 'Bapak/Ibu Wali Santri';
     const unpaid = getStudentUnpaidData(std);
     
     // Bank accounts info
-    const accounts = settings.rekeningList || [];
+    const accounts = Array.isArray(settings?.rekeningList) ? settings.rekeningList : [];
     const rekeningInfo = accounts.length > 0
-      ? `*Rekening Resmi Pesantren:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n')
+      ? `*Rekening Resmi Pesantren:*\n` + accounts.map(b => `• ${b?.bankName || 'Bank'}: *${b?.accountNumber || '-'}* (a.n ${b?.accountName || schoolName})`).join('\n')
       : `*Rekening Pembayaran:* Silakan konfirmasi ke Bendahara Pesantren.`;
 
-    const rincianTagihanText = unpaid.items.length > 0
-      ? unpaid.items.map((b, idx) => `  ${idx + 1}. ${b.title}: Rp ${Number(b.amount).toLocaleString('id-ID')} (Jatuh tempo: ${b.dueDate || '-'})`).join('\n')
+    const rincianTagihanText = unpaid && Array.isArray(unpaid.items) && unpaid.items.length > 0
+      ? unpaid.items.map((b, idx) => `  ${idx + 1}. ${b?.title || 'Tagihan'}: Rp ${Number(b?.amount || 0).toLocaleString('id-ID')} (Jatuh tempo: ${b?.dueDate || '-'})`).join('\n')
       : '  (Tidak ada tunggakan tagihan / Sudah Lunas)';
 
-    const totalTagihanText = `Rp ${Number(unpaid.total).toLocaleString('id-ID')}`;
+    const totalTagihanText = `Rp ${Number(unpaid?.total || 0).toLocaleString('id-ID')}`;
 
     return template
-      .replace(/\{nama_wali\}/g, waliName)
-      .replace(/\{nama_santri\}/g, std.fullName)
-      .replace(/\{nis\}/g, std.nis || '-')
-      .replace(/\{kelas\}/g, std.classFormal || std.classMadrasah || std.class || '-')
-      .replace(/\{kamar\}/g, std.kamar || '-')
+      .replace(/\{nama_wali\}/g, String(waliName || 'Wali Santri'))
+      .replace(/\{nama_santri\}/g, String(std.fullName || 'Santri'))
+      .replace(/\{nis\}/g, String(std.nis || '-'))
+      .replace(/\{kelas\}/g, String(std.classFormal || std.classMadrasah || std.class || '-'))
+      .replace(/\{kamar\}/g, String(std.kamar || '-'))
       .replace(/\{total_tagihan\}/g, totalTagihanText)
       .replace(/\{rincian_tagihan\}/g, rincianTagihanText)
       .replace(/\{rekening_pesantren\}/g, rekeningInfo)
@@ -324,14 +337,14 @@ export default function WhatsAppBroadcastPanel({
     setMessageBody(prev => prev + tag);
   };
 
-  // List of selected students as objects
+  // List of selected students as objects safely
   const selectedStudentsList = useMemo(() => {
-    return filteredStudents.filter(s => selectedStudentIds.has(s.id));
+    return filteredStudents.filter(s => s && s.id && selectedStudentIds.has(s.id));
   }, [filteredStudents, selectedStudentIds]);
 
   // Sample student for preview
   const previewStudent = useMemo(() => {
-    return students.find(s => s.id === previewStudentId) || filteredStudents[0] || null;
+    return (students || []).find(s => s && s.id === previewStudentId) || filteredStudents[0] || null;
   }, [students, previewStudentId, filteredStudents]);
 
   // Execute broadcast via Gateway (background sequential)
@@ -767,7 +780,7 @@ export default function WhatsAppBroadcastPanel({
               onClick={handleToggleSelectAll}
               className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
-              {selectedStudentIds.size >= filteredStudents.filter(s => isValidPhone(s.parentPhone)).length && filteredStudents.length > 0 ? (
+              {selectedStudentIds.size >= filteredStudents.filter(s => s && isValidPhone(s.parentPhone)).length && filteredStudents.length > 0 ? (
                 <>
                   <Square className="h-3.5 w-3.5" />
                   <span>Batal Pilih Semua</span>
@@ -775,7 +788,7 @@ export default function WhatsAppBroadcastPanel({
               ) : (
                 <>
                   <CheckSquare className="h-3.5 w-3.5" />
-                  <span>Pilih Semua ({filteredStudents.filter(s => isValidPhone(s.parentPhone)).length})</span>
+                  <span>Pilih Semua ({filteredStudents.filter(s => s && isValidPhone(s.parentPhone)).length})</span>
                 </>
               )}
             </button>
@@ -812,7 +825,7 @@ export default function WhatsAppBroadcastPanel({
                 <th className="px-3.5 py-3 w-10 text-center">
                   <input
                     type="checkbox"
-                    checked={selectedStudentIds.size > 0 && selectedStudentIds.size >= filteredStudents.filter(s => isValidPhone(s.parentPhone)).length}
+                    checked={selectedStudentIds.size > 0 && selectedStudentIds.size >= filteredStudents.filter(s => s && isValidPhone(s.parentPhone)).length}
                     onChange={handleToggleSelectAll}
                     className="rounded border-gray-300 text-emerald-700 focus:ring-emerald-500 cursor-pointer"
                   />

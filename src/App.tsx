@@ -158,9 +158,24 @@ export default function App() {
   const [availableMadrasahClasses, setAvailableMadrasahClasses] = React.useState<string[]>(() => {
     const saved = localStorage.getItem('pesantren_available_madrasah_classes');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+      try { 
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // If saved list doesn't have MI classes, merge them in
+          const miClasses = ['1A MI Diniyah', '1B MI Diniyah', '2A MI Diniyah', '2B MI Diniyah', '3A MI Diniyah', '4A MI Diniyah', '5A MI Diniyah', '6A MI Diniyah'];
+          const hasMi = parsed.some(c => c && c.includes('MI'));
+          if (!hasMi) {
+            return [...miClasses, ...parsed];
+          }
+          return parsed;
+        }
+      } catch (e) { console.error(e); }
     }
-    return ['1A MTs Diniyah', '1B MTs Diniyah', '2A MTs Diniyah', '2B MTs Diniyah', '3A MTs Diniyah', '1A MA Diniyah', '2A MA Diniyah', '3A MA Diniyah'];
+    return [
+      '1A MI Diniyah', '1B MI Diniyah', '2A MI Diniyah', '2B MI Diniyah', '3A MI Diniyah', '4A MI Diniyah', '5A MI Diniyah', '6A MI Diniyah',
+      '1A MTs Diniyah', '1B MTs Diniyah', '2A MTs Diniyah', '2B MTs Diniyah', '3A MTs Diniyah', 
+      '1A MA Diniyah', '2A MA Diniyah', '3A MA Diniyah'
+    ];
   });
 
   React.useEffect(() => {
@@ -178,7 +193,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = React.useState('');
 
   // Dashboard tab states for global unified hamburger menu control
-  const [adminTab, setAdminTabState] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>(() => {
+  const [adminTab, setAdminTabState] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>(() => {
     try {
       const saved = sessionStorage.getItem('pesantren_admin_active_tab') || localStorage.getItem('pesantren_admin_active_tab');
       if (saved) return saved as any;
@@ -403,10 +418,53 @@ export default function App() {
       }
       seenNis.add(currentNis);
 
+      let finalClassMadrasah = s.classMadrasah;
+      let finalClassFormal = s.classFormal || s.classSore;
+
+      // Ensure classMadrasah is accurately parsed and preserved (especially MI classes like 1A MI Diniyah)
+      if (s.class && /MI/i.test(s.class) && !/MTs/i.test(s.class)) {
+        // Extract exact MI class e.g. "1A MI", "1A MI Diniyah", etc.
+        const miMatch = s.class.match(/(\d+[A-Za-z]?\s*MI(?:\s*Diniyah)?)/i);
+        if (miMatch && miMatch[1]) {
+          finalClassMadrasah = miMatch[1];
+          wasModified = true;
+        } else {
+          finalClassMadrasah = '1A MI Diniyah';
+          wasModified = true;
+        }
+      } else if (s.classPagi && /MI/i.test(s.classPagi)) {
+        finalClassMadrasah = s.classPagi;
+        wasModified = true;
+      } else if (!finalClassMadrasah) {
+        finalClassMadrasah = s.classPagi || '1A MI Diniyah';
+        wasModified = true;
+      }
+
+      if (!finalClassFormal) {
+        if (s.class && /SMP|MTS\s*Formal|SMA|MA\s*Formal|SD/i.test(s.class)) {
+          const formMatch = s.class.match(/((?:VII|VIII|IX|X|XI|XII|\d+)\s*(?:SMP|MTS|SMA|MA|SD)(?:\s*Formal)?)/i);
+          if (formMatch && formMatch[1]) {
+            finalClassFormal = formMatch[1];
+            wasModified = true;
+          }
+        }
+        if (!finalClassFormal) {
+          finalClassFormal = s.classSore || 'VII SMP Formal';
+          wasModified = true;
+        }
+      }
+
+      const compositeClass = (finalClassFormal && finalClassMadrasah)
+        ? `${finalClassFormal} • ${finalClassMadrasah}`
+        : s.class || `${finalClassFormal || 'Formal'} • ${finalClassMadrasah || 'Madrasah'}`;
+
       return {
         ...s,
         nis: currentNis,
         kamar: currentKamar,
+        classMadrasah: finalClassMadrasah || s.classMadrasah,
+        classFormal: finalClassFormal || s.classFormal,
+        class: compositeClass,
         fullName: (s.fullName || '').toUpperCase(),
         parentName: (s.parentName || '').toUpperCase(),
         fatherName: (s.fatherName || '').toUpperCase(),
@@ -814,6 +872,15 @@ export default function App() {
       loadLocalDatabase();
       refreshCloudData();
     };
+
+    let broadcastSyncChannel: BroadcastChannel | null = null;
+    try {
+      broadcastSyncChannel = new BroadcastChannel('pesantren_multi_device_sync');
+      broadcastSyncChannel.onmessage = () => {
+        loadLocalDatabase();
+        refreshCloudData();
+      };
+    } catch (e) {}
 
     const handleSettingsUpdated = () => {
       const current = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);

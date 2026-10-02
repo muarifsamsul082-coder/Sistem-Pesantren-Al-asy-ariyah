@@ -59,6 +59,7 @@ import {
   formatIndonesianDate as formatIndoDateUtil
 } from '../lib/dateUtils';
 import WhatsAppBroadcastPanel from './WhatsAppBroadcastPanel';
+import FinancialReportPanel from './FinancialReportPanel';
 
 interface AdminDashboardProps {
   students: Student[];
@@ -76,8 +77,8 @@ interface AdminDashboardProps {
   settings: PortalSettings;
   setSettings: (settings: PortalSettings) => void;
   onLogout?: () => void;
-  activeTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus';
-  setActiveTab?: (tab: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus') => void;
+  activeTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus';
+  setActiveTab?: (tab: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus') => void;
   session?: UserSession;
   availableFormalClasses?: string[];
   setAvailableFormalClasses?: React.Dispatch<React.SetStateAction<string[]>>;
@@ -261,10 +262,14 @@ export default function AdminDashboard({
   session,
   availableFormalClasses = ['VII SMP Formal', 'VIII SMP Formal', 'IX SMP Formal', 'X MA Formal', 'XI MA Formal', 'XII MA MA Formal', '-'],
   setAvailableFormalClasses = () => {},
-  availableMadrasahClasses = ['1A MTs Diniyah', '1B MTs Diniyah', '2A MTs Diniyah', '2B MTs Diniyah', '3A MTs Diniyah', '1A MA Diniyah', '2A MA Diniyah', '3A MA Diniyah'],
+  availableMadrasahClasses = [
+    '1A MI Diniyah', '1B MI Diniyah', '2A MI Diniyah', '2B MI Diniyah', '3A MI Diniyah', '4A MI Diniyah', '5A MI Diniyah', '6A MI Diniyah',
+    '1A MTs Diniyah', '1B MTs Diniyah', '2A MTs Diniyah', '2B MTs Diniyah', '3A MTs Diniyah', 
+    '1A MA Diniyah', '2A MA Diniyah', '3A MA Diniyah'
+  ],
   setAvailableMadrasahClasses = () => {}
 }: AdminDashboardProps) {
-  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>(() => {
+  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>(() => {
     try {
       const saved = localStorage.getItem('pesantren_admin_active_tab');
       if (saved) return saved as any;
@@ -1169,7 +1174,7 @@ export default function AdminDashboard({
   const [newStdName, setNewStdName] = React.useState('');
   const [newStdPhoto, setNewStdPhoto] = React.useState('');
   const [newStdNisn, setNewStdNisn] = React.useState('');
-  const [newStdClass, setNewStdClass] = React.useState('1A MTs Diniyah');
+  const [newStdClass, setNewStdClass] = React.useState('1A MI Diniyah');
   const [newStdParent, setNewStdParent] = React.useState('');
   const [newStdPhone, setNewStdPhone] = React.useState('');
   const [newStdEmail, setNewStdEmail] = React.useState('');
@@ -1637,26 +1642,27 @@ export default function AdminDashboard({
             <p class="text-[11px] text-slate-600 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
             <p class="text-xs text-slate-900 font-bold uppercase tracking-wide mt-1">Pengasuh Pesantren</p>
 
-            <div class="relative min-h-[92px] w-full flex items-center justify-start my-1">
-              <!-- Stempel: Berada di sebelah kiri tanda tangan -->
-              ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute -left-8 sm:-left-10 -top-1 pointer-events-none opacity-85">
-                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" />
-                   </div>`
-                : ''
-              }
-
-              <!-- Wet Signature: sebelah kanan stempel dengan teks rata kiri -->
-              <div class="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+            <!-- Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih -->
+            <div class="h-16 w-full relative flex items-center justify-start select-none my-2">
+              <!-- Wet Signature: rata kiri -->
+              <div class="z-10 relative flex items-center justify-start">
                 ${settings.ttdPengasuhUrl 
-                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-22 max-w-[210px] object-contain mix-blend-multiply" />`
+                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-16 max-w-[180px] object-contain mix-blend-multiply" />`
                   : `<span class="text-sm font-serif italic text-slate-900 font-bold underline">${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
                 }
               </div>
+
+              <!-- Stempel: Berada di sebelah KANAN tanda tangan dengan model tumpang tindih -->
+              ${settings.stempelPengasuhUrl 
+                ? `<div class="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" />
+                   </div>`
+                : ''
+              }
             </div>
 
             <!-- Nama Pengasuh: Rata Kiri -->
-            <div class="pt-1">
+            <div class="pt-0.5">
               <strong class="text-xs font-black text-slate-950 underline leading-none uppercase block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
               <p class="text-[10px] text-slate-600 font-medium mt-0.5">Pengasuh Pondok Pesantren</p>
             </div>
@@ -1861,26 +1867,27 @@ export default function AdminDashboard({
             <p class="text-[11px] text-slate-600 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
             <p class="text-xs text-slate-900 font-bold uppercase tracking-wide mt-1">Pengasuh Pesantren</p>
 
-            <div class="relative min-h-[92px] w-full flex items-center justify-start my-1">
-              <!-- Stempel: Berada di sebelah kiri tanda tangan -->
-              ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute -left-8 sm:-left-10 -top-1 pointer-events-none opacity-85">
-                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" />
-                   </div>`
-                : ''
-              }
-
-              <!-- Wet signature: sebelah kanan stempel dengan teks rata kiri -->
-              <div class="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+            <!-- Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih -->
+            <div class="h-16 w-full relative flex items-center justify-start select-none my-2">
+              <!-- Wet signature: rata kiri -->
+              <div class="z-10 relative flex items-center justify-start">
                 ${settings.ttdPengasuhUrl 
-                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-22 max-w-[210px] object-contain mix-blend-multiply" />`
+                  ? `<img src="${settings.ttdPengasuhUrl}" alt="TTD Pengasuh" class="h-16 max-w-[180px] object-contain mix-blend-multiply" />`
                   : `<span class="text-sm font-serif italic text-slate-900 font-bold underline">${settings.namaPengasuh || "KH. Ahmad Wildan"}</span>`
                 }
               </div>
+
+              <!-- Stempel: Berada di sebelah KANAN tanda tangan dengan model tumpang tindih -->
+              ${settings.stempelPengasuhUrl 
+                ? `<div class="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                    <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" />
+                   </div>`
+                : ''
+              }
             </div>
 
             <!-- Nama Pengasuh: Rata Kiri -->
-            <div class="pt-1">
+            <div class="pt-0.5">
               <strong class="text-xs font-black text-slate-950 underline leading-none uppercase block">${settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
               <p class="text-[10px] text-slate-600 font-medium mt-0.5">Pengasuh Pondok Pesantren</p>
             </div>
@@ -2783,16 +2790,20 @@ export default function AdminDashboard({
       assignedRoom = registration.gender === 'Perempuan' ? 'Az-Zahra 1' : 'Al-Ghazali 1';
     }
 
+    const isMiApplicant = registration.targetProgram && /MI/i.test(registration.targetProgram);
+    const assignedMadrasah = isMiApplicant ? '1A MI Diniyah' : (registration.targetProgram || '1A MI Diniyah');
+    const assignedFormal = isMiApplicant ? 'I SD/MI Formal' : 'VII SMP Formal';
+
     const newStudent: Student = {
       id: `std-${Date.now()}`,
       nis: generatedNis,
       fullName: registration.fullName,
       gender: registration.gender,
-      classPagi: '1A MTs Diniyah',
-      classSore: 'VII SMP Formal',
-      class: 'VII SMP Formal • 1A MTs Diniyah',
-      classMadrasah: '1A MTs Diniyah',
-      classFormal: 'VII SMP Formal',
+      classPagi: assignedMadrasah,
+      classSore: assignedFormal,
+      class: `${assignedFormal} • ${assignedMadrasah}`,
+      classMadrasah: assignedMadrasah,
+      classFormal: assignedFormal,
       akunMadrasah: `${cleanName}.${currentYearStr.substring(2)} / md123`,
       parentName: registration.parentName,
       parentPhone: registration.parentPhone,
@@ -6398,6 +6409,27 @@ export default function AdminDashboard({
       {activeTab === 'bills' && (
         <div className="space-y-6 text-left">
           {/* REKAPAN KEUANGAN & PEMBAYARAN */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-2xl shadow-sm border border-emerald-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] bg-amber-400 text-emerald-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
+                  MENU BARU
+                </span>
+                <h4 className="font-extrabold text-sm text-white">Laporan Keuangan & Kas Bendahara (Putra vs Putri)</h4>
+              </div>
+              <p className="text-xs text-emerald-200 mt-1 leading-relaxed">
+                Akses buku kas terpisah untuk memantau pendapatan SPP putra/putri dan pengeluaran operasional bendahara putra maupun bendahara putri.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('laporan_keuangan')}
+              className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-xl text-xs transition cursor-pointer shadow-md shrink-0 flex items-center gap-1.5"
+            >
+              <span>Buka Menu Laporan Keuangan ↗</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-200">
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
               <CreditCard className="h-5 w-5 text-emerald-800 mx-auto" />
@@ -7137,6 +7169,18 @@ export default function AdminDashboard({
           </div>
         </div>
       </div>
+      )}
+
+      {/* Tab: Rekening Pesantren */}
+      {activeTab === 'laporan_keuangan' && (
+        <FinancialReportPanel
+          bills={bills}
+          students={students}
+          settings={settings}
+          currentAdminName={currentAdminName}
+          showAlert={showAlert as any}
+          logAdminActivity={logAdminActivity}
+        />
       )}
 
       {/* Tab: Rekening Pesantren */}
@@ -9513,11 +9557,11 @@ export default function AdminDashboard({
                                       nis: generatedNis,
                                       fullName: capitalizedName,
                                       gender: req.gender || 'Laki-laki',
-                                      classPagi: req.diniyahSchool || '1A MTs Diniyah',
-                                      classSore: req.formalSchool || 'VII SMP Formal',
-                                      class: `${req.formalSchool || 'VII SMP Formal'} • ${req.diniyahSchool || '1A MTs Diniyah'}`,
-                                      classMadrasah: req.diniyahSchool || '1A MTs Diniyah',
-                                      classFormal: req.formalSchool || 'VII SMP Formal',
+                                      classPagi: req.diniyahSchool || '1A MI Diniyah',
+                                      classSore: req.formalSchool || (req.diniyahSchool && /MI/i.test(req.diniyahSchool) ? 'I SD/MI Formal' : 'VII SMP Formal'),
+                                      class: `${req.formalSchool || (req.diniyahSchool && /MI/i.test(req.diniyahSchool) ? 'I SD/MI Formal' : 'VII SMP Formal')} • ${req.diniyahSchool || '1A MI Diniyah'}`,
+                                      classMadrasah: req.diniyahSchool || '1A MI Diniyah',
+                                      classFormal: req.formalSchool || (req.diniyahSchool && /MI/i.test(req.diniyahSchool) ? 'I SD/MI Formal' : 'VII SMP Formal'),
                                       akunMadrasah: `${cleanName}.${currentYearStr.substring(2)} / md123`,
                                       parentName: 'WALI ' + capitalizedName,
                                       parentPhone: req.parentPhone,
@@ -11296,30 +11340,30 @@ export default function AdminDashboard({
                   <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
                   <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, Bendahara Pesantren</p>
                   
-                  <div className="h-24 w-full relative flex items-center justify-start select-none py-1">
-                    {/* Stempel rendered on the LEFT */}
-                    {settings.stempelBendaharaUrl && (
-                      <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
-                        {isImageUrl(settings.stempelBendaharaUrl) ? (
-                          <img src={settings.stempelBendaharaUrl} alt="Stempel Bendahara" className="h-24 w-24 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-18 w-18 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-12deg] leading-tight text-center bg-white/75 shadow-xs">
-                            {settings.stempelBendaharaUrl}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Tanda tangan on the right with text rata kiri */}
-                    <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+                  <div className="h-16 w-full relative flex items-center justify-start select-none my-2">
+                    {/* Tanda tangan on the left */}
+                    <div className="z-10 relative flex items-center justify-start">
                       {isImageUrl(settings.ttdBendaharaUrl) ? (
-                        <img src={settings.ttdBendaharaUrl} alt="TTD Bendahara" className="h-20 max-w-[200px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                        <img src={settings.ttdBendaharaUrl} alt="TTD Bendahara" className="h-16 max-w-[170px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                       ) : (
                         <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
                           {settings.ttdBendaharaUrl || 'Bendahara Pesantren'}
                         </span>
                       )}
                     </div>
+
+                    {/* Stempel rendered on the RIGHT of signature with overlapping model */}
+                    {settings.stempelBendaharaUrl && (
+                      <div className="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                        {isImageUrl(settings.stempelBendaharaUrl) ? (
+                          <img src={settings.stempelBendaharaUrl} alt="Stempel Bendahara" className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/75 shadow-xs">
+                            {settings.stempelBendaharaUrl}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{settings.namaBendahara || "Ustadzah Siti Aminah"}</p>
@@ -11485,26 +11529,26 @@ export default function AdminDashboard({
                       </p>
                       <p className="text-[7.5px] text-slate-800 font-extrabold uppercase tracking-wider leading-tight mt-0.5">Pengasuh Pondok Pesantren,</p>
                       
-                      {/* Overlapping signature and stamp area */}
-                      <div className="h-10 w-28 relative flex items-center justify-center select-none my-0.5">
-                        {/* Signature */}
-                        <div className="z-10 absolute inset-0 flex items-center justify-end">
+                      {/* Overlapping signature and stamp area: 4 Spasi Kebawah (h-16), Stempel di KANAN model tumpang tindih */}
+                      <div className="h-16 w-36 relative flex items-center justify-start select-none my-1">
+                        {/* Signature: Rata Kiri */}
+                        <div className="z-10 relative flex items-center justify-start">
                           {isImageUrl(settings.ttdPengasuhUrl) ? (
-                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="max-h-10 max-w-[80px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-14 max-w-[120px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
-                            <span className="text-[8px] font-mono text-blue-900 italic font-extrabold">
-                              {settings.ttdPengasuhUrl || "KH. Asy'ari"}
+                            <span className="text-[8.5px] font-mono text-blue-900 italic font-extrabold underline">
+                              {settings.ttdPengasuhUrl || settings.namaPengasuh || "KH. Asy'ari"}
                             </span>
                           )}
                         </div>
 
-                        {/* Stamp */}
+                        {/* Stamp: Berada di SEBELAH KANAN tanda tangan dengan model tumpang tindih */}
                         {settings.stempelPengasuhUrl && (
-                          <div className="z-20 absolute left-4 top-0 pointer-events-none opacity-85">
+                          <div className="z-20 absolute left-[50px] -top-1 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelPengasuhUrl) ? (
-                              <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-10 w-10 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                              <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-14 w-14 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="border border-double border-red-600/60 text-red-700/90 rounded-full h-8 w-8 flex items-center justify-center text-[5px] font-extrabold uppercase rotate-[-12deg] leading-none text-center bg-white/75">
+                              <div className="border border-double border-red-600/60 text-red-700/90 rounded-full h-12 w-12 flex items-center justify-center text-[5px] font-extrabold uppercase rotate-[-8deg] leading-none text-center bg-white/75">
                                 {settings.stempelPengasuhUrl}
                               </div>
                             )}
@@ -11512,7 +11556,7 @@ export default function AdminDashboard({
                         )}
                       </div>
 
-                      <p className="text-[8px] font-bold text-gray-900 underline leading-none uppercase">{settings.namaPengasuh || "KH. Asy'ari Al-Hafidz"}</p>
+                      <p className="text-[8px] font-bold text-gray-900 underline leading-none uppercase truncate">{settings.namaPengasuh || "KH. Asy'ari Al-Hafidz"}</p>
                     </div>
                   </div>
                 </div>
@@ -11717,20 +11761,33 @@ export default function AdminDashboard({
 
                   {/* BOTTOM SIGNATURE SECTION */}
                   <div className="mt-10 pt-4 border-t border-slate-200 flex justify-between items-start gap-4 text-xs">
-                    <div className="text-center w-[180px]">
+                    <div className="text-left w-[200px] relative font-sans">
                       <p className="text-[10px] text-slate-500 uppercase font-semibold">Mengetahui,</p>
-                      <p className="font-bold text-slate-900 mt-1 uppercase leading-snug">Pengasuh Pesantren<br />Ponpes Al-Asy'ariyah</p>
+                      <p className="font-bold text-slate-900 mt-0.5 uppercase leading-snug text-xs">Pengasuh Pesantren<br />Ponpes Al-Asy'ariyah</p>
                       
-                      <div className="h-12 flex items-center justify-center relative my-1">
-                        {isImageUrl(settings.ttdPengasuhUrl || settings.ttdPengurusUrl) && (
-                          <img src={settings.ttdPengasuhUrl || settings.ttdPengurusUrl} alt="TTD Pengasuh" className="h-10 object-contain absolute" referrerPolicy="no-referrer" />
-                        )}
-                        {isImageUrl(settings.stempelPengasuhUrl || settings.stempelPesantrenUrl) && (
-                          <img src={settings.stempelPengasuhUrl || settings.stempelPesantrenUrl} alt="Stempel" className="h-12 object-contain absolute opacity-80" referrerPolicy="no-referrer" />
+                      {/* Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih */}
+                      <div className="h-16 w-full relative flex items-center justify-start select-none my-2">
+                        <div className="z-10 relative flex items-center justify-start">
+                          {isImageUrl(settings.ttdPengasuhUrl || settings.ttdPengurusUrl) ? (
+                            <img src={settings.ttdPengasuhUrl || settings.ttdPengurusUrl} alt="TTD Pengasuh" className="h-16 max-w-[150px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                          ) : (
+                            <span className="text-xs font-serif italic text-slate-900 font-bold underline">
+                              {settings.namaPengasuh || settings.namaPengurus || "KH. Asy'ari Al-Hafidz"}
+                            </span>
+                          )}
+                        </div>
+
+                        {(settings.stempelPengasuhUrl || settings.stempelPesantrenUrl) && (
+                          <div className="z-20 absolute left-[60px] -top-2 pointer-events-none opacity-85">
+                            <img src={settings.stempelPengasuhUrl || settings.stempelPesantrenUrl} alt="Stempel" className="h-18 w-18 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          </div>
                         )}
                       </div>
 
-                      <strong className="text-slate-900 block underline">{settings.namaPengasuh || settings.namaPengurus || "KH. Asy'ari Al-Hafidz"}</strong>
+                      <div className="pt-0.5">
+                        <strong className="text-slate-950 block underline text-xs leading-none uppercase">{settings.namaPengasuh || settings.namaPengurus || "KH. Asy'ari Al-Hafidz"}</strong>
+                        <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">Pengasuh Pondok Pesantren</p>
+                      </div>
                     </div>
 
                     <div className="border-2 border-dashed border-slate-300 w-[3cm] h-[4cm] rounded flex flex-col items-center justify-center text-center p-1 relative bg-slate-50/30 shrink-0 self-center">
@@ -11747,26 +11804,27 @@ export default function AdminDashboard({
                       <p className="text-[11px] text-slate-600 font-medium">{getCityFromAddress(settings.address)}, {getIndonesianToday()}</p>
                       <p className="font-bold text-slate-900 mt-1 uppercase text-xs">Pengasuh Pesantren</p>
                       
-                      <div className="relative min-h-[85px] w-full flex items-center justify-start my-1">
+                      {/* Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih */}
+                      <div className="h-16 w-full relative flex items-center justify-start select-none my-2">
                         {/* Tanda tangan di atas nama pengasuh */}
                         <div className="z-10 relative flex items-center justify-start">
                           {isImageUrl(settings.ttdPengasuhUrl) ? (
-                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-20 max-w-[190px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-16 max-w-[180px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
                             <span className="text-xs font-serif italic text-slate-900 font-bold underline">{settings.namaPengasuh || "KH. Ahmad Wildan"}</span>
                           )}
                         </div>
 
-                        {/* Stempel disesuaikan menyatu dengan TTD */}
+                        {/* Stempel di sebelah KANAN tanda tangan dengan model tumpang tindih */}
                         {isImageUrl(settings.stempelPengasuhUrl) && (
-                          <div className="z-20 absolute left-[60px] -top-1 pointer-events-none opacity-85">
-                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-24 w-24 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          <div className="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                           </div>
                         )}
                       </div>
 
                       {/* Nama Pengasuh di bawah tanda tangan */}
-                      <div className="pt-1">
+                      <div className="pt-0.5">
                         <strong className="text-slate-950 block underline text-xs leading-none uppercase">{settings.namaPengasuh || "KH. Ahmad Wildan Asy'ari"}</strong>
                         <p className="text-[10px] text-slate-600 font-medium mt-0.5">Pengasuh Pondok Pesantren</p>
                       </div>
@@ -11994,25 +12052,25 @@ export default function AdminDashboard({
                       <p className="text-[9px] sm:text-[11px] text-slate-600 font-medium">{getCityFromAddress(settings.address)}, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
                       <p className="text-[10px] sm:text-xs text-slate-900 font-bold uppercase tracking-wide mt-0.5 sm:mt-1">Pengasuh Pesantren</p>
 
-                      <div className="relative min-h-[70px] sm:min-h-[85px] w-full flex items-center justify-start my-1">
-                        {/* Wet signature: Berada DI ATAS nama pengasuh */}
-                        {/* Stempel: Berada di SEBELAH KIRI tanda tangan */}
-                        {settings.stempelPengasuhUrl && (
-                          <div className="z-20 absolute -left-8 sm:-left-10 -top-1 pointer-events-none opacity-85">
-                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 sm:h-24 sm:w-24 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
-                          </div>
-                        )}
-
-                        {/* Signature on the right, text rata kiri */}
-                        <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
+                      {/* Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih */}
+                      <div className="h-16 w-full relative flex items-center justify-start select-none my-2">
+                        {/* Wet signature rata kiri */}
+                        <div className="z-10 relative flex items-center justify-start">
                           {settings.ttdPengasuhUrl ? (
-                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-16 sm:h-20 max-w-[180px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            <img src={settings.ttdPengasuhUrl} alt="TTD Pengasuh" className="h-16 max-w-[180px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
                           ) : (
                             <span className="text-[10px] sm:text-xs font-serif italic text-slate-900 font-bold underline">
                               {settings.namaPengasuh || "KH. Ahmad Wildan"}
                             </span>
                           )}
                         </div>
+
+                        {/* Stempel: Berada di SEBELAH KANAN tanda tangan dengan model tumpang tindih */}
+                        {settings.stempelPengasuhUrl && (
+                          <div className="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                            <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                          </div>
+                        )}
                       </div>
 
                       <div className="pt-0.5">
