@@ -21,7 +21,7 @@ interface NavbarProps {
   ppdbEndDate?: string;
   
   // Dashboard tab states for unified top-right hamburger menu
-  adminTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus';
+  adminTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus';
   setAdminTab?: (tab: any) => void;
   staffTab?: 'students' | 'history' | 'profile' | 'skck' | 'takzir_letter';
   setStaffTab?: (tab: any) => void;
@@ -1011,6 +1011,17 @@ export default function Navbar({
                     onClick={() => handleAdminTabClick('pengurus')}
                     className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between ${
                       adminTab === 'pengurus' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span>Daftar Pengurus & Tanda Tangan</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAdminTabClick('akun_pengurus')}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between ${
+                      adminTab === 'akun_pengurus' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     <span className="flex items-center gap-1.5">

@@ -157,6 +157,9 @@ export interface Bill {
   nis?: string;
   title: string; // e.g. 'Syahriyah Juli 2026', 'Uang Seragam'
   amount: number;
+  baseAmount?: number;
+  uniqueCode?: number;
+  finalAmount?: number;
   dueDate: string;
   status: 'Lunas' | 'Belum Lunas' | 'Konfirmasi Pembayaran';
   category?: string;
@@ -194,6 +197,16 @@ export interface AcademicEvent {
   category: 'ujian' | 'libur' | 'kegiatan' | 'ppdb';
   location?: string;
   confirmed?: boolean;
+}
+
+export interface OfficialItem {
+  id: string;
+  name: string;
+  position: string;
+  category?: 'pengasuh' | 'pengurus' | 'biro';
+  signatureUrl?: string;
+  sealUrl?: string;
+  orderIndex?: number;
 }
 
 export interface PortalSettings {
@@ -239,6 +252,9 @@ export interface PortalSettings {
   namaAkademik?: string;
   ttdAkademikUrl?: string;
   stempelAkademikUrl?: string;
+
+  // Additional serving officials
+  customOfficials?: OfficialItem[];
 
   ppdbOpen?: boolean;
   ppdbStartDate?: string;

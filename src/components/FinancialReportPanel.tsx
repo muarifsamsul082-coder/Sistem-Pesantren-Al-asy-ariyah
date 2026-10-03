@@ -22,7 +22,8 @@ import {
   Building,
   Tag,
   RefreshCw,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Pencil
 } from 'lucide-react';
 import { Bill, Student, PortalSettings, FinancialExpense, compressImage } from '../types';
 import { getCityFromAddress } from '../lib/qris';
@@ -202,6 +203,7 @@ export default function FinancialReportPanel({
 
   // Modal States
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<FinancialExpense | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [viewReceiptModalUrl, setViewReceiptModalUrl] = useState<string | null>(null);
 
@@ -373,7 +375,35 @@ export default function FinancialReportPanel({
     };
   }, [bills, expenses, studentMap, selectedPeriod, filterMonth, startDate, endDate]);
 
-  // Handle Add Expense
+  // Open Add Expense Form
+  const handleOpenAddExpense = () => {
+    setEditingExpense(null);
+    setExpBendaharaType('putra');
+    setExpBendaharaName('Ustadz M. Fauzan (Bendahara Putra)');
+    setExpDate(new Date().toISOString().split('T')[0]);
+    setExpCategory('Konsumsi & Dapur');
+    setExpAmount(0);
+    setExpDescription('');
+    setExpRecipient('');
+    setExpReceiptUrl('');
+    setIsAddExpenseModalOpen(true);
+  };
+
+  // Open Edit Expense Form
+  const handleOpenEditExpense = (exp: FinancialExpense) => {
+    setEditingExpense(exp);
+    setExpBendaharaType(exp.bendaharaType);
+    setExpBendaharaName(exp.bendaharaName);
+    setExpDate(exp.date);
+    setExpCategory(exp.category);
+    setExpAmount(Number(exp.amount) || 0);
+    setExpDescription(exp.description);
+    setExpRecipient(exp.recipient || '');
+    setExpReceiptUrl(exp.receiptUrl || '');
+    setIsAddExpenseModalOpen(true);
+  };
+
+  // Handle Save Expense (Add or Edit)
   const handleSaveExpense = (e: React.FormEvent) => {
     e.preventDefault();
     if (!expAmount || expAmount <= 0) {
@@ -385,6 +415,48 @@ export default function FinancialReportPanel({
       return;
     }
 
+    if (editingExpense) {
+      // Update existing expense
+      const updatedExp: FinancialExpense = {
+        ...editingExpense,
+        bendaharaType: expBendaharaType,
+        bendaharaName: expBendaharaName.trim() || (expBendaharaType === 'putra' ? 'Bendahara Putra' : 'Bendahara Putri'),
+        date: expDate || new Date().toISOString().split('T')[0],
+        category: expCategory,
+        amount: Number(expAmount),
+        description: expDescription.trim(),
+        recipient: expRecipient.trim() || undefined,
+        receiptUrl: expReceiptUrl || undefined
+      };
+
+      setExpenses(prev => {
+        const next = prev.map(item => item.id === editingExpense.id ? updatedExp : item);
+        try {
+          localStorage.setItem('pesantren_financial_expenses', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      pushExpenseToSupabase(updatedExp).catch(console.error);
+
+      logAdminActivity(
+        'PENGELUARAN_KAS',
+        `Memperbarui pengeluaran ${updatedExp.bendaharaType === 'putra' ? 'Bendahara Putra' : 'Bendahara Putri'} sebesar Rp ${updatedExp.amount.toLocaleString('id-ID')} (${updatedExp.category}): ${updatedExp.description}`
+      );
+
+      showAlert('success', `Perubahan catatan pengeluaran kas berhasil disimpan & disinkronkan!`);
+
+      // Reset & Close
+      setIsAddExpenseModalOpen(false);
+      setEditingExpense(null);
+      setExpAmount(0);
+      setExpDescription('');
+      setExpRecipient('');
+      setExpReceiptUrl('');
+      return;
+    }
+
+    // Create new expense
     const newExp: FinancialExpense = {
       id: `exp-${Date.now()}`,
       bendaharaType: expBendaharaType,
@@ -398,7 +470,14 @@ export default function FinancialReportPanel({
       createdAt: new Date().toISOString()
     };
 
-    setExpenses(prev => [newExp, ...prev]);
+    setExpenses(prev => {
+      const next = [newExp, ...prev];
+      try {
+        localStorage.setItem('pesantren_financial_expenses', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
     pushExpenseToSupabase(newExp).catch(console.error);
 
     logAdminActivity(
@@ -410,20 +489,31 @@ export default function FinancialReportPanel({
 
     // Reset Form
     setIsAddExpenseModalOpen(false);
+    setEditingExpense(null);
     setExpAmount(0);
     setExpDescription('');
     setExpRecipient('');
     setExpReceiptUrl('');
   };
 
-  // Handle Delete Expense
+  // Handle Delete Expense with Confirmation and Instant Multi-tab/Supabase Sync
   const handleDeleteExpense = (id: string, description: string) => {
     if (!window.confirm(`Hapus catatan pengeluaran: "${description}"? Tindakan ini tidak dapat dibatalkan.`)) {
       return;
     }
-    setExpenses(prev => prev.filter(e => e.id !== id));
+    setExpenses(prev => {
+      const next = prev.filter(e => e.id !== id);
+      try {
+        localStorage.setItem('pesantren_financial_expenses', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
     deleteExpenseFromSupabase(id).catch(console.error);
-    showAlert('success', 'Catatan pengeluaran berhasil dihapus.');
+    logAdminActivity(
+      'PENGELUARAN_KAS',
+      `Menghapus catatan pengeluaran kas: ${description}`
+    );
+    showAlert('success', 'Catatan pengeluaran kas berhasil dihapus secara permanen.');
   };
 
   // Handle Receipt Upload
@@ -1004,7 +1094,7 @@ export default function FinancialReportPanel({
 
             <button
               type="button"
-              onClick={() => setIsAddExpenseModalOpen(true)}
+              onClick={handleOpenAddExpense}
               className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer self-start sm:self-auto shadow-xs"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -1081,15 +1171,25 @@ export default function FinancialReportPanel({
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteExpense(exp.id, exp.description)}
-                          className="p-1 hover:bg-rose-50 text-rose-600 rounded transition cursor-pointer"
-                          title="Hapus Catatan Pengeluaran"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditExpense(exp)}
+                            className="p-1.5 hover:bg-blue-50 text-blue-600 hover:text-blue-800 rounded-lg transition cursor-pointer border border-transparent hover:border-blue-200"
+                            title="Edit Catatan Pengeluaran"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteExpense(exp.id, exp.description)}
+                            className="p-1.5 hover:bg-rose-50 text-rose-600 hover:text-rose-800 rounded-lg transition cursor-pointer border border-transparent hover:border-rose-200"
+                            title="Hapus Catatan Pengeluaran"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1108,16 +1208,30 @@ export default function FinancialReportPanel({
             <div className="p-4 bg-gradient-to-r from-emerald-850 to-teal-950 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-sm uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                  <Plus className="h-4 w-4" />
-                  Catat Pengeluaran Kas Bendahara
+                  {editingExpense ? (
+                    <>
+                      <Pencil className="h-4 w-4" />
+                      Edit Catatan Pengeluaran Kas
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      Catat Pengeluaran Kas Bendahara
+                    </>
+                  )}
                 </h3>
                 <p className="text-[11px] text-emerald-100 mt-0.5">
-                  Catat dana yang diambil oleh bendahara putra atau putri secara akurat.
+                  {editingExpense 
+                    ? 'Perbarui rincian, tanggal, nominal, atau bukti nota pengeluaran kas pesantren.'
+                    : 'Catat dana yang diambil oleh bendahara putra atau putri secara akurat.'}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsAddExpenseModalOpen(false)}
+                onClick={() => {
+                  setIsAddExpenseModalOpen(false);
+                  setEditingExpense(null);
+                }}
                 className="p-1 hover:bg-white/10 rounded-lg text-white/80 hover:text-white transition cursor-pointer"
               >
                 <X className="h-5 w-5" />
@@ -1278,7 +1392,10 @@ export default function FinancialReportPanel({
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsAddExpenseModalOpen(false)}
+                  onClick={() => {
+                    setIsAddExpenseModalOpen(false);
+                    setEditingExpense(null);
+                  }}
                   className="px-4 py-2 border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
                 >
                   Batal
@@ -1287,7 +1404,7 @@ export default function FinancialReportPanel({
                   type="submit"
                   className="px-5 py-2 bg-gradient-to-r from-emerald-800 to-teal-900 hover:from-emerald-700 hover:to-teal-850 text-white font-extrabold text-xs rounded-xl shadow-xs transition cursor-pointer"
                 >
-                  Simpan Catatan Pengeluaran
+                  {editingExpense ? 'Simpan Perubahan Pengeluaran' : 'Simpan Catatan Pengeluaran'}
                 </button>
               </div>
             </form>

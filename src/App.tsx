@@ -193,7 +193,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = React.useState('');
 
   // Dashboard tab states for global unified hamburger menu control
-  const [adminTab, setAdminTabState] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>(() => {
+  const [adminTab, setAdminTabState] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus'>(() => {
     try {
       const saved = sessionStorage.getItem('pesantren_admin_active_tab') || localStorage.getItem('pesantren_admin_active_tab');
       if (saved) return saved as any;

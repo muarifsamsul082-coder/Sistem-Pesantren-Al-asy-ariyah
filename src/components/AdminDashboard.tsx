@@ -4,9 +4,10 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { 
   BarChart, Users, FileText, Newspaper, Settings, Check, X, Plus, Trash, Edit, 
   Search, CheckSquare, Bell, DollarSign, Wallet, GraduationCap, ArrowUpRight, Send, AlertCircle, Printer, Download, Upload, MessageSquare, LogOut, UploadCloud, Loader2, Sparkles,
-  CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, XCircle, RefreshCw, Code, Save, Clock, Landmark, Info
+  CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, XCircle, RefreshCw, Code, Save, Clock, Landmark, Info, QrCode
 } from 'lucide-react';
 import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, compressImage, isSameRoom } from '../types';
+import { getBillAmountBreakdown, generateQrisQrCodeWithLogo, generateDynamicQrisString } from '../lib/qris';
 import { downloadPrintableHTML, downloadPrintableTableHTML, PrintGuideAlert } from './PrintHelper';
 import ErrorBoundary from './ErrorBoundary';
 import {
@@ -77,8 +78,8 @@ interface AdminDashboardProps {
   settings: PortalSettings;
   setSettings: (settings: PortalSettings) => void;
   onLogout?: () => void;
-  activeTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus';
-  setActiveTab?: (tab: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus') => void;
+  activeTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus';
+  setActiveTab?: (tab: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus') => void;
   session?: UserSession;
   availableFormalClasses?: string[];
   setAvailableFormalClasses?: React.Dispatch<React.SetStateAction<string[]>>;
@@ -269,7 +270,7 @@ export default function AdminDashboard({
   ],
   setAvailableMadrasahClasses = () => {}
 }: AdminDashboardProps) {
-  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus'>(() => {
+  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus'>(() => {
     try {
       const saved = localStorage.getItem('pesantren_admin_active_tab');
       if (saved) return saved as any;
@@ -836,19 +837,23 @@ export default function AdminDashboard({
   ) => {
     const std = student || students.find(s => s.fullName === bill.studentName || (bill.nis && s.nis === bill.nis));
     const accounts = settings.rekeningList || [];
+    const breakdown = getBillAmountBreakdown(bill.amount, (bill as any).id, (bill as any).uniqueCode, (bill as any).baseAmount);
+
     return `Assalamu'alaikum Wr. Wb.\n\n` +
       `Yth. Bapak/Ibu Wali Santri dari Ananda *${bill.studentName}*\n` +
       `NIS: ${bill.nis || std?.nis || '-'}\n` +
       `Kamar/Asrama: ${std?.kamar || '-'}\n\n` +
       `Kami sampaikan pemberitahuan terbitnya tagihan administrasi dari *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}*:\n\n` +
       `*Rincian Tagihan:* ${bill.title}\n` +
-      `*Jumlah Tagihan:* Rp ${Number(bill.amount).toLocaleString('id-ID')}\n` +
+      `*Total Wajib Ditransfer:* *Rp ${breakdown.finalAmount.toLocaleString('id-ID')}*\n` +
+      `*(Rincian: Pokok Rp ${breakdown.baseAmount.toLocaleString('id-ID')} + Kode Khusus: ${breakdown.uniqueCode})*\n` +
       `*Batas Pembayaran (Jatuh Tempo):* ${bill.dueDate || '-'}\n` +
       `*Status:* ${bill.status || 'Belum Lunas'}\n\n` +
+      `⚠️ *Penting:* Mohon transfer tepat hingga kode nominal khusus (*Rp ${breakdown.finalAmount.toLocaleString('id-ID')}*) agar sistem verifikasi bendahara mengenali mutasi secara otomatis tanpa tertukar.\n\n` +
       (accounts.length > 0
         ? `*Rekening Resmi Pembayaran:*\n` + accounts.map(b => `• ${b.bankName}: *${b.accountNumber}* (a.n ${b.accountName})`).join('\n') + `\n\n`
         : '') +
-      `Bukti setoran dapat diunggah melalui Portal Santri atau dikonfirmasi langsung ke Bendahara Pesantren.\n\n` +
+      `Bukti setoran dapat langsung diunggah melalui Portal Wali Santri atau dipindai via QRIS berlogo resmi pesantren.\n\n` +
       `Jazakumullah Khairan Katsiran.\n` +
       `Wassalamu'alaikum Wr. Wb.\n` +
       `_Pengurus & Bendahara Administrasi Pesantren_`;
@@ -1918,6 +1923,42 @@ export default function AdminDashboard({
   const [bankFormNumber, setBankFormNumber] = React.useState('');
   const [bankFormOwner, setBankFormOwner] = React.useState('');
   const [bankFormQrisString, setBankFormQrisString] = React.useState('');
+  const [previewQrisRekening, setPreviewQrisRekening] = React.useState<any | null>(null);
+  const [previewQrisDataUrl, setPreviewQrisDataUrl] = React.useState<string>('');
+  const [previewQrisLoading, setPreviewQrisLoading] = React.useState<boolean>(false);
+
+  const handleOpenRekeningQrisPreview = async (rek: any) => {
+    setPreviewQrisRekening(rek);
+    setPreviewQrisDataUrl('');
+    setPreviewQrisLoading(true);
+    try {
+      const payload = generateDynamicQrisString({
+        merchantName: rek.accountName || settings.schoolName || 'PONPES AL-ASYARIYAH',
+        accountName: rek.accountName,
+        merchantCity: getCityFromAddress(settings.address) || 'SEMARANG',
+        amount: 50120, // Sample 50.120 verification amount
+        billId: 'test-qris',
+        bankName: rek.bankName,
+        accountNumber: rek.accountNumber,
+        rawStaticQris: rek.qrisString || settings.qrisString
+      });
+
+      const url = await generateQrisQrCodeWithLogo(
+        payload,
+        settings.logoUrl || '/pesantren_logo.jpg',
+        {
+          width: 340,
+          margin: 2,
+          color: { dark: '#064e3b', light: '#ffffff' }
+        }
+      );
+      setPreviewQrisDataUrl(url);
+    } catch (err) {
+      console.error('Failed to generate admin QRIS preview:', err);
+    } finally {
+      setPreviewQrisLoading(false);
+    }
+  };
   const [printSecurityLog, setPrintSecurityLog] = React.useState<any>(null);
   const [printDisciplineLog, setPrintDisciplineLog] = React.useState<any>(null);
   const [printHealthLog, setPrintHealthLog] = React.useState<any>(null);
@@ -3121,18 +3162,22 @@ export default function AdminDashboard({
     } else {
       if (billRecipientType === 'single') {
         const studentObj = targetStudents[0];
+        const breakdown = getBillAmountBreakdown(Number(billAmount) || 50000, `bill-${Date.now()}`);
         const added: Bill = {
           id: `bill-${Date.now()}`,
           studentId: studentObj.id,
           studentName: studentObj.fullName,
           nis: studentObj.nis,
           title: billTitle,
-          amount: Number(billAmount),
+          amount: breakdown.finalAmount,
+          baseAmount: breakdown.baseAmount,
+          uniqueCode: breakdown.uniqueCode,
+          finalAmount: breakdown.finalAmount,
           dueDate: billDueDate,
           status: 'Belum Lunas'
         };
         setBills([added, ...bills]);
-        showAlert('success', `Tagihan "${billTitle}" berhasil dibuat untuk santri ${studentObj.fullName}.`);
+        showAlert('success', `Tagihan "${billTitle}" berhasil dibuat untuk santri ${studentObj.fullName} (Total Wajib Masuk: Rp ${breakdown.finalAmount.toLocaleString('id-ID')}).`);
 
         if (sendWhatsAppOnBill) {
           dispatchWhatsAppBillNotification(added, studentObj, true).then(res => {
@@ -3147,16 +3192,22 @@ export default function AdminDashboard({
         }
       } else {
         const timestamp = Date.now();
-        const newBills: Bill[] = targetStudents.map((std, idx) => ({
-          id: `bill-${timestamp}-${idx}-${std.id}`,
-          studentId: std.id,
-          studentName: std.fullName,
-          nis: std.nis,
-          title: billTitle,
-          amount: Number(billAmount),
-          dueDate: billDueDate,
-          status: 'Belum Lunas'
-        }));
+        const newBills: Bill[] = targetStudents.map((std, idx) => {
+          const breakdown = getBillAmountBreakdown(Number(billAmount) || 50000, `bill-${timestamp}-${idx}`);
+          return {
+            id: `bill-${timestamp}-${idx}-${std.id}`,
+            studentId: std.id,
+            studentName: std.fullName,
+            nis: std.nis,
+            title: billTitle,
+            amount: breakdown.finalAmount,
+            baseAmount: breakdown.baseAmount,
+            uniqueCode: breakdown.uniqueCode,
+            finalAmount: breakdown.finalAmount,
+            dueDate: billDueDate,
+            status: 'Belum Lunas'
+          };
+        });
         setBills([...newBills, ...bills]);
         
         if (sendWhatsAppOnBill) {
@@ -3183,13 +3234,16 @@ export default function AdminDashboard({
     setSelectedStudentId('');
   };
 
-  // Toggle Bill Status (Lunas / Belum Lunas)
-  const toggleBillStatus = (billId: string, newStatus: 'Lunas' | 'Belum Lunas') => {
+  // Toggle Bill Status (Lunas / Belum Lunas) with synchronized unique code amount
+  const toggleBillStatus = (billId: string, newStatus: 'Lunas' | 'Belum Lunas', verifiedAmount?: number) => {
     const targetBill = bills.find(b => b.id === billId);
+    const breakdown = targetBill ? getBillAmountBreakdown(targetBill.amount, targetBill.id, targetBill.uniqueCode, targetBill.baseAmount) : null;
+    const finalAmount = verifiedAmount || breakdown?.finalAmount || Number(targetBill?.amount) || 0;
+
     if (targetBill) {
       logAdminActivity(
         'PEMBAYARAN',
-        `Mengubah status pembayaran tagihan "${targetBill.title}" menjadi [${newStatus}]`,
+        `Mengubah status pembayaran tagihan "${targetBill.title}" menjadi [${newStatus}] (Nominal: Rp ${finalAmount.toLocaleString('id-ID')})`,
         targetBill.id,
         targetBill.studentName
       );
@@ -3202,12 +3256,17 @@ export default function AdminDashboard({
           uploadedBy: b.paymentProofUrl ? 'Wali Santri' : 'Admin/Bendahara',
           uploadedAt: b.paymentDate || new Date().toLocaleString('id-ID'),
           verifiedAt: new Date().toLocaleString('id-ID'),
-          aiResult: `Verifikasi Manual oleh Admin/Bendahara: Status diubah menjadi [${newStatus}].`
+          aiResult: `Verifikasi Manual oleh Admin/Bendahara: Status diubah menjadi [${newStatus}]. Jumlah masuk terverifikasi: Rp ${finalAmount.toLocaleString('id-ID')} (Pokok: Rp ${(breakdown?.baseAmount || finalAmount).toLocaleString('id-ID')} + Kode Khusus: ${breakdown?.uniqueCode || 0}).`
         };
-        const res = {
+        const res: Bill = {
           ...b,
+          amount: finalAmount,
+          baseAmount: breakdown?.baseAmount || b.baseAmount,
+          uniqueCode: breakdown?.uniqueCode || b.uniqueCode,
+          finalAmount: finalAmount,
           status: newStatus,
-          paymentDate: newStatus === 'Lunas' ? new Date().toISOString().split('T')[0] : undefined,
+          paymentDate: newStatus === 'Lunas' ? (b.paymentDate || new Date().toISOString().split('T')[0]) : b.paymentDate,
+          paidDate: newStatus === 'Lunas' ? (b.paidDate || new Date().toISOString().split('T')[0]) : b.paidDate,
           verificationLogs: [...currentLogs, newLog]
         };
         updatedBillObj = res;
@@ -3225,8 +3284,6 @@ export default function AdminDashboard({
 
     if (targetBill && newStatus === 'Lunas') {
       const student = students.find(s => String(s.id) === String(targetBill.studentId));
-      const recipientPhone = student?.parentPhone || '081234567890';
-      const recipientName = student?.parentName || 'Wali Santri';
       
       // Update student's payment history for instant synchrony
       if (student) {
@@ -3234,7 +3291,7 @@ export default function AdminDashboard({
         const newHist = {
           id: 'pay-manual-' + Date.now(),
           date: todayStr,
-          amount: Number(targetBill.amount) || 0,
+          amount: finalAmount,
           description: `Pembayaran ${targetBill.title}`,
           paymentMethod: targetBill.paymentMethod || 'Transfer Bank (Diverifikasi Admin)',
           verifiedBy: 'Bendahara Pesantren'
@@ -3253,13 +3310,16 @@ export default function AdminDashboard({
         try {
           localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
         } catch (e) {}
+
         const updatedStudentObj = updatedStudents.find(s => String(s.id) === String(student.id));
         if (updatedStudentObj && isSupabaseConfigured()) {
           pushStudentToSupabase(updatedStudentObj).catch(e => console.error("Cloud push student payment error:", e));
         }
       }
-      
-      const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${recipientName},\n\nKami menginformasikan bahwa pembayaran tagihan *${targetBill.title}* atas nama santri *${targetBill.studentName}* senilai *Rp ${targetBill.amount.toLocaleString()}* telah DISETUJUI dan diverifikasi LUNAS oleh Bendahara Al-Asy'ariyah.\n\nTerima kasih banyak atas partisipasi dan kontribusi bapak/ibu wali santri.\n\nWassalamu'alaikum Wr. Wb.\n-- Bendahara Pondok Pesantren Al-Asy'ariyah --`;
+
+      const recipientPhone = student?.parentPhone || '081234567890';
+      const recipientName = student?.parentName || 'Wali Santri';
+      const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${recipientName},\n\nAlhamdulillah, pembayaran tagihan *${targetBill.title}* atas nama santri *${targetBill.studentName}* senilai *Rp ${finalAmount.toLocaleString('id-ID')}* telah DISETUJUI dan diverifikasi LUNAS oleh Bendahara Al-Asy'ariyah.\n\nKuitansi digital resmi telah terbit dan dapat diunduh kapan saja melalui Portal Santri.\n\nTerima kasih banyak atas partisipasi dan kontribusi bapak/ibu wali santri.\n\nWassalamu'alaikum Wr. Wb.\n-- Bendahara Pondok Pesantren Al-Asy'ariyah --`;
       
       sendWhatsAppUniversal(
         recipientPhone,
@@ -6434,19 +6494,19 @@ export default function AdminDashboard({
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
               <CreditCard className="h-5 w-5 text-emerald-800 mx-auto" />
               <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Total Tagihan Dibuat</div>
-              <div className="text-sm font-black text-slate-950 mt-0.5">Rp {filteredBills.reduce((sum, b) => sum + b.amount, 0).toLocaleString('id-ID')}</div>
+              <div className="text-sm font-black text-slate-950 mt-0.5">Rp {filteredBills.reduce((sum, b) => sum + getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount).finalAmount, 0).toLocaleString('id-ID')}</div>
               <div className="text-[9px] text-slate-400 mt-0.5 font-bold">({filteredBills.length} Tagihan)</div>
             </div>
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
               <CheckCircle2 className="h-5 w-5 text-emerald-600 mx-auto" />
               <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Total SPP Lunas</div>
-              <div className="text-sm font-black text-emerald-700 mt-0.5">Rp {filteredBills.filter(b => b.status === 'Lunas').reduce((sum, b) => sum + b.amount, 0).toLocaleString('id-ID')}</div>
+              <div className="text-sm font-black text-emerald-700 mt-0.5">Rp {filteredBills.filter(b => b.status === 'Lunas').reduce((sum, b) => sum + getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount).finalAmount, 0).toLocaleString('id-ID')}</div>
               <div className="text-[9px] text-emerald-600 mt-0.5 font-extrabold">({filteredBills.filter(b => b.status === 'Lunas').length} Transaksi)</div>
             </div>
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
               <AlertCircle className="h-5 w-5 text-rose-600 mx-auto" />
               <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Tunggakan Belum Lunas</div>
-              <div className="text-sm font-black text-rose-600 mt-0.5">Rp {filteredBills.filter(b => b.status === 'Belum Lunas').reduce((sum, b) => sum + b.amount, 0).toLocaleString('id-ID')}</div>
+              <div className="text-sm font-black text-rose-600 mt-0.5">Rp {filteredBills.filter(b => b.status === 'Belum Lunas').reduce((sum, b) => sum + getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount).finalAmount, 0).toLocaleString('id-ID')}</div>
               <div className="text-[9px] text-rose-500 mt-0.5 font-extrabold">({filteredBills.filter(b => b.status === 'Belum Lunas').length} Menunggu)</div>
             </div>
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
@@ -7076,7 +7136,19 @@ export default function AdminDashboard({
                       <div className="min-w-0">
                         <strong className="block text-gray-900 leading-tight text-sm font-extrabold truncate">{b.studentName}</strong>
                         <span className="text-gray-500 text-[10px] block mt-0.5 truncate">{b.title} ({b.category || 'Lain-lain'})</span>
-                        <span className="text-emerald-800 font-extrabold block mt-0.5 font-mono">Rp {(Number(b.amount) || 0).toLocaleString('id-ID')}</span>
+                        {(() => {
+                          const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
+                          return (
+                            <div className="mt-1 flex items-center flex-wrap gap-1.5">
+                              <span className="text-emerald-850 font-black text-xs font-mono block">
+                                Rp {breakdown.finalAmount.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[9px] text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 font-mono font-bold">
+                                Pokok: Rp {breakdown.baseAmount.toLocaleString('id-ID')} + {breakdown.uniqueCode}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -7416,7 +7488,15 @@ export default function AdminDashboard({
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRekeningQrisPreview(rek)}
+                            className="p-1.5 text-emerald-800 hover:bg-emerald-50 rounded-lg transition cursor-pointer border border-transparent hover:border-emerald-200"
+                            title="Lihat / Uji Scan QRIS Berlogo Pondok"
+                          >
+                            <QrCode className="h-4 w-4" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -7426,9 +7506,10 @@ export default function AdminDashboard({
                               setBankFormOwner(rek.accountName);
                               setBankFormQrisString(rek.qrisString || '');
                             }}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer border border-transparent hover:border-blue-200"
                             title="Ubah Rekening"
-                          >️
+                          >
+                            <Edit className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
@@ -8229,28 +8310,13 @@ export default function AdminDashboard({
                         setEditSettings({ ...editSettings, ttdPengasuhUrl: '', ttdPengurusUrl: '' });
                         setIsSettingsDirty(true);
                       }}
-                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold shrink-0 transition"
+                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold shrink-0 transition cursor-pointer"
                       title="Hapus tanda tangan"
                     >
                       Hapus
                     </button>
                   )}
                 </div>
-
-                {/* Pratinjau TTD */}
-                {editSettings.ttdPengasuhUrl && (
-                  <div className="mt-3 flex items-center gap-3 pt-2 border-t border-emerald-100/60">
-                    <span className="text-[11px] font-bold text-emerald-900">Pratinjau TTD:</span>
-                    <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-xs max-w-xs">
-                      <img
-                        src={editSettings.ttdPengasuhUrl}
-                        alt="Pratinjau Tanda Tangan"
-                        className="h-12 object-contain mix-blend-multiply"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Input Foto Stempel Pengasuh / Pesantren */}
@@ -8309,28 +8375,13 @@ export default function AdminDashboard({
                         setEditSettings({ ...editSettings, stempelPengasuhUrl: '', stempelPesantrenUrl: '' });
                         setIsSettingsDirty(true);
                       }}
-                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold shrink-0 transition"
+                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold shrink-0 transition cursor-pointer"
                       title="Hapus stempel"
                     >
                       Hapus
                     </button>
                   )}
                 </div>
-
-                {/* Pratinjau Stempel */}
-                {editSettings.stempelPengasuhUrl && (
-                  <div className="mt-3 flex items-center gap-3 pt-2 border-t border-emerald-100/60">
-                    <span className="text-[11px] font-bold text-emerald-900">Pratinjau Stempel:</span>
-                    <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-xs">
-                      <img
-                        src={editSettings.stempelPengasuhUrl}
-                        alt="Pratinjau Stempel"
-                        className="h-14 w-14 object-contain rotate-[-6deg] mix-blend-multiply"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="md:col-span-2">
@@ -13860,10 +13911,20 @@ export default function AdminDashboard({
                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider font-mono block">Nama Tagihan</span>
                           <span className="font-bold text-slate-800 text-[11px]">{b.title}</span>
                         </div>
-                        <div>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider font-mono block">Nominal Tagihan</span>
-                          <span className="font-extrabold text-teal-800 text-sm">Rp {b.amount.toLocaleString('id-ID')}</span>
-                        </div>
+                        {(() => {
+                          const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
+                          return (
+                            <div>
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider font-mono block">Jumlah Masuk / Ditransfer</span>
+                              <span className="font-black text-teal-800 text-sm font-mono block">
+                                Rp {breakdown.finalAmount.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[9px] text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-mono font-bold inline-block mt-0.5">
+                                Pokok: Rp {breakdown.baseAmount.toLocaleString('id-ID')} + Kode Khusus: {breakdown.uniqueCode}
+                              </span>
+                            </div>
+                          );
+                        })()}
                         <div>
                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider font-mono block">Jatuh Tempo</span>
                           <span className="font-medium text-slate-600">{b.dueDate}</span>
@@ -13990,9 +14051,10 @@ export default function AdminDashboard({
                           <button
                             type="button"
                             onClick={() => {
+                              const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
                               runAiValidation(b.id, 'payment', b.studentName, {
                                 billTitle: b.title,
-                                billAmount: b.amount,
+                                billAmount: breakdown.finalAmount,
                                 paymentMethod: b.paymentMethod || 'Transfer',
                                 proofUrl: b.paymentProofUrl,
                                 destinationBank: dest.bank,
@@ -14038,9 +14100,10 @@ export default function AdminDashboard({
                   <button
                     type="button"
                     onClick={() => {
-                      toggleBillStatus(b.id, 'Lunas');
+                      const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
+                      toggleBillStatus(b.id, 'Lunas', breakdown.finalAmount);
                       setSelectedBillForLogs(null);
-                      showAlert('success', 'Status tagihan berhasil diverifikasi LUNAS dan sinkron ke Supabase.');
+                      showAlert('success', `Status tagihan berhasil diverifikasi LUNAS (Nominal Masuk: Rp ${breakdown.finalAmount.toLocaleString('id-ID')}) dan sinkron ke Supabase.`);
                     }}
                     className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl transition text-[11px] cursor-pointer shadow-xs flex items-center gap-1.5"
                   >
@@ -14097,9 +14160,20 @@ export default function AdminDashboard({
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                setBills(prev => prev.map(b => b.id === editingBill.id ? editingBill : b));
-                localStorage.setItem('pesantren_bills', JSON.stringify(bills.map(b => b.id === editingBill.id ? editingBill : b)));
-                showAlert('success', `Data tagihan "${editingBill.title}" berhasil diperbarui!`);
+                const breakdown = getBillAmountBreakdown(editingBill.amount, editingBill.id, editingBill.uniqueCode);
+                const updatedBill = {
+                  ...editingBill,
+                  amount: breakdown.finalAmount,
+                  baseAmount: breakdown.baseAmount,
+                  uniqueCode: breakdown.uniqueCode,
+                  finalAmount: breakdown.finalAmount
+                };
+                setBills(prev => prev.map(b => b.id === editingBill.id ? updatedBill : b));
+                localStorage.setItem('pesantren_bills', JSON.stringify(bills.map(b => b.id === editingBill.id ? updatedBill : b)));
+                if (isSupabaseConfigured()) {
+                  pushBillToSupabase(updatedBill).catch(err => console.error('Cloud push edited bill error:', err));
+                }
+                showAlert('success', `Data tagihan "${updatedBill.title}" berhasil diperbarui (Total Masuk: Rp ${breakdown.finalAmount.toLocaleString('id-ID')})!`);
                 setEditingBill(null);
               }}
               className="p-4 sm:p-6 space-y-4 max-h-[82vh] overflow-y-auto"
@@ -14128,7 +14202,7 @@ export default function AdminDashboard({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Nominal Tagihan (Rp)</label>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Nominal Tagihan Pokok (Rp)</label>
                   <input
                     type="number"
                     min={0}
@@ -14137,6 +14211,19 @@ export default function AdminDashboard({
                     className="w-full px-3 py-2 border border-slate-250 rounded-xl focus:ring-2 focus:ring-emerald-700 focus:outline-none font-mono font-extrabold text-emerald-800 text-sm"
                     required
                   />
+                  {(() => {
+                    const breakdown = getBillAmountBreakdown(editingBill.amount, editingBill.id, editingBill.uniqueCode);
+                    return (
+                      <div className="mt-1.5 p-2 bg-amber-50 rounded-lg border border-amber-200 text-amber-950 font-mono text-[10px] space-y-0.5">
+                        <div>
+                          <span className="font-bold">Total Masuk:</span> <strong className="font-black text-amber-900">Rp {breakdown.finalAmount.toLocaleString('id-ID')}</strong>
+                        </div>
+                        <div className="text-[9px] text-amber-800 font-sans">
+                          (Pokok: Rp {breakdown.baseAmount.toLocaleString('id-ID')} + Kode Khusus: {breakdown.uniqueCode})
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>
@@ -14212,7 +14299,87 @@ export default function AdminDashboard({
         </div>
       )}
 
-      {/* MODAL EDIT AGENDA / KEGIATAN PESANTREN */}
+      {/* MODAL PREVIEW QRIS RESMI BERLOGO PONDOK (UNTUK ADMIN) */}
+      {previewQrisRekening && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full border border-emerald-100 overflow-hidden shadow-2xl text-slate-800 text-xs my-auto flex flex-col">
+            <div className="bg-gradient-to-r from-emerald-850 to-teal-950 p-4 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-1.5 text-amber-300">
+                  <QrCode className="h-4 w-4" />
+                  <span>Preview QRIS Berlogo Resmi</span>
+                </h3>
+                <p className="text-[10.5px] text-emerald-100">{previewQrisRekening.bankName} - a.n. {previewQrisRekening.accountName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewQrisRekening(null)}
+                className="p-1 hover:bg-white/10 rounded-lg text-white/80 hover:text-white transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 flex flex-col items-center text-center space-y-3">
+              <div className="p-3 bg-white border border-emerald-200 rounded-2xl shadow-sm flex flex-col items-center justify-center min-h-[220px]">
+                {previewQrisLoading ? (
+                  <div className="flex flex-col items-center justify-center py-10 space-y-2 text-emerald-800">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                    <span className="text-[11px] font-bold">Membuat QRIS Berlogo...</span>
+                  </div>
+                ) : previewQrisDataUrl ? (
+                  <>
+                    <img 
+                      src={previewQrisDataUrl} 
+                      alt={`QRIS ${previewQrisRekening.bankName}`} 
+                      className="w-56 h-56 object-contain"
+                    />
+                    <a
+                      href={previewQrisDataUrl}
+                      download={`QRIS_${(previewQrisRekening.bankName || 'Pesantren').replace(/\s+/g, '_')}_Berlogo.png`}
+                      className="mt-3 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Download className="h-3.5 w-3.5 text-emerald-700" />
+                      <span>Unduh Gambar QRIS</span>
+                    </a>
+                  </>
+                ) : (
+                  <p className="text-gray-400 text-xs py-8">Gagal memuat QRIS.</p>
+                )}
+              </div>
+
+              <div className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-left space-y-1 font-mono text-[10.5px]">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 font-sans">Kanal:</span>
+                  <span className="font-bold text-slate-800">{previewQrisRekening.bankName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 font-sans">No. Rekening / VA:</span>
+                  <span className="font-bold text-slate-800">{previewQrisRekening.accountNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 font-sans">Atas Nama:</span>
+                  <span className="font-bold text-slate-800 uppercase">{previewQrisRekening.accountName}</span>
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-[10px] text-left leading-relaxed">
+                ✓ <strong>Logo Pondok Tersemat:</strong> Menggunakan standar koreksi error 'H' (High) sehingga logo pondok di tengah QR tetap menjamin 100% keterbacaan pada aplikasi perbankan (BCA, Mandiri, BRI, BNI) dan E-Wallet (DANA, GoPay, OVO).
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPreviewQrisRekening(null)}
+                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold rounded-xl text-xs cursor-pointer transition"
+              >
+                Tutup Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {editingEventId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-emerald-100 overflow-hidden text-slate-800 text-xs my-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">

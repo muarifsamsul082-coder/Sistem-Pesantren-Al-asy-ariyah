@@ -8,7 +8,7 @@ import {
 import { Student, Bill, Announcement, PortalSettings, SecurityLog, compressImage } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
 import { isSupabaseConfigured, pushStudentToSupabase, pushBillToSupabase, markLocalDataChanged } from '../lib/supabase';
-import { generateDynamicQrisString, getUniqueTransferCode, validateQrisString, QrisValidationResult } from '../lib/qris';
+import { generateDynamicQrisString, getUniqueTransferCode, validateQrisString, QrisValidationResult, generateQrisQrCodeWithLogo, getBillAmountBreakdown } from '../lib/qris';
 
 const isImageUrl = (str?: string): boolean => {
   if (!str) return false;
@@ -90,22 +90,19 @@ export default function SantriDashboard({
     return rekeningList.find(r => r.isMain) || rekeningList[0];
   }, [rekeningList, selectedRekeningId]);
 
-  // Unique nominal addition (between 100 and 500)
-  const uniqueCode = React.useMemo(() => {
-    if (!selectedBill) return 120;
-    return getUniqueTransferCode(selectedBill.id, selectedBill.amount);
+  // Unique nominal breakdown: rounded base amount (e.g. 50.000) + unique code (e.g. 120 -> 50.120)
+  const billBreakdown = React.useMemo(() => {
+    if (!selectedBill) return { baseAmount: 50000, uniqueCode: 120, finalAmount: 50120 };
+    return getBillAmountBreakdown(selectedBill.amount, selectedBill.id, selectedBill.uniqueCode, selectedBill.baseAmount);
   }, [selectedBill]);
 
-  // Final exact amount to transfer
-  const finalTransferAmount = React.useMemo(() => {
-    if (!selectedBill) return 0;
-    return selectedBill.amount + uniqueCode;
-  }, [selectedBill, uniqueCode]);
+  const uniqueCode = billBreakdown.uniqueCode;
+  const finalTransferAmount = billBreakdown.finalAmount;
 
   // Validation state for Indonesian QRIS compliance
   const [qrisValidation, setQrisValidation] = React.useState<QrisValidationResult | null>(null);
 
-  // Generate QR Code automatically whenever bill or destination bank is selected
+  // Generate QR Code with Pondok Logo automatically whenever bill or destination bank is selected
   React.useEffect(() => {
     if (!selectedBill || !currentRekening) {
       setQrCodeDataUrl('');
@@ -128,18 +125,28 @@ export default function SantriDashboard({
     const valResult = validateQrisString(qrisPayload);
     setQrisValidation(valResult);
     
-    QRCode.toDataURL(qrisPayload, {
-      width: 280,
-      margin: 2,
-      errorCorrectionLevel: 'M',
-      color: {
-        dark: '#064e3b',
-        light: '#ffffff',
+    // Generate QRIS with Pondok Pesantren Logo in the center using Canvas & Error Correction Level 'H'
+    generateQrisQrCodeWithLogo(
+      qrisPayload,
+      settings.logoUrl || '/pesantren_logo.jpg',
+      {
+        width: 320,
+        margin: 2,
+        color: {
+          dark: '#064e3b',
+          light: '#ffffff',
+        }
       }
-    })
+    )
       .then(url => setQrCodeDataUrl(url))
-      .catch(err => console.error('Failed to generate transfer QR code:', err));
-  }, [selectedBill, currentRekening, finalTransferAmount, uniqueCode, student.fullName, student.nis, settings.schoolName, settings.address, settings.qrisString]);
+      .catch(err => {
+        console.error('Failed to generate transfer QR code with logo:', err);
+        // Fallback to standard QR
+        QRCode.toDataURL(qrisPayload, { width: 300, margin: 2, errorCorrectionLevel: 'H' })
+          .then(url => setQrCodeDataUrl(url))
+          .catch(e => console.error('Fallback QR code failed:', e));
+      });
+  }, [selectedBill, currentRekening, finalTransferAmount, uniqueCode, student.fullName, student.nis, settings.schoolName, settings.address, settings.qrisString, settings.logoUrl]);
 
   // Initialize selection when opening bill
   React.useEffect(() => {
@@ -256,7 +263,10 @@ export default function SantriDashboard({
 
     const updatedBill: Bill = {
       ...selectedBill,
-      amount: selectedBill.amount, // Tagihan asli tetap dipertahankan (e.g. 50.000) tidak diinflasikan
+      amount: finalTransferAmount, // Tagihan pokok dibulatkan + nominal khusus disamakan persis ke admin (e.g. 50.120)
+      baseAmount: billBreakdown.baseAmount,
+      uniqueCode: billBreakdown.uniqueCode,
+      finalAmount: finalTransferAmount,
       status: 'Konfirmasi Pembayaran',
       paymentDate: todayStr,
       paymentMethod: bank || `Transfer ${currentRekening.bankName}`,
@@ -268,7 +278,7 @@ export default function SantriDashboard({
         {
           uploadedBy: student.fullName,
           uploadedAt: new Date().toLocaleString('id-ID'),
-          aiResult: `Santri/Wali mengunggah bukti transfer tagihan Rp ${selectedBill.amount.toLocaleString('id-ID')} (Nominal transfer unik: Rp ${finalTransferAmount.toLocaleString('id-ID')} via ${senderBank || 'Transfer Bank'}). Menunggu pengecekan admin.`
+          aiResult: `Santri/Wali mentransfer tagihan Rp ${finalTransferAmount.toLocaleString('id-ID')} (Tagihan Pokok: Rp ${billBreakdown.baseAmount.toLocaleString('id-ID')} + Kode Khusus: Rp ${billBreakdown.uniqueCode} via ${senderBank || 'Transfer Bank'}). Menunggu verifikasi admin.`
         }
       ]
     };
@@ -323,7 +333,10 @@ export default function SantriDashboard({
 
     const updatedBill: Bill = {
       ...selectedBill,
-      amount: selectedBill.amount, // Tagihan asli tetap dipertahankan
+      amount: finalTransferAmount, // Tagihan pokok dibulatkan + nominal khusus disamakan persis ke admin (e.g. 50.120)
+      baseAmount: billBreakdown.baseAmount,
+      uniqueCode: billBreakdown.uniqueCode,
+      finalAmount: finalTransferAmount,
       status: 'Lunas',
       paidDate: todayStr,
       paymentDate: todayStr,
@@ -338,7 +351,7 @@ export default function SantriDashboard({
           uploadedBy: student.fullName,
           uploadedAt: todayStr,
           verifiedAt: new Date().toLocaleString('id-ID'),
-          aiResult: `Pelunasan Otomatis QRIS: Tagihan #${targetBillId} senilai Rp ${selectedBill.amount.toLocaleString('id-ID')} atas nama santri ${student.fullName} (NIS: ${student.nis || '-'}) terverifikasi lunas tanpa tertukar.`
+          aiResult: `Pelunasan Otomatis QRIS: Tagihan #${targetBillId} senilai Rp ${finalTransferAmount.toLocaleString('id-ID')} (Pokok: Rp ${billBreakdown.baseAmount.toLocaleString('id-ID')} + Kode Khusus: Rp ${billBreakdown.uniqueCode}) atas nama santri ${student.fullName} (NIS: ${student.nis || '-'}) terverifikasi lunas tanpa tertukar.`
         }
       ]
     };
@@ -566,10 +579,20 @@ export default function SantriDashboard({
                       </div>
 
                       <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-2 md:pt-0 border-gray-200/50">
-                        <div className="text-right">
-                          <span className="text-gray-400 text-[8px] block uppercase font-mono">Beban Tagihan</span>
-                          <strong className="text-gray-950 font-extrabold text-sm font-mono block">Rp {b.amount.toLocaleString('id-ID')}</strong>
-                        </div>
+                        {(() => {
+                          const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
+                          return (
+                            <div className="text-right">
+                              <span className="text-gray-400 text-[8px] block uppercase font-mono">Beban Tagihan Masuk</span>
+                              <strong className="text-emerald-950 font-extrabold text-sm font-mono block">
+                                Rp {breakdown.finalAmount.toLocaleString('id-ID')}
+                              </strong>
+                              <span className="text-[8.5px] text-amber-800 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 font-mono font-bold block mt-0.5">
+                                Pokok: Rp {breakdown.baseAmount.toLocaleString('id-ID')} + {breakdown.uniqueCode}
+                              </span>
+                            </div>
+                          );
+                        })()}
 
                         {b.status === 'Lunas' ? (
                           <button
@@ -686,8 +709,8 @@ export default function SantriDashboard({
                           <div className="bg-emerald-950/60 p-3 rounded-xl border border-emerald-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-2 text-[11px] text-emerald-200">
-                                <span>Tagihan Pokok:</span>
-                                <span className="font-mono font-bold text-white">Rp {selectedBill.amount.toLocaleString('id-ID')}</span>
+                                <span>Tagihan Pokok (Dibulatkan):</span>
+                                <span className="font-mono font-bold text-white">Rp {billBreakdown.baseAmount.toLocaleString('id-ID')}</span>
                               </div>
                               <div className="flex items-center gap-2 text-[11px] text-amber-300 font-bold">
                                 <span>Kode Unik Tagihan Khusus:</span>
@@ -698,7 +721,7 @@ export default function SantriDashboard({
                             </div>
                             <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-800">
                               <span className="text-[9px] uppercase font-mono tracking-wider text-amber-200 block font-bold">
-                                Total Harus Ditransfer
+                                Total Masuk & Harus Ditransfer
                               </span>
                               <div className="flex items-center gap-1.5 justify-start sm:justify-end">
                                 <span className="text-lg sm:text-xl font-black font-mono text-amber-300">
