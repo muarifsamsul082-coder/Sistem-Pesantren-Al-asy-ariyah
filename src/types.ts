@@ -237,6 +237,30 @@ export interface PortalSettings {
   ttdBendaharaUrl?: string;
   stempelBendaharaUrl?: string;
   
+  // Pejabat Penandatangan Surat Pesantren Lengkap
+  namaBendaharaPutra?: string;
+  ttdBendaharaPutraUrl?: string;
+  stempelBendaharaPutraUrl?: string;
+
+  namaBendaharaPutri?: string;
+  ttdBendaharaPutriUrl?: string;
+  stempelBendaharaPutriUrl?: string;
+
+  namaLurahPutra?: string;
+  ttdLurahPutraUrl?: string;
+
+  namaLurahPutri?: string;
+  ttdLurahPutriUrl?: string;
+
+  namaSekretarisPutra?: string;
+  ttdSekretarisPutraUrl?: string;
+
+  namaSekretarisPutri?: string;
+  ttdSekretarisPutriUrl?: string;
+
+  namaDewanMasyayikh?: string;
+  ttdDewanMasyayikhUrl?: string;
+  
   namaKeamanan?: string;
   ttdKeamananUrl?: string;
   stempelKeamananUrl?: string;

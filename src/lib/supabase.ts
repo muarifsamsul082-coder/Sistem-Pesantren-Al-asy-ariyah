@@ -491,10 +491,16 @@ CREATE TABLE IF NOT EXISTS public.outbox_logs (
   student_id TEXT,
   nis TEXT,
   letter_number TEXT,
+  letter_no TEXT,
   letter_type TEXT,
   recipient TEXT,
+  recipient_name TEXT,
+  recipient_phone TEXT,
   subject TEXT,
+  message TEXT,
   issue_date TEXT,
+  date TEXT,
+  type TEXT,
   signed_by TEXT,
   status TEXT DEFAULT 'Terbit',
   document_payload JSONB DEFAULT '{}'::jsonb,
@@ -613,6 +619,22 @@ ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS stempel_pcsb_url TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_bendahara TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_bendahara_url TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS stempel_bendahara_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_bendahara_putra TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_bendahara_putra_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS stempel_bendahara_putra_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_bendahara_putri TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_bendahara_putri_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS stempel_bendahara_putri_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_lurah_putra TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_lurah_putra_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_lurah_putri TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_lurah_putri_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_sekretaris_putra TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_sekretaris_putra_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_sekretaris_putri TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_sekretaris_putri_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_dewan_masyayikh TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_dewan_masyayikh_url TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_keamanan TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_keamanan_url TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS stempel_keamanan_url TEXT;
@@ -769,6 +791,22 @@ ALTER TABLE public.rooms ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 10;
 ALTER TABLE public.rooms ADD COLUMN IF NOT EXISTS ketua_kamar_id TEXT;
 ALTER TABLE public.rooms ADD COLUMN IF NOT EXISTS ketua_kamar_name TEXT;
 
+-- Kolom Announcements (Maklumat & Pengumuman)
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'medium';
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS target_role TEXT DEFAULT 'all';
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS date TEXT;
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS content TEXT;
+
+-- Kolom News (Berita)
+ALTER TABLE public.news ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.news ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Informasi';
+ALTER TABLE public.news ADD COLUMN IF NOT EXISTS date TEXT;
+ALTER TABLE public.news ADD COLUMN IF NOT EXISTS author TEXT DEFAULT 'Admin Pesantren';
+ALTER TABLE public.news ADD COLUMN IF NOT EXISTS excerpt TEXT;
+ALTER TABLE public.news ADD COLUMN IF NOT EXISTS content TEXT;
+ALTER TABLE public.news ADD COLUMN IF NOT EXISTS image_url TEXT;
+
 -- ==============================================================================
 -- INSIALISASI DATA DEFAULT
 -- ==============================================================================
@@ -797,6 +835,22 @@ INSERT INTO public.master_classes (id, name, type) VALUES
   ('cls_ma_12', 'XII MA Formal', 'formal'),
   ('cls_formal_none', '-', 'formal')
 ON CONFLICT (id) DO NOTHING;
+
+-- Inisialisasi Daftar Pengurus di Tabel officials
+INSERT INTO public.officials (id, name, position, category, order_index) VALUES
+  ('official-pengasuh', 'KH. Ahmad Wildan Asy''ari, M.Pd.I', 'Pengasuh Pondok Pesantren', 'pengasuh', 1),
+  ('official-ketua', 'Ust. M. Ridwan, S.Pd.I', 'Ketua Pengurus Pesantren', 'pengurus', 2),
+  ('official-bendahara', 'Ustadzah Siti Aminah, S.E', 'Bendahara Pondok Pesantren', 'pengurus', 3),
+  ('official-pcsb', 'Ust. H. Abdullah Mansur, Lc', 'Ketua Panitia PCSB / PPDB', 'pengurus', 4),
+  ('official-keamanan', 'Ust. Junaidi Al-Anshori', 'Kepala Bidang Keamanan', 'pengurus', 5),
+  ('official-ketertiban', 'Ust. Abdul Somad, S.Sy', 'Kepala Bidang Ketertiban Santri', 'pengurus', 6),
+  ('official-kesehatan', 'dr. Fatimah Az-Zahra', 'Kepala Bidang Kesehatan (Poskestren)', 'pengurus', 7),
+  ('official-akademik', 'Ust. Dr. M. Syukron, M.Pd', 'Kepala Bidang Akademik & Pendidikan (Kurikulum)', 'pengurus', 8)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  position = EXCLUDED.position,
+  category = EXCLUDED.category,
+  order_index = EXCLUDED.order_index;
 
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES & AKSES PENUH CLIENT
@@ -831,20 +885,42 @@ DECLARE
   ];
 BEGIN
   FOREACH t IN ARRAY tbls LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'public_full_access_' || t, t);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL USING (true) WITH CHECK (true)', 'public_full_access_' || t, t);
+    BEGIN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'public_full_access_' || t, t);
+      EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL USING (true) WITH CHECK (true)', 'public_full_access_' || t, t);
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
   END LOOP;
 END $$;
 
 -- ==============================================================================
--- IZIN AKSES PERAN (GRANTS KONEKSI CLIENT)
+-- IZIN AKSES PERAN (GRANTS KONEKSI CLIENT) - AMAN TANPA CRASH
 -- ==============================================================================
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+DO $$
+BEGIN
+  BEGIN
+    GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  BEGIN
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+END $$;
 
 -- ==============================================================================
 -- AKTIFKAN FITUR SUPABASE REALTIME MULTI-DEVICE
@@ -868,6 +944,7 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN NULL;
     END;
   END LOOP;
+EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 `;
 
@@ -1587,45 +1664,82 @@ export async function deleteNewsFromSupabase(id: string): Promise<void> {
 }
 
 // ------------------------------------------------------------------------------
-// ANNOUNCEMENTS SYNC & PUSH
+// ANNOUNCEMENTS SYNC & PUSH (DENGAN PENCEGAHAN MENTAL / KEMBALI LAGI)
 // ------------------------------------------------------------------------------
 export async function syncAnnouncementsWithSupabase(list: Announcement[]): Promise<Announcement[]> {
   const client = getSupabaseClient();
-  if (!client) return list;
+  
+  // Ambil daftar ID maklumat yang telah dihapus permanen oleh admin
+  let deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('pesantren_deleted_announcement_ids');
+    if (rawDel) {
+      const parsed = JSON.parse(rawDel);
+      if (Array.isArray(parsed)) deletedIds = new Set(parsed);
+    }
+  } catch (e) {}
+
+  // Selalu filter daftar lokal dari ID yang telah dihapus
+  const cleanLocalList = list.filter(item => item && item.id && !deletedIds.has(item.id));
+
+  if (!client) return cleanLocalList;
+
   if (isLocalDataRecentlyChanged('announcements')) {
-    pushAllAnnouncementsToSupabase(list).catch(e => console.error('Auto-push recent ann error:', e));
-    return list;
+    pushAllAnnouncementsToSupabase(cleanLocalList).catch(e => console.error('Auto-push recent ann error:', e));
+    return cleanLocalList;
   }
 
   try {
     const { data, error } = await client.from('announcements').select('*').order('date', { ascending: false });
-    if (error) return list;
+    if (error) return cleanLocalList;
     if (data && data.length > 0) {
-      const remoteMapped: Announcement[] = data.map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        priority: (item.priority as any) || 'medium',
-        targetRole: (item.target_role as any) || 'all',
-        date: item.date,
-        content: item.content
-      }));
+      // Jika ada data di remote yang ID-nya tercatat sudah dihapus di lokal, hapus dari remote Supabase
+      const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
+      if (staleInRemote.length > 0) {
+        const staleIds = staleInRemote.map((item: any) => item.id);
+        client.from('announcements').delete().in('id', staleIds).then(() => {}, () => {});
+      }
 
-      const missingInRemote = list.filter(l => !data.some((r: any) => r.id === l.id));
+      const remoteMapped: Announcement[] = data
+        .filter((item: any) => item && item.id && !deletedIds.has(item.id))
+        .map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          priority: (item.priority as any) || 'medium',
+          targetRole: (item.target_role as any) || 'all',
+          date: item.date,
+          content: item.content
+        }));
+
+      const missingInRemote = cleanLocalList.filter(l => !data.some((r: any) => r.id === l.id) && !deletedIds.has(l.id));
       if (missingInRemote.length > 0) {
         await pushAllAnnouncementsToSupabase(missingInRemote);
         return [...missingInRemote, ...remoteMapped];
       }
       return remoteMapped;
-    } else if (list.length > 0) {
-      await pushAllAnnouncementsToSupabase(list);
+    } else if (cleanLocalList.length > 0) {
+      await pushAllAnnouncementsToSupabase(cleanLocalList);
     }
   } catch (err) {
     console.error('Error syncing announcements with Supabase:', err);
   }
-  return list;
+  return cleanLocalList;
 }
 
 export async function pushAnnouncementToSupabase(a: Announcement): Promise<void> {
+  // Cek apakah maklumat ini pernah dihapus
+  try {
+    const rawDel = localStorage.getItem('pesantren_deleted_announcement_ids');
+    if (rawDel) {
+      const parsed = JSON.parse(rawDel);
+      if (Array.isArray(parsed) && parsed.includes(a.id)) {
+        // Jika ada di daftar terhapus dan sekarang diterbitkan ulang/baru, hilangkan dari deleted list
+        const updated = parsed.filter(id => id !== a.id);
+        localStorage.setItem('pesantren_deleted_announcement_ids', JSON.stringify(updated));
+      }
+    }
+  } catch (e) {}
+
   markLocalDataChanged('announcements');
   const client = getSupabaseClient();
   if (!client) return;
@@ -1645,9 +1759,22 @@ export async function pushAnnouncementToSupabase(a: Announcement): Promise<void>
 
 export async function pushAllAnnouncementsToSupabase(list: Announcement[]): Promise<void> {
   const client = getSupabaseClient();
-  if (!client || list.length === 0) return;
+  if (!client) return;
+  
+  let deletedIds = new Set<string>();
   try {
-    const payload = list.map(a => ({
+    const rawDel = localStorage.getItem('pesantren_deleted_announcement_ids');
+    if (rawDel) {
+      const parsed = JSON.parse(rawDel);
+      if (Array.isArray(parsed)) deletedIds = new Set(parsed);
+    }
+  } catch (e) {}
+
+  const validItems = list.filter(a => a && a.id && !deletedIds.has(a.id));
+  if (validItems.length === 0) return;
+
+  try {
+    const payload = validItems.map(a => ({
       id: a.id,
       title: a.title,
       priority: a.priority,
@@ -1663,9 +1790,28 @@ export async function pushAllAnnouncementsToSupabase(list: Announcement[]): Prom
 
 export async function deleteAnnouncementFromSupabase(id: string): Promise<void> {
   markLocalDataChanged('announcements');
+  
+  // Simpan permanen ke daftar ID terhapus di localStorage
+  try {
+    let delAnn: string[] = [];
+    const raw = localStorage.getItem('pesantren_deleted_announcement_ids');
+    if (raw) delAnn = JSON.parse(raw);
+    if (!delAnn.includes(id)) {
+      delAnn.push(id);
+      localStorage.setItem('pesantren_deleted_announcement_ids', JSON.stringify(delAnn));
+    }
+  } catch (e) {}
+
   const client = getSupabaseClient();
   if (!client) return;
-  try { await client.from('announcements').delete().eq('id', id); } catch (e) { console.error('Failed to delete announcement:', e); }
+  try {
+    const { error } = await client.from('announcements').delete().eq('id', id);
+    if (error) {
+      console.warn('Supabase delete announcement warning:', error.message);
+    }
+  } catch (e) {
+    console.error('Failed to delete announcement from Supabase:', e);
+  }
 }
 
 // ------------------------------------------------------------------------------
@@ -1784,7 +1930,25 @@ export async function pushStudentToSupabase(student: Student): Promise<void> {
   if (!client) return;
   try {
     const payload = formatStudentToSupabasePayload(student);
-    await client.from('students').upsert(payload);
+    const { error } = await client.from('students').upsert(payload);
+    if (error) {
+      console.warn('Upsert student failed with full payload, trying safe core payload:', error);
+      await client.from('students').upsert({
+        id: student.id,
+        nis: student.nis,
+        full_name: student.fullName,
+        gender: student.gender,
+        class_name: student.class,
+        class_madrasah: student.classMadrasah || student.classPagi || null,
+        class_formal: student.classFormal || student.classSore || null,
+        phone: (student as any).phone || student.parentPhone || null,
+        address: student.address || null,
+        status: student.status || 'Aktif',
+        kamar: student.kamar || null,
+        parent_name: student.parentName || null,
+        parent_phone: student.parentPhone || null
+      });
+    }
   } catch (err) {
     console.error('Failed to save student to Supabase:', err);
   }
@@ -2096,7 +2260,23 @@ export async function pushBillToSupabase(bill: Bill): Promise<void> {
   if (!client) return;
   try {
     const payload = formatBillToSupabasePayload(bill);
-    await client.from('bills').upsert(payload);
+    const { error } = await client.from('bills').upsert(payload);
+    if (error) {
+      console.warn('Upsert bill failed with full payload, trying safe core payload:', error);
+      await client.from('bills').upsert({
+        id: bill.id,
+        student_id: bill.studentId,
+        student_name: bill.studentName || null,
+        nis: bill.nis || null,
+        title: bill.title,
+        amount: Number(bill.amount) || 0,
+        due_date: bill.dueDate || null,
+        status: bill.status || 'Belum Lunas',
+        category: bill.category || 'SPP Syahriyah',
+        payment_date: bill.paymentDate || null,
+        payment_method: bill.paymentMethod || null
+      });
+    }
   } catch (err) {
     console.error('Failed to save bill to Supabase:', err);
   }
@@ -2149,6 +2329,22 @@ export function formatSettingsToSupabasePayload(s: PortalSettings) {
     nama_bendahara: s.namaBendahara || null,
     ttd_bendahara_url: s.ttdBendaharaUrl || null,
     stempel_bendahara_url: s.stempelBendaharaUrl || null,
+    nama_bendahara_putra: s.namaBendaharaPutra || null,
+    ttd_bendahara_putra_url: s.ttdBendaharaPutraUrl || null,
+    stempel_bendahara_putra_url: s.stempelBendaharaPutraUrl || null,
+    nama_bendahara_putri: s.namaBendaharaPutri || null,
+    ttd_bendahara_putri_url: s.ttdBendaharaPutriUrl || null,
+    stempel_bendahara_putri_url: s.stempelBendaharaPutriUrl || null,
+    nama_lurah_putra: s.namaLurahPutra || null,
+    ttd_lurah_putra_url: s.ttdLurahPutraUrl || null,
+    nama_lurah_putri: s.namaLurahPutri || null,
+    ttd_lurah_putri_url: s.ttdLurahPutriUrl || null,
+    nama_sekretaris_putra: s.namaSekretarisPutra || null,
+    ttd_sekretaris_putra_url: s.ttdSekretarisPutraUrl || null,
+    nama_sekretaris_putri: s.namaSekretarisPutri || null,
+    ttd_sekretaris_putri_url: s.ttdSekretarisPutriUrl || null,
+    nama_dewan_masyayikh: s.namaDewanMasyayikh || null,
+    ttd_dewan_masyayikh_url: s.ttdDewanMasyayikhUrl || null,
     nama_keamanan: s.namaKeamanan || null,
     ttd_keamanan_url: s.ttdKeamananUrl || null,
     stempel_keamanan_url: s.stempelKeamananUrl || null,
@@ -2247,6 +2443,22 @@ export async function syncSettingsWithSupabase(currentSettings: PortalSettings):
         namaBendahara: data.nama_bendahara || workingSettings.namaBendahara,
         ttdBendaharaUrl: data.ttd_bendahara_url !== undefined ? data.ttd_bendahara_url : workingSettings.ttdBendaharaUrl,
         stempelBendaharaUrl: data.stempel_bendahara_url !== undefined ? data.stempel_bendahara_url : workingSettings.stempelBendaharaUrl,
+        namaBendaharaPutra: data.nama_bendahara_putra || workingSettings.namaBendaharaPutra,
+        ttdBendaharaPutraUrl: data.ttd_bendahara_putra_url !== undefined ? data.ttd_bendahara_putra_url : workingSettings.ttdBendaharaPutraUrl,
+        stempelBendaharaPutraUrl: data.stempel_bendahara_putra_url !== undefined ? data.stempel_bendahara_putra_url : workingSettings.stempelBendaharaPutraUrl,
+        namaBendaharaPutri: data.nama_bendahara_putri || workingSettings.namaBendaharaPutri,
+        ttdBendaharaPutriUrl: data.ttd_bendahara_putri_url !== undefined ? data.ttd_bendahara_putri_url : workingSettings.ttdBendaharaPutriUrl,
+        stempelBendaharaPutriUrl: data.stempel_bendahara_putri_url !== undefined ? data.stempel_bendahara_putri_url : workingSettings.stempelBendaharaPutriUrl,
+        namaLurahPutra: data.nama_lurah_putra || workingSettings.namaLurahPutra,
+        ttdLurahPutraUrl: data.ttd_lurah_putra_url !== undefined ? data.ttd_lurah_putra_url : workingSettings.ttdLurahPutraUrl,
+        namaLurahPutri: data.nama_lurah_putri || workingSettings.namaLurahPutri,
+        ttdLurahPutriUrl: data.ttd_lurah_putri_url !== undefined ? data.ttd_lurah_putri_url : workingSettings.ttdLurahPutriUrl,
+        namaSekretarisPutra: data.nama_sekretaris_putra || workingSettings.namaSekretarisPutra,
+        ttdSekretarisPutraUrl: data.ttd_sekretaris_putra_url !== undefined ? data.ttd_sekretaris_putra_url : workingSettings.ttdSekretarisPutraUrl,
+        namaSekretarisPutri: data.nama_sekretaris_putri || workingSettings.namaSekretarisPutri,
+        ttdSekretarisPutriUrl: data.ttd_sekretaris_putri_url !== undefined ? data.ttd_sekretaris_putri_url : workingSettings.ttdSekretarisPutriUrl,
+        namaDewanMasyayikh: data.nama_dewan_masyayikh || workingSettings.namaDewanMasyayikh,
+        ttdDewanMasyayikhUrl: data.ttd_dewan_masyayikh_url !== undefined ? data.ttd_dewan_masyayikh_url : workingSettings.ttdDewanMasyayikhUrl,
         namaKeamanan: data.nama_keamanan || workingSettings.namaKeamanan,
         ttdKeamananUrl: data.ttd_keamanan_url !== undefined ? data.ttd_keamanan_url : workingSettings.ttdKeamananUrl,
         stempelKeamananUrl: data.stempel_keamanan_url !== undefined ? data.stempel_keamanan_url : workingSettings.stempelKeamananUrl,
@@ -2356,6 +2568,7 @@ export async function pushSettingsToSupabase(s: PortalSettings): Promise<void> {
         nama_akademik: s.namaAkademik || null,
         ttd_akademik_url: s.ttdAkademikUrl || null,
         stempel_akademik_url: s.stempelAkademikUrl || null,
+        custom_officials: s.customOfficials || [],
         stempel_pesantren_url: s.stempelPesantrenUrl || null,
         rekening_list: s.rekeningList,
         ppdb_open: s.ppdbOpen,
@@ -2365,6 +2578,119 @@ export async function pushSettingsToSupabase(s: PortalSettings): Promise<void> {
     }
   } catch (err) {
     console.error('Failed to save settings to Supabase:', err);
+  }
+
+  // Juga sinkronkan ke tabel 'public.officials' agar terbaca rapi di table editor Supabase
+  try {
+    await pushAllOfficialsToSupabase(s);
+  } catch (e) {
+    console.warn('Silent fallback pushing to officials table:', e);
+  }
+}
+
+// ------------------------------------------------------------------------------
+// OFFICIALS / PENGURUS SYNC & PUSH (Tabel: public.officials)
+// ------------------------------------------------------------------------------
+export async function pushAllOfficialsToSupabase(s: PortalSettings): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) return;
+
+  const defaultOfficials: { id: string; name: string; position: string; category: string; order_index: number; signature_url?: string | null; seal_url?: string | null }[] = [
+    {
+      id: 'official-pengasuh',
+      name: s.namaPengasuh || "KH. Ahmad Wildan Asy'ari, M.Pd.I",
+      position: 'Pengasuh Pondok Pesantren',
+      category: 'pengasuh',
+      order_index: 1,
+      signature_url: s.ttdPengasuhUrl || null,
+      seal_url: s.stempelPengasuhUrl || null
+    },
+    {
+      id: 'official-ketua',
+      name: s.namaPengurus || "Ust. M. Ridwan, S.Pd.I",
+      position: 'Ketua Pengurus Pesantren',
+      category: 'pengurus',
+      order_index: 2,
+      signature_url: s.ttdPengurusUrl || null,
+      seal_url: s.stempelPengasuhUrl || null
+    },
+    {
+      id: 'official-bendahara',
+      name: s.namaBendahara || "Ustadzah Siti Aminah, S.E",
+      position: 'Bendahara Pondok Pesantren',
+      category: 'pengurus',
+      order_index: 3,
+      signature_url: s.ttdBendaharaUrl || null,
+      seal_url: s.stempelBendaharaUrl || null
+    },
+    {
+      id: 'official-pcsb',
+      name: s.namaKetuaPcsb || "Ust. H. Abdullah Mansur, Lc",
+      position: 'Ketua Panitia PCSB / PPDB',
+      category: 'pengurus',
+      order_index: 4,
+      signature_url: s.ttdKetuaPcsbUrl || null,
+      seal_url: s.stempelPcsbUrl || null
+    },
+    {
+      id: 'official-keamanan',
+      name: s.namaKeamanan || "Ust. Junaidi Al-Anshori",
+      position: 'Kepala Bidang Keamanan',
+      category: 'pengurus',
+      order_index: 5,
+      signature_url: s.ttdKeamananUrl || null,
+      seal_url: s.stempelKeamananUrl || null
+    },
+    {
+      id: 'official-ketertiban',
+      name: s.namaKetertiban || "Ust. Abdul Somad, S.Sy",
+      position: 'Kepala Bidang Ketertiban Santri',
+      category: 'pengurus',
+      order_index: 6,
+      signature_url: s.ttdKetertibanUrl || null,
+      seal_url: s.stempelKetertibanUrl || null
+    },
+    {
+      id: 'official-kesehatan',
+      name: s.namaKesehatan || "dr. Fatimah Az-Zahra",
+      position: 'Kepala Bidang Kesehatan (Poskestren)',
+      category: 'pengurus',
+      order_index: 7,
+      signature_url: s.ttdKesehatanUrl || null,
+      seal_url: s.stempelKesehatanUrl || null
+    },
+    {
+      id: 'official-akademik',
+      name: s.namaAkademik || "Ust. Dr. M. Syukron, M.Pd",
+      position: 'Kepala Bidang Akademik & Pendidikan (Kurikulum)',
+      category: 'pengurus',
+      order_index: 8,
+      signature_url: s.ttdAkademikUrl || null,
+      seal_url: s.stempelAkademikUrl || null
+    }
+  ];
+
+  if (Array.isArray(s.customOfficials)) {
+    s.customOfficials.forEach((off, idx) => {
+      defaultOfficials.push({
+        id: off.id.startsWith('official-') ? off.id : `official-custom-${off.id}`,
+        name: off.name,
+        position: off.position,
+        category: off.category || 'pengurus',
+        order_index: off.orderIndex || (9 + idx),
+        signature_url: off.signatureUrl || null,
+        seal_url: off.sealUrl || null
+      });
+    });
+  }
+
+  try {
+    const { error } = await client.from('officials').upsert(defaultOfficials);
+    if (error) {
+      console.warn('Could not upsert to officials table (table may not exist yet):', error);
+    }
+  } catch (err) {
+    console.warn('Error pushing officials to Supabase:', err);
   }
 }
 

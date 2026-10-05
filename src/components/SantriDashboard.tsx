@@ -1436,41 +1436,62 @@ export default function SantriDashboard({
                 </div>
 
                 <div className="flex justify-end">
-                  {/* Posisi Kanan Model Rata Kiri */}
-                  <div className="text-left space-y-1 relative w-[290px] font-sans">
-                    <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
-                    <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, Bendahara Pesantren</p>
-                    
-                    {/* Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih */}
-                    <div className="h-16 w-full relative flex items-center justify-start select-none my-2">
-                      {/* Tanda tangan: Posisi dasar di sebelah kiri teks */}
-                      <div className="z-10 relative flex items-center justify-start">
-                        {isImageUrl(settings.ttdBendaharaUrl || settings.ttdPengurusUrl) ? (
-                          <img src={settings.ttdBendaharaUrl || settings.ttdPengurusUrl} alt="TTD Pengurus" className="h-16 max-w-[170px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
-                        ) : (
-                          <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
-                            {settings.ttdBendaharaUrl || settings.ttdPengurusUrl || 'Bendahara Pesantren'}
-                          </span>
-                        )}
-                      </div>
+                  {/* Posisi Kanan Model Rata Kiri: Bendahara Putra / Putri */}
+                  {(() => {
+                    const isPutra = student.gender === 'Laki-laki' || (student.gender as any) === 'Putra';
 
-                      {/* Stempel: Berada di SEBELAH KANAN tanda tangan dengan model tumpang tindih */}
-                      {(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) && (
-                        <div className="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
-                          {isImageUrl(settings.stempelBendaharaUrl || settings.stempelPesantrenUrl) ? (
-                            <img src={settings.stempelBendaharaUrl || settings.stempelPesantrenUrl} alt="Stempel Pesantren" className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/75 shadow-xs">
-                              {settings.stempelBendaharaUrl || settings.stempelPesantrenUrl}
+                    const bendaharaName = isPutra
+                      ? (settings.namaBendaharaPutra || settings.namaBendahara || 'Ustadz Ahmad Fauzi, S.E.')
+                      : (settings.namaBendaharaPutri || settings.namaBendahara || 'Ustadzah Siti Aminah');
+
+                    const bendaharaTtd = isPutra
+                      ? (settings.ttdBendaharaPutraUrl || settings.ttdBendaharaUrl || settings.ttdPengurusUrl)
+                      : (settings.ttdBendaharaPutriUrl || settings.ttdBendaharaUrl || settings.ttdPengurusUrl);
+
+                    const bendaharaStempel = isPutra
+                      ? (settings.stempelBendaharaPutraUrl || settings.stempelBendaharaUrl || settings.stempelPesantrenUrl)
+                      : (settings.stempelBendaharaPutriUrl || settings.stempelBendaharaUrl || settings.stempelPesantrenUrl);
+
+                    const bendaharaJabatan = isPutra ? 'Bendahara Putra' : 'Bendahara Putri';
+                    const bendaharaSub = isPutra ? 'Bendahara Pondok Pesantren (Putra)' : 'Bendahara Pondok Pesantren (Putri)';
+
+                    return (
+                      <div className="text-left space-y-1 relative w-[290px] font-sans">
+                        <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
+                        <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, {bendaharaJabatan}</p>
+                        
+                        {/* Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih */}
+                        <div className="h-16 w-full relative flex items-center justify-start select-none my-2">
+                          {/* Tanda tangan: Posisi dasar di sebelah kiri teks */}
+                          <div className="z-10 relative flex items-center justify-start">
+                            {isImageUrl(bendaharaTtd) ? (
+                              <img src={bendaharaTtd} alt={`TTD ${bendaharaJabatan}`} className="h-16 max-w-[170px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                            ) : (
+                              <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
+                                {bendaharaTtd || bendaharaName}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Stempel: Berada di SEBELAH KANAN tanda tangan dengan model tumpang tindih */}
+                          {bendaharaStempel && (
+                            <div className="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                              {isImageUrl(bendaharaStempel) ? (
+                                <img src={bendaharaStempel} alt={`Stempel ${bendaharaJabatan}`} className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/75 shadow-xs">
+                                  {bendaharaStempel}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
 
-                    <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{settings.namaBendahara || settings.namaPengurus || 'Ustadzah Siti Aminah'}</p>
-                    <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Bendahara Pondok Pesantren</p>
-                  </div>
+                        <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{bendaharaName}</p>
+                        <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">{bendaharaSub}</p>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

@@ -6,7 +6,7 @@ import {
   Search, CheckSquare, Bell, DollarSign, Wallet, GraduationCap, ArrowUpRight, Send, AlertCircle, Printer, Download, Upload, MessageSquare, LogOut, UploadCloud, Loader2, Sparkles,
   CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, XCircle, RefreshCw, Code, Save, Clock, Landmark, Info, QrCode
 } from 'lucide-react';
-import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, compressImage, isSameRoom } from '../types';
+import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, OfficialItem, compressImage, isSameRoom } from '../types';
 import { getBillAmountBreakdown, generateQrisQrCodeWithLogo, generateDynamicQrisString } from '../lib/qris';
 import { downloadPrintableHTML, downloadPrintableTableHTML, PrintGuideAlert } from './PrintHelper';
 import ErrorBoundary from './ErrorBoundary';
@@ -1358,6 +1358,66 @@ export default function AdminDashboard({
     }, 3000);
   };
 
+  // States & handlers for Daftar Pengurus yang Menjabat & Tanda Tangan
+  const [newOfficialPosition, setNewOfficialPosition] = React.useState('');
+  const [newOfficialName, setNewOfficialName] = React.useState('');
+  const [newOfficialSignatureUrl, setNewOfficialSignatureUrl] = React.useState('');
+
+  const handleAddCustomOfficial = () => {
+    if (!newOfficialPosition.trim() || !newOfficialName.trim()) {
+      showAlert('danger', 'Mohon isi nama jabatan dan nama pejabat pengurus!');
+      return;
+    }
+    const newOfficial: OfficialItem = {
+      id: `off-${Date.now()}`,
+      name: newOfficialName.trim(),
+      position: newOfficialPosition.trim(),
+      category: 'pengurus',
+      signatureUrl: newOfficialSignatureUrl.trim() || undefined,
+      orderIndex: (editSettings.customOfficials?.length || 0) + 1
+    };
+    const updated = [...(editSettings.customOfficials || []), newOfficial];
+    setEditSettings({ ...editSettings, customOfficials: updated });
+    setIsSettingsDirty(true);
+    setNewOfficialPosition('');
+    setNewOfficialName('');
+    setNewOfficialSignatureUrl('');
+    showAlert('success', `Pejabat "${newOfficial.name}" berhasil ditambahkan ke daftar!`);
+  };
+
+  const handleDeleteCustomOfficial = (id: string) => {
+    const updated = (editSettings.customOfficials || []).filter(o => o.id !== id);
+    setEditSettings({ ...editSettings, customOfficials: updated });
+    setIsSettingsDirty(true);
+    showAlert('success', 'Pengurus telah dihapus dari daftar.');
+  };
+
+  const handleSavePengurus = async () => {
+    setSaveStatus('saving');
+    try {
+      const finalSettings = { ...editSettings };
+      localStorage.setItem('pesantren_settings', JSON.stringify(finalSettings));
+      setSettings(finalSettings);
+      window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: finalSettings }));
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalSettings)
+      }).catch(() => {});
+      if (isSupabaseConfigured()) {
+        await pushSettingsToSupabase(finalSettings);
+      }
+      setIsSettingsDirty(false);
+      setSaveStatus('saved');
+      showAlert('success', 'Daftar Pengurus yang Menjabat & Tanda Tangan berhasil disimpan!');
+    } catch (err: any) {
+      showAlert('danger', `Gagal menyimpan: ${err?.message || err}`);
+      setSaveStatus('idle');
+    }
+    setTimeout(() => setSaveStatus('idle'), 3000);
+  };
+
   // Dedicated immediate handler for PPDB Start Date & End Date changes (prevents date bouncing/mental)
   const handleUpdatePpdbDate = async (field: 'ppdbStartDate' | 'ppdbEndDate', rawVal: string) => {
     const val = rawVal ? normalizeDateToYMD(rawVal) : '';
@@ -1647,7 +1707,7 @@ export default function AdminDashboard({
             <p class="text-[11px] text-slate-600 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
             <p class="text-xs text-slate-900 font-bold uppercase tracking-wide mt-1">Pengasuh Pesantren</p>
 
-            <!-- Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih -->
+            <!-- Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KIRI model tumpang tindih -->
             <div class="h-16 w-full relative flex items-center justify-start select-none my-2">
               <!-- Wet Signature: rata kiri -->
               <div class="z-10 relative flex items-center justify-start">
@@ -1657,9 +1717,9 @@ export default function AdminDashboard({
                 }
               </div>
 
-              <!-- Stempel: Berada di sebelah KANAN tanda tangan dengan model tumpang tindih -->
+              <!-- Stempel: Berada di sebelah KIRI tanda tangan dengan sistem tumpang tindih -->
               ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                ? `<div class="z-20 absolute -left-6 sm:-left-8 -top-2 pointer-events-none opacity-85">
                     <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" />
                    </div>`
                 : ''
@@ -1872,7 +1932,7 @@ export default function AdminDashboard({
             <p class="text-[11px] text-slate-600 font-medium">${getCityFromAddress(settings.address)}, ${getIndonesianToday()}</p>
             <p class="text-xs text-slate-900 font-bold uppercase tracking-wide mt-1">Pengasuh Pesantren</p>
 
-            <!-- Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KANAN model tumpang tindih -->
+            <!-- Area Tanda Tangan: 4 Spasi Kebawah (h-16), Stempel di sebelah KIRI model tumpang tindih -->
             <div class="h-16 w-full relative flex items-center justify-start select-none my-2">
               <!-- Wet signature: rata kiri -->
               <div class="z-10 relative flex items-center justify-start">
@@ -1882,9 +1942,9 @@ export default function AdminDashboard({
                 }
               </div>
 
-              <!-- Stempel: Berada di sebelah KANAN tanda tangan dengan model tumpang tindih -->
+              <!-- Stempel: Berada di sebelah KIRI tanda tangan dengan sistem tumpang tindih -->
               ${settings.stempelPengasuhUrl 
-                ? `<div class="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                ? `<div class="z-20 absolute -left-6 sm:-left-8 -top-2 pointer-events-none opacity-85">
                     <img src="${settings.stempelPengasuhUrl}" alt="Stempel Pengasuh" class="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" />
                    </div>`
                 : ''
@@ -2678,6 +2738,15 @@ export default function AdminDashboard({
       'Hapus Berita',
       'Yakin ingin menghapus berita ini secara permanen?',
       () => {
+        try {
+          let delNews: string[] = [];
+          const raw = localStorage.getItem('pesantren_deleted_news_ids');
+          if (raw) delNews = JSON.parse(raw);
+          if (!delNews.includes(id)) {
+            delNews.push(id);
+            localStorage.setItem('pesantren_deleted_news_ids', JSON.stringify(delNews));
+          }
+        } catch (e) {}
         const updatedNews = news.filter(n => n.id !== id);
         setNews(updatedNews);
         localStorage.setItem('pesantren_news', JSON.stringify(updatedNews));
@@ -2725,6 +2794,15 @@ export default function AdminDashboard({
       'Hapus Pengumuman',
       'Yakin ingin menghapus pengumuman ini secara permanen?',
       () => {
+        try {
+          let delAnn: string[] = [];
+          const raw = localStorage.getItem('pesantren_deleted_announcement_ids');
+          if (raw) delAnn = JSON.parse(raw);
+          if (!delAnn.includes(id)) {
+            delAnn.push(id);
+            localStorage.setItem('pesantren_deleted_announcement_ids', JSON.stringify(delAnn));
+          }
+        } catch (e) {}
         const updatedAnn = announcements.filter(a => a.id !== id);
         setAnnouncements(updatedAnn);
         localStorage.setItem('pesantren_announcements', JSON.stringify(updatedAnn));
@@ -2733,7 +2811,7 @@ export default function AdminDashboard({
           deleteAnnouncementFromSupabase(id).catch(err => console.error('Cloud delete ann error:', err));
         }
         window.dispatchEvent(new Event('pesantren_db_sync'));
-        showAlert('success', 'Pengumuman dihapus.');
+        showAlert('success', 'Pengumuman / Maklumat telah dihapus permanen.');
       }
     );
   };
@@ -8036,9 +8114,18 @@ export default function AdminDashboard({
               <Settings className="h-5 w-5 text-emerald-700" />
               Pengaturan Konten Portal Online
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowSqlModal(true)}
+                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold rounded-xl text-xs shadow-sm transition flex items-center gap-1.5 cursor-pointer border border-amber-500/40"
+                title="Buka Skrip SQL Supabase untuk menyinkronkan database"
+              >
+                <Code className="h-4 w-4 text-amber-400" />
+                <span>Skrip SQL Supabase</span>
+              </button>
               {isSettingsDirty && (
-                <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-200">️ Belum disimpan
+                <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-200">⚠️ Belum disimpan
                 </span>
               )}
               <button
@@ -8108,21 +8195,6 @@ export default function AdminDashboard({
                     setEditSettings({ ...editSettings, tagline: e.target.value });
                     setIsSettingsDirty(true);
                   }}
-                  className="w-full px-3 py-2 border border-emerald-100 rounded-lg bg-emerald-50/10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-emerald-900 uppercase mb-1">Nama Pengasuh Pesantren</label>
-                <input
-                  type="text"
-                  required
-                  value={editSettings.namaPengasuh || editSettings.namaPengurus || ''}
-                  onChange={(e) => {
-                    setEditSettings({ ...editSettings, namaPengasuh: e.target.value, namaPengurus: e.target.value });
-                    setIsSettingsDirty(true);
-                  }}
-                  placeholder="Contoh: KH. Asy'ari Al-Hafidz"
                   className="w-full px-3 py-2 border border-emerald-100 rounded-lg bg-emerald-50/10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700"
                 />
               </div>
@@ -8232,153 +8304,6 @@ export default function AdminDashboard({
                       className="text-red-600 text-xs hover:underline font-bold ml-auto cursor-pointer"
                     >
                       Hapus Logo
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Data Nama Pengasuh Pesantren */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-emerald-900 uppercase mb-1">
-                  Nama Lengkap Pengasuh Pondok Pesantren
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: KH. Ahmad Wildan Asy'ari"
-                  value={editSettings.namaPengasuh || ''}
-                  onChange={(e) => {
-                    setEditSettings({ ...editSettings, namaPengasuh: e.target.value });
-                    setIsSettingsDirty(true);
-                  }}
-                  className="w-full px-3 py-2 border border-emerald-200 rounded-lg bg-emerald-50/10 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700"
-                />
-              </div>
-
-              {/* Input Foto Tanda Tangan Pengasuh */}
-              <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/80">
-                <div className="mb-2">
-                  <label className="block text-xs font-bold text-emerald-900 uppercase">️ Foto Tanda Tangan Pengasuh
-                  </label>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                  <label className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer transition active:scale-95 gap-1.5 shadow-sm">
-                    <UploadCloud className="h-4 w-4" /> Unggah TTD
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          if (file.size > 5 * 1024 * 1024) {
-                            showAlert('danger', 'Ukuran file tanda tangan maksimal 5MB.');
-                            return;
-                          }
-                          try {
-                            const compressed = await compressImage(file, 300, 160, 0.85);
-                            if (!compressed) throw new Error('Gagal memproses gambar tanda tangan');
-                            setEditSettings({ ...editSettings, ttdPengasuhUrl: compressed, ttdPengurusUrl: compressed });
-                            setIsSettingsDirty(true);
-                            showAlert('success', 'Foto tanda tangan berhasil dimuat! Klik "Simpan Pengaturan Portal" untuk menyimpan.');
-                          } catch (err: any) {
-                            showAlert('danger', `Gagal mengunggah tanda tangan: ${err?.message || 'Format tidak didukung'}`);
-                          }
-                        }
-                      }}
-                    />
-                  </label>
-
-                  <div className="flex-1 w-full">
-                    <input
-                      type="text"
-                      placeholder="Atau tempel URL gambar TTD (https://...)"
-                      value={editSettings.ttdPengasuhUrl?.startsWith('data:') ? '' : (editSettings.ttdPengasuhUrl || '')}
-                      onChange={(e) => {
-                        setEditSettings({ ...editSettings, ttdPengasuhUrl: e.target.value.trim(), ttdPengurusUrl: e.target.value.trim() });
-                        setIsSettingsDirty(true);
-                      }}
-                      className="w-full px-3 py-2 text-xs border border-emerald-200 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 font-mono"
-                    />
-                  </div>
-
-                  {editSettings.ttdPengasuhUrl && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditSettings({ ...editSettings, ttdPengasuhUrl: '', ttdPengurusUrl: '' });
-                        setIsSettingsDirty(true);
-                      }}
-                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold shrink-0 transition cursor-pointer"
-                      title="Hapus tanda tangan"
-                    >
-                      Hapus
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Input Foto Stempel Pengasuh / Pesantren */}
-              <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/80">
-                <div className="mb-2">
-                  <label className="block text-xs font-bold text-emerald-900 uppercase">
-                    Foto Stempel Resmi Pengasuh
-                  </label>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                  <label className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer transition active:scale-95 gap-1.5 shadow-sm">
-                    <UploadCloud className="h-4 w-4" /> Unggah Stempel
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          if (file.size > 5 * 1024 * 1024) {
-                            showAlert('danger', 'Ukuran file stempel maksimal 5MB.');
-                            return;
-                          }
-                          try {
-                            const compressed = await compressImage(file, 260, 260, 0.85);
-                            if (!compressed) throw new Error('Gagal memproses gambar stempel');
-                            setEditSettings({ ...editSettings, stempelPengasuhUrl: compressed, stempelPesantrenUrl: compressed });
-                            setIsSettingsDirty(true);
-                            showAlert('success', 'Foto stempel berhasil dimuat! Klik "Simpan Pengaturan Portal" untuk menyimpan.');
-                          } catch (err: any) {
-                            showAlert('danger', `Gagal mengunggah stempel: ${err?.message || 'Format tidak didukung'}`);
-                          }
-                        }
-                      }}
-                    />
-                  </label>
-
-                  <div className="flex-1 w-full">
-                    <input
-                      type="text"
-                      placeholder="Atau tempel URL gambar stempel (https://...)"
-                      value={editSettings.stempelPengasuhUrl?.startsWith('data:') ? '' : (editSettings.stempelPengasuhUrl || '')}
-                      onChange={(e) => {
-                        setEditSettings({ ...editSettings, stempelPengasuhUrl: e.target.value.trim(), stempelPesantrenUrl: e.target.value.trim() });
-                        setIsSettingsDirty(true);
-                      }}
-                      className="w-full px-3 py-2 text-xs border border-emerald-200 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 font-mono"
-                    />
-                  </div>
-
-                  {editSettings.stempelPengasuhUrl && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditSettings({ ...editSettings, stempelPengasuhUrl: '', stempelPesantrenUrl: '' });
-                        setIsSettingsDirty(true);
-                      }}
-                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold shrink-0 transition cursor-pointer"
-                      title="Hapus stempel"
-                    >
-                      Hapus
                     </button>
                   )}
                 </div>
@@ -8609,310 +8534,6 @@ export default function AdminDashboard({
             </div>
           </form>
 
-          {/* KARTU INTEGRASI DATABASE CLOUD SUPABASE (Hanya tampil jika sistem BELUM terhubung dengan Supabase) */}
-          {!isCloudConnected && (
-            <div className="mt-8 bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 text-white p-6 rounded-2xl shadow-lg border border-emerald-800 space-y-4 text-left animate-fade-in">
-              <div className="flex items-center justify-between border-b border-emerald-800/80 pb-3 flex-wrap gap-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30 text-emerald-400">
-                    <Database className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h4 className="font-black text-sm uppercase tracking-wide text-white flex items-center gap-2 flex-wrap">
-                      Integrasi Cloud Database Supabase
-                      {isSupabaseConfigured() ? (
-                        <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-400/40">
-                          Terhubung ke Supabase Cloud
-                        </span>
-                      ) : (
-                        <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-amber-500/30 text-amber-300 border border-amber-400/40">
-                          Belum Terhubung (Lokal & Server Mode)
-                        </span>
-                      )}
-                    </h4>
-                    <p className="text-[11px] text-emerald-200/80 mt-0.5">
-                      Mendukung multi-device, HP/laptop lain, Vercel, & Cloud Run. Seluruh data PCSB, santri, tagihan, dan pengaturan tersinkronisasi otomatis.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setShowSqlModal(true)}
-                    className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow border border-emerald-600/70 cursor-pointer"
-                  >
-                    <Code className="h-4 w-4" /> Skrip SQL Supabase (PCSB & Semua Tabel)
-                  </button>
-                  {missingTablesInfo && missingTablesInfo.missingTables.length > 0 && (
-                    <span className="px-2.5 py-1 bg-amber-500 text-slate-950 font-black rounded-lg text-[10px] animate-pulse">
-                      {missingTablesInfo.missingTables.length} Tabel Belum Ada
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 mb-1">
-                    URL Supabase (SUPABASE_URL / VITE_SUPABASE_URL)
-                  </label>
-                  <input
-                    type="text"
-                    value={supabaseUrlInput}
-                    onChange={(e) => setSupabaseUrlInput(e.target.value)}
-                    onBlur={() => {
-                      if (supabaseUrlInput.trim()) {
-                        const fixed = normalizeSupabaseUrl(supabaseUrlInput);
-                        if (fixed && fixed !== supabaseUrlInput) {
-                          setSupabaseUrlInput(fixed);
-                        }
-                      }
-                    }}
-                    placeholder="https://schwszgiasriuujqppnv.supabase.co"
-                    className="w-full px-3 py-2 bg-slate-950/80 border border-emerald-800 rounded-xl text-emerald-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-slate-600"
-                  />
-                  <p className="text-[10px] text-emerald-400/80 mt-1 font-mono">
-                    Format lengkap: <span className="text-amber-300 font-bold">https://[id-proyek].supabase.co</span>
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 mb-1">
-                    Anon Key Supabase (SUPABASE_ANON_KEY / VITE_SUPABASE_ANON_KEY)
-                  </label>
-                  <input
-                    type="password"
-                    value={supabaseKeyInput}
-                    onChange={(e) => setSupabaseKeyInput(e.target.value)}
-                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                    className="w-full px-3 py-2 bg-slate-950/80 border border-emerald-800 rounded-xl text-emerald-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-slate-600"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const normalized = normalizeSupabaseUrl(supabaseUrlInput);
-                      if (normalized && normalized !== supabaseUrlInput) {
-                        setSupabaseUrlInput(normalized);
-                      }
-                      await saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
-                      const configured = isSupabaseConfigured();
-                      setIsCloudConnected(configured);
-                      if (configured) {
-                        setShowManualDbConfig(false);
-                      }
-                      showAlert('success', 'Konfigurasi Supabase berhasil disimpan! Tampilan konfigurasi kini disembunyikan.');
-                      window.dispatchEvent(new Event('pesantren_db_sync'));
-                    }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow cursor-pointer"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Simpan Koneksi Supabase
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        setSupabaseTestStatus({ loading: true, message: 'Menguji koneksi ke Supabase...', success: null });
-                        const normalized = normalizeSupabaseUrl(supabaseUrlInput);
-                        if (normalized && normalized !== supabaseUrlInput) {
-                          setSupabaseUrlInput(normalized);
-                        }
-                        await saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
-                        const res = await testSupabaseConnection();
-                        setSupabaseTestStatus({ 
-                          loading: false, 
-                          message: String(res?.message || 'Pengujian selesai'), 
-                          success: Boolean(res?.success) 
-                        });
-                        setIsCloudConnected(isSupabaseConfigured());
-                      } catch (err: any) {
-                        setSupabaseTestStatus({
-                          loading: false,
-                          message: `Gagal: ${String(err?.message || 'Terjadi kesalahan koneksi')}`,
-                          success: false
-                        });
-                      }
-                    }}
-                    disabled={supabaseTestStatus.loading}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition border border-emerald-700/60 cursor-pointer disabled:opacity-50"
-                  >
-                    {supabaseTestStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    Uji Koneksi
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        setSupabasePushStatus({ loading: true, message: 'Mengunggah seluruh data lokal ke Supabase Cloud...', success: null });
-                        const normalized = normalizeSupabaseUrl(supabaseUrlInput);
-                        if (normalized && normalized !== supabaseUrlInput) {
-                          setSupabaseUrlInput(normalized);
-                        }
-                        await saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
-                        
-                        const res = await pushAllLocalDataToSupabase({
-                          news,
-                          announcements,
-                          students,
-                          ppdbList,
-                          rooms,
-                          bills,
-                          settings: editSettings,
-                          masterClasses: {
-                            formal: availableFormalClasses,
-                            madrasah: availableMadrasahClasses
-                          }
-                        });
-
-                        setSupabasePushStatus({
-                          loading: false,
-                          message: res.message,
-                          success: res.success
-                        });
-                        if (res.success) {
-                          showAlert('success', res.message);
-                        } else {
-                          showAlert('danger', res.message);
-                        }
-                        setIsCloudConnected(isSupabaseConfigured());
-                      } catch (err: any) {
-                        const errMsg = `Gagal sinkronisasi data: ${err?.message || err}`;
-                        setSupabasePushStatus({ loading: false, message: errMsg, success: false });
-                        showAlert('danger', errMsg);
-                      }
-                    }}
-                    disabled={supabasePushStatus.loading}
-                    className="px-4 py-2 bg-teal-700 hover:bg-teal-600 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow cursor-pointer disabled:opacity-50"
-                  >
-                    {supabasePushStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                    ⬆️ Upload Semua Data Lokal ke Cloud
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        setSupabasePullStatus({ loading: true, message: 'Menarik data terbaru dari Supabase Cloud...', success: null });
-                        const normalized = normalizeSupabaseUrl(supabaseUrlInput);
-                        if (normalized && normalized !== supabaseUrlInput) {
-                          setSupabaseUrlInput(normalized);
-                        }
-                        await saveSupabaseCredentialsLocally(normalized || supabaseUrlInput, supabaseKeyInput);
-
-                        const [remoteNews, remoteAnn, remoteStudents, remotePpdb, remoteRooms, remoteBills, remoteSettings] = await Promise.all([
-                          syncNewsWithSupabase(news),
-                          syncAnnouncementsWithSupabase(announcements),
-                          syncStudentsWithSupabase(students),
-                          syncPpdbWithSupabase(ppdbList),
-                          syncRoomsWithSupabase(rooms),
-                          syncBillsWithSupabase(bills),
-                          syncSettingsWithSupabase(settings)
-                        ]);
-
-                        if (remoteNews) { setNews(remoteNews); localStorage.setItem('pesantren_news', JSON.stringify(remoteNews)); }
-                        if (remoteAnn) { setAnnouncements(remoteAnn); localStorage.setItem('pesantren_announcements', JSON.stringify(remoteAnn)); }
-                        if (remoteStudents) { setStudents(remoteStudents); localStorage.setItem('pesantren_students', JSON.stringify(remoteStudents)); }
-                        if (remotePpdb) { setPpdbList(remotePpdb); localStorage.setItem('pesantren_ppdb', JSON.stringify(remotePpdb)); }
-                        if (remoteRooms) { setRooms(remoteRooms); localStorage.setItem('pesantren_rooms', JSON.stringify(remoteRooms)); }
-                        if (remoteBills) { setBills(remoteBills); localStorage.setItem('pesantren_bills', JSON.stringify(remoteBills)); }
-                        if (remoteSettings) {
-                          setSettings(remoteSettings);
-                          setEditSettings(remoteSettings);
-                          localStorage.setItem('pesantren_settings', JSON.stringify(remoteSettings));
-                        }
-
-                        window.dispatchEvent(new Event('pesantren_db_sync'));
-                        window.dispatchEvent(new Event('storage'));
-
-                        const totalRemote = (remoteNews?.length || 0) + (remoteAnn?.length || 0) + (remoteStudents?.length || 0) + (remotePpdb?.length || 0) + (remoteRooms?.length || 0) + (remoteBills?.length || 0);
-                        const msg = `Berhasil mengunduh & menyinkronkan ${totalRemote} data dari Supabase Cloud!`;
-                        setSupabasePullStatus({ loading: false, message: msg, success: true });
-                        showAlert('success', msg);
-                        setIsCloudConnected(isSupabaseConfigured());
-                      } catch (err: any) {
-                        const errMsg = `Gagal menarik data dari Supabase: ${err?.message || err}`;
-                        setSupabasePullStatus({ loading: false, message: errMsg, success: false });
-                        showAlert('danger', errMsg);
-                      }
-                    }}
-                    disabled={supabasePullStatus.loading}
-                    className="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow cursor-pointer disabled:opacity-50"
-                  >
-                    {supabasePullStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                    ⬇️ Tarik Data Terbaru dari Cloud
-                  </button>
-
-                  {isCloudConnected && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (window.confirm('Yakin ingin memutuskan koneksi Supabase di perangkat ini?')) {
-                          await saveSupabaseCredentialsLocally('', '');
-                          setSupabaseUrlInput('');
-                          setSupabaseKeyInput('');
-                          setIsCloudConnected(false);
-                          setShowManualDbConfig(true);
-                          showAlert('success', 'Koneksi Supabase telah diputuskan.');
-                          window.dispatchEvent(new Event('pesantren_db_sync'));
-                        }
-                      }}
-                      className="px-3 py-2 bg-red-950/80 hover:bg-red-900 text-red-300 font-bold rounded-xl text-xs flex items-center gap-1.5 transition border border-red-800 cursor-pointer"
-                    >
-                      <Trash className="h-3.5 w-3.5" /> Putuskan Koneksi
-                    </button>
-                  )}
-                </div>
-
-                {supabaseTestStatus.message && (
-                  <span className={`text-xs font-bold px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${
-                    supabaseTestStatus.success ? 'bg-emerald-950 text-emerald-300 border-emerald-700' : 'bg-red-950 text-red-300 border-red-800'
-                  }`}>
-                    {supabaseTestStatus.success ? '' : ''} {String(supabaseTestStatus.message)}
-                  </span>
-                )}
-              </div>
-
-              {(supabasePushStatus.message || supabasePullStatus.message) && (
-                <div className="pt-2 space-y-1">
-                  {supabasePushStatus.message && (
-                    <p className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${
-                      supabasePushStatus.success ? 'bg-teal-950/80 text-teal-300 border-teal-700' : 'bg-red-950/80 text-red-300 border-red-800'
-                    }`}>
-                      {supabasePushStatus.success ? '' : ''} {supabasePushStatus.message}
-                    </p>
-                  )}
-                  {supabasePullStatus.message && (
-                    <p className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${
-                      supabasePullStatus.success ? 'bg-blue-950/80 text-blue-300 border-blue-700' : 'bg-red-950/80 text-red-300 border-red-800'
-                    }`}>
-                      {supabasePullStatus.success ? '' : ''} {supabasePullStatus.message}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div className="bg-slate-950/60 p-3.5 rounded-xl border border-emerald-900/60 text-[11px] text-emerald-200/90 leading-relaxed space-y-1">
-                <p className="font-bold text-white flex items-center gap-1">
-                  Catatan Pengaturan Vercel & Domain Custom:
-                </p>
-                <p>
-                  Saat mendeploy proyek ini ke <strong>Vercel</strong> atau hosting domain Anda, tambahkan 2 Environment Variables berikut di dashboard Vercel (Project Settings -&gt; Environment Variables):
-                </p>
-                <ul className="list-disc list-inside font-mono text-[10px] text-emerald-300 space-y-0.5 pl-1">
-                  <li><strong className="text-white">VITE_SUPABASE_URL</strong> = [URL Project Supabase Anda]</li>
-                  <li><strong className="text-white">VITE_SUPABASE_ANON_KEY</strong> = [Anon Public Key Supabase Anda]</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
           {/* MODAL GENERATOR SKRIP SQL SUPABASE */}
           <AnimatePresence>
             {showSqlModal && (
@@ -8996,8 +8617,1301 @@ export default function AdminDashboard({
         </div>
       )}
 
-      {/* Tab: Dedicated Pengurus & Account Approval Management */}
+      {/* Tab: Menu Daftar Pengurus yang Menjabat & Tanda Tangan Resmi (Bukan Akun) */}
       {activeTab === 'pengurus' && (
+        <div className="space-y-5 text-left animate-fade-in">
+          {/* Header Menu */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">
+                Daftar Pengurus & Tanda Tangan
+              </h3>
+              <p className="text-xs text-slate-500">
+                Nama pejabat aktif pesantren dan tanda tangan resmi untuk dokumen dinas.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSavePengurus}
+              disabled={saveStatus === 'saving'}
+              className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+            >
+              {saveStatus === 'saving' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : saveStatus === 'saved' ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                  <span>Tersimpan!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span>Simpan Perubahan</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* ============================================================================== */}
+          {/* 1. PENGASUH PONDOK PESANTREN (Nama, TTD, dan Stempel Pengasuh) */}
+          {/* ============================================================================== */}
+          <div className="bg-white p-4 rounded-xl border border-emerald-300 shadow-2xs space-y-3">
+            <div className="border-b border-emerald-100 pb-2 flex items-center justify-between">
+              <h4 className="text-sm font-extrabold text-emerald-950 flex items-center gap-1.5">
+                Pengasuh Pondok Pesantren
+              </h4>
+              <div className="flex items-center gap-2">
+                {editSettings.ttdPengasuhUrl && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    ✓ TTD
+                  </span>
+                )}
+                {editSettings.stempelPengasuhUrl && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    ✓ Stempel
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Nama Pengasuh</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: KH. Ahmad Wildan Asy'ari, M.Pd.I"
+                  value={editSettings.namaPengasuh || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaPengasuh: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                />
+              </div>
+
+              {/* Tanda Tangan */}
+              <div className="flex items-center gap-2">
+                <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                  <UploadCloud className="h-3 w-3" /> Unggah TTD
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const compressed = await compressImage(file, 300, 160, 0.85);
+                        if (compressed) {
+                          setEditSettings({ ...editSettings, ttdPengasuhUrl: compressed, ttdPengurusUrl: compressed });
+                          setIsSettingsDirty(true);
+                        }
+                      }
+                    }}
+                  />
+                </label>
+                <input
+                  type="text"
+                  placeholder="URL gambar TTD Pengasuh..."
+                  value={editSettings.ttdPengasuhUrl?.startsWith('data:') ? '' : (editSettings.ttdPengasuhUrl || '')}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, ttdPengasuhUrl: e.target.value.trim(), ttdPengurusUrl: e.target.value.trim() });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                />
+                {editSettings.ttdPengasuhUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditSettings({ ...editSettings, ttdPengasuhUrl: '', ttdPengurusUrl: '' });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                  >
+                    Hapus
+                  </button>
+                )}
+              </div>
+
+              {/* Stempel Pengasuh */}
+              <div className="flex items-center gap-2">
+                <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                  <UploadCloud className="h-3 w-3" /> Unggah Stempel
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const compressed = await compressImage(file, 260, 260, 0.85);
+                        if (compressed) {
+                          setEditSettings({ ...editSettings, stempelPengasuhUrl: compressed });
+                          setIsSettingsDirty(true);
+                        }
+                      }
+                    }}
+                  />
+                </label>
+                <input
+                  type="text"
+                  placeholder="URL gambar stempel Pengasuh..."
+                  value={editSettings.stempelPengasuhUrl?.startsWith('data:') ? '' : (editSettings.stempelPengasuhUrl || '')}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, stempelPengasuhUrl: e.target.value.trim() });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                />
+                {editSettings.stempelPengasuhUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditSettings({ ...editSettings, stempelPengasuhUrl: '' });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                  >
+                    Hapus
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ============================================================================== */}
+          {/* 2. DAFTAR PENGURUS LENGKAP PENANDATANGAN SURAT PESANTREN */}
+          {/* ============================================================================== */}
+          <div className="space-y-3 pt-1">
+            <div className="border-b border-slate-200 pb-2">
+              <h4 className="text-sm font-extrabold text-slate-900">
+                Pejabat & Pengurus Penandatangan Surat Pesantren
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              
+              {/* Dewan Masyayikh / Penasihat */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Dewan Masyayikh / Penasihat</span>
+                  {editSettings.ttdDewanMasyayikhUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Ada
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Dewan Masyayikh..."
+                  value={editSettings.namaDewanMasyayikh || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaDewanMasyayikh: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdDewanMasyayikhUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdDewanMasyayikhUrl?.startsWith('data:') ? '' : (editSettings.ttdDewanMasyayikhUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdDewanMasyayikhUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdDewanMasyayikhUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdDewanMasyayikhUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Ketua Pengurus / Lurah Pondok Putra */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Lurah / Ketua Pondok Putra</span>
+                  {editSettings.ttdLurahPutraUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Ada
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Lurah / Ketua Pondok Putra..."
+                  value={editSettings.namaLurahPutra || editSettings.namaPengurus || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaLurahPutra: e.target.value, namaPengurus: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdLurahPutraUrl: compressed, ttdPengurusUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdLurahPutraUrl?.startsWith('data:') ? '' : (editSettings.ttdLurahPutraUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdLurahPutraUrl: e.target.value.trim(), ttdPengurusUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdLurahPutraUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdLurahPutraUrl: '', ttdPengurusUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Lurah / Ketua Pondok Putri */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Lurah / Ketua Pondok Putri</span>
+                  {editSettings.ttdLurahPutriUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Ada
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Lurah / Ketua Pondok Putri..."
+                  value={editSettings.namaLurahPutri || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaLurahPutri: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdLurahPutriUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdLurahPutriUrl?.startsWith('data:') ? '' : (editSettings.ttdLurahPutriUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdLurahPutriUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdLurahPutriUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdLurahPutriUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Sekretaris Pondok Putra */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Sekretaris Pondok Putra</span>
+                  {editSettings.ttdSekretarisPutraUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Ada
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Sekretaris Putra..."
+                  value={editSettings.namaSekretarisPutra || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaSekretarisPutra: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdSekretarisPutraUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdSekretarisPutraUrl?.startsWith('data:') ? '' : (editSettings.ttdSekretarisPutraUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdSekretarisPutraUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdSekretarisPutraUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdSekretarisPutraUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Sekretaris Pondok Putri */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Sekretaris Pondok Putri</span>
+                  {editSettings.ttdSekretarisPutriUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Ada
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Sekretaris Putri..."
+                  value={editSettings.namaSekretarisPutri || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaSekretarisPutri: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdSekretarisPutriUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdSekretarisPutriUrl?.startsWith('data:') ? '' : (editSettings.ttdSekretarisPutriUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdSekretarisPutriUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdSekretarisPutriUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdSekretarisPutriUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Bendahara Pondok Putra (Penandatangan Kwitansi Santri Putra) */}
+              <div className="p-3.5 rounded-xl bg-white border border-emerald-300 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-950 flex items-center gap-1">
+                    Bendahara Pondok Putra <span className="text-[10px] text-emerald-700 font-semibold">(Kwitansi Santri Putra)</span>
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {editSettings.ttdBendaharaPutraUrl && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        ✓ TTD
+                      </span>
+                    )}
+                    {editSettings.stempelBendaharaPutraUrl && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        ✓ Stempel
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Bendahara Putra..."
+                  value={editSettings.namaBendaharaPutra || editSettings.namaBendahara || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaBendaharaPutra: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                {/* TTD Bendahara Putra */}
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> TTD Putra
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdBendaharaPutraUrl: compressed, ttdBendaharaUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan Bendahara Putra..."
+                    value={editSettings.ttdBendaharaPutraUrl?.startsWith('data:') ? '' : (editSettings.ttdBendaharaPutraUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdBendaharaPutraUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdBendaharaPutraUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdBendaharaPutraUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+                {/* Stempel Bendahara Putra */}
+                <div className="flex gap-1.5 items-center pt-1 border-t border-slate-100">
+                  <label className="px-2.5 py-1 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Stempel
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 260, 260, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, stempelBendaharaPutraUrl: compressed, stempelBendaharaUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL stempel Bendahara Putra..."
+                    value={editSettings.stempelBendaharaPutraUrl?.startsWith('data:') ? '' : (editSettings.stempelBendaharaPutraUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, stempelBendaharaPutraUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-[11px] font-mono bg-slate-50"
+                  />
+                  {editSettings.stempelBendaharaPutraUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, stempelBendaharaPutraUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Bendahara Pondok Putri (Penandatangan Kwitansi Santri Putri) */}
+              <div className="p-3.5 rounded-xl bg-white border border-emerald-300 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-950 flex items-center gap-1">
+                    Bendahara Pondok Putri <span className="text-[10px] text-emerald-700 font-semibold">(Kwitansi Santri Putri)</span>
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {editSettings.ttdBendaharaPutriUrl && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        ✓ TTD
+                      </span>
+                    )}
+                    {editSettings.stempelBendaharaPutriUrl && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        ✓ Stempel
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Bendahara Putri..."
+                  value={editSettings.namaBendaharaPutri || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaBendaharaPutri: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                {/* TTD Bendahara Putri */}
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> TTD Putri
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdBendaharaPutriUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan Bendahara Putri..."
+                    value={editSettings.ttdBendaharaPutriUrl?.startsWith('data:') ? '' : (editSettings.ttdBendaharaPutriUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdBendaharaPutriUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdBendaharaPutriUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdBendaharaPutriUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+                {/* Stempel Bendahara Putri */}
+                <div className="flex gap-1.5 items-center pt-1 border-t border-slate-100">
+                  <label className="px-2.5 py-1 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Stempel
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 260, 260, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, stempelBendaharaPutriUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL stempel Bendahara Putri..."
+                    value={editSettings.stempelBendaharaPutriUrl?.startsWith('data:') ? '' : (editSettings.stempelBendaharaPutriUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, stempelBendaharaPutriUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-[11px] font-mono bg-slate-50"
+                  />
+                  {editSettings.stempelBendaharaPutriUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, stempelBendaharaPutriUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Ketua Panitia PCSB / PPDB */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Ketua Panitia PCSB / PPDB</span>
+                  <div className="flex items-center gap-1">
+                    {editSettings.ttdKetuaPcsbUrl && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        ✓ TTD
+                      </span>
+                    )}
+                    {editSettings.stempelPcsbUrl && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        ✓ Stempel
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Ketua Panitia..."
+                  value={editSettings.namaKetuaPcsb || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaKetuaPcsb: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdKetuaPcsbUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdKetuaPcsbUrl?.startsWith('data:') ? '' : (editSettings.ttdKetuaPcsbUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdKetuaPcsbUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdKetuaPcsbUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdKetuaPcsbUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+                {/* Stempel PCSB */}
+                <div className="flex gap-1.5 items-center pt-1 border-t border-slate-100">
+                  <label className="px-2.5 py-1 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Stempel
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 260, 260, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, stempelPcsbUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL stempel PCSB..."
+                    value={editSettings.stempelPcsbUrl?.startsWith('data:') ? '' : (editSettings.stempelPcsbUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, stempelPcsbUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-[11px] font-mono bg-slate-50"
+                  />
+                  {editSettings.stempelPcsbUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, stempelPcsbUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Kepala Bagian Keamanan (Kamtib) */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Kepala Bagian Keamanan (Kamtib)</span>
+                  {editSettings.ttdKeamananUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Ada
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Kepala Keamanan..."
+                  value={editSettings.namaKeamanan || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaKeamanan: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdKeamananUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdKeamananUrl?.startsWith('data:') ? '' : (editSettings.ttdKeamananUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdKeamananUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdKeamananUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdKeamananUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Kepala Bagian Ketertiban Santri */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Kepala Bagian Ketertiban Santri</span>
+                  {editSettings.ttdKetertibanUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Ada
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Kepala Ketertiban..."
+                  value={editSettings.namaKetertiban || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaKetertiban: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdKetertibanUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdKetertibanUrl?.startsWith('data:') ? '' : (editSettings.ttdKetertibanUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdKetertibanUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdKetertibanUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdKetertibanUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Kepala Madrasah Diniyah / Pendidikan (Akademik) */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Kepala Madrasah / Bagian Pendidikan</span>
+                  {editSettings.ttdAkademikUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Ada
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Kepala Madrasah / Akademik..."
+                  value={editSettings.namaAkademik || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaAkademik: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdAkademikUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdAkademikUrl?.startsWith('data:') ? '' : (editSettings.ttdAkademikUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdAkademikUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdAkademikUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdAkademikUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Kepala Bagian Kesehatan (Poskestren) */}
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Kepala Bagian Kesehatan (Poskestren)</span>
+                  {editSettings.ttdKesehatanUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ Ada
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Nama Kepala Poskestren..."
+                  value={editSettings.namaKesehatan || ''}
+                  onChange={(e) => {
+                    setEditSettings({ ...editSettings, namaKesehatan: e.target.value });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+                />
+                <div className="flex gap-1.5 items-center">
+                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) {
+                            setEditSettings({ ...editSettings, ttdKesehatanUrl: compressed });
+                            setIsSettingsDirty(true);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL tanda tangan..."
+                    value={editSettings.ttdKesehatanUrl?.startsWith('data:') ? '' : (editSettings.ttdKesehatanUrl || '')}
+                    onChange={(e) => {
+                      setEditSettings({ ...editSettings, ttdKesehatanUrl: e.target.value.trim() });
+                      setIsSettingsDirty(true);
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+                  />
+                  {editSettings.ttdKesehatanUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSettings({ ...editSettings, ttdKesehatanUrl: '' });
+                        setIsSettingsDirty(true);
+                      }}
+                      className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Pengurus Tambahan Dinamis */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 mt-2">
+              <span className="font-bold text-xs text-slate-900 flex items-center gap-1">
+                <Plus className="h-3.5 w-3.5 text-emerald-700" /> Tambah Pengurus Lainnya
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  placeholder="Nama Jabatan..."
+                  value={newOfficialPosition}
+                  onChange={(e) => setNewOfficialPosition(e.target.value)}
+                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-semibold"
+                />
+                <input
+                  type="text"
+                  placeholder="Nama Pejabat..."
+                  value={newOfficialName}
+                  onChange={(e) => setNewOfficialName(e.target.value)}
+                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-semibold"
+                />
+                <div className="flex gap-1">
+                  <label className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                    <UploadCloud className="h-3 w-3" /> Unggah TTD
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const compressed = await compressImage(file, 300, 160, 0.85);
+                          if (compressed) setNewOfficialSignatureUrl(compressed);
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="URL TTD..."
+                    value={newOfficialSignatureUrl?.startsWith('data:') ? '' : newOfficialSignatureUrl}
+                    onChange={(e) => setNewOfficialSignatureUrl(e.target.value.trim())}
+                    className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomOfficial}
+                    className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+                  >
+                    Tambah
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabel Pengurus Tambahan */}
+              {editSettings.customOfficials && editSettings.customOfficials.length > 0 && (
+                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white mt-2">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                        <th className="px-3 py-1.5">Jabatan</th>
+                        <th className="px-3 py-1.5">Nama Pejabat</th>
+                        <th className="px-3 py-1.5">Tanda Tangan</th>
+                        <th className="px-3 py-1.5 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {editSettings.customOfficials.map((off) => (
+                        <tr key={off.id} className="hover:bg-slate-50">
+                          <td className="px-3 py-1.5 font-bold text-slate-800">{off.position}</td>
+                          <td className="px-3 py-1.5 font-semibold text-slate-900">{off.name}</td>
+                          <td className="px-3 py-1.5">
+                            {off.signatureUrl ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                ✓ Ada
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">Tanpa TTD</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCustomOfficial(off.id)}
+                              className="px-2 py-0.5 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer"
+                            >
+                              Hapus
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ============================================================================== */}
+          {/* 3. STEMPEL RESMI LEMBAGA PONDOK PESANTREN */}
+          {/* ============================================================================== */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2.5">
+            <div className="border-b border-slate-100 pb-2 flex items-center justify-between">
+              <h4 className="text-sm font-extrabold text-slate-900">
+                Stempel Resmi Lembaga Pesantren
+              </h4>
+              {editSettings.stempelPesantrenUrl && (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  ✓ Tersimpan
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                <UploadCloud className="h-3 w-3" /> Unggah Stempel Pesantren
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const compressed = await compressImage(file, 260, 260, 0.85);
+                      if (compressed) {
+                        setEditSettings({ ...editSettings, stempelPesantrenUrl: compressed });
+                        setIsSettingsDirty(true);
+                      }
+                    }
+                  }}
+                />
+              </label>
+              <input
+                type="text"
+                placeholder="URL gambar stempel resmi pesantren..."
+                value={editSettings.stempelPesantrenUrl?.startsWith('data:') ? '' : (editSettings.stempelPesantrenUrl || '')}
+                onChange={(e) => {
+                  setEditSettings({ ...editSettings, stempelPesantrenUrl: e.target.value.trim() });
+                  setIsSettingsDirty(true);
+                }}
+                className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+              />
+              {editSettings.stempelPesantrenUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditSettings({ ...editSettings, stempelPesantrenUrl: '' });
+                    setIsSettingsDirty(true);
+                  }}
+                  className="px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
+                >
+                  Hapus
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ============================================================================== */}
+          {/* ACTION BAR SIMPAN */}
+          {/* ============================================================================== */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 mt-4">
+            <span className="text-xs text-slate-600 font-medium">
+              {isSettingsDirty ? 'Ada perubahan daftar pengurus yang belum disimpan.' : 'Seluruh data pengurus telah tersimpan.'}
+            </span>
+            <button
+              type="button"
+              onClick={handleSavePengurus}
+              disabled={saveStatus === 'saving'}
+              className="px-5 py-2 bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {saveStatus === 'saving' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : saveStatus === 'saved' ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                  <span>Tersimpan!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span>Simpan Perubahan</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Dedicated Persetujuan & Akun Pengurus (Login & Akses) */}
+      {activeTab === 'akun_pengurus' && (
         <div className="space-y-6 text-left animate-fade-in">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
@@ -10588,9 +11502,9 @@ export default function AdminDashboard({
                     )}
                   </div>
 
-                  {/* Stempel */}
+                  {/* Stempel pada posisi kiri dengan sistem tumpang tindih */}
                   {settings.stempelPengasuhUrl && (
-                    <div className="z-20 absolute left-[70px] top-1/2 -translate-y-1/2 pointer-events-none opacity-90">
+                    <div className="z-20 absolute -left-6 sm:-left-8 top-1/2 -translate-y-1/2 pointer-events-none opacity-90">
                       {isImageUrl(settings.stempelPengasuhUrl) ? (
                         <img 
                           src={settings.stempelPengasuhUrl} 
@@ -11386,40 +12300,66 @@ export default function AdminDashboard({
               </div>
 
               <div className="flex justify-end">
-                {/* Column 1 (Right-aligned, left text): Bendahara (with Stempel overlapping Signature) */}
-                <div className="text-left space-y-1 relative w-[280px] pl-2 font-sans">
-                  <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
-                  <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, Bendahara Pesantren</p>
-                  
-                  <div className="h-16 w-full relative flex items-center justify-start select-none my-2">
-                    {/* Tanda tangan on the left */}
-                    <div className="z-10 relative flex items-center justify-start">
-                      {isImageUrl(settings.ttdBendaharaUrl) ? (
-                        <img src={settings.ttdBendaharaUrl} alt="TTD Bendahara" className="h-16 max-w-[170px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
-                          {settings.ttdBendaharaUrl || 'Bendahara Pesantren'}
-                        </span>
-                      )}
-                    </div>
+                {/* Column 1 (Right-aligned, left text): Bendahara Putra / Putri sesuai gender santri */}
+                {(() => {
+                  const targetStudent = students.find(s => 
+                    s.id === receiptBill.studentId || 
+                    (s.nis && receiptBill.nis && s.nis === receiptBill.nis) || 
+                    (s.fullName && receiptBill.studentName && s.fullName.toLowerCase() === receiptBill.studentName.toLowerCase())
+                  );
+                  const isPutra = targetStudent ? (targetStudent.gender === 'Laki-laki' || (targetStudent.gender as any) === 'Putra') : true;
 
-                    {/* Stempel rendered on the RIGHT of signature with overlapping model */}
-                    {settings.stempelBendaharaUrl && (
-                      <div className="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
-                        {isImageUrl(settings.stempelBendaharaUrl) ? (
-                          <img src={settings.stempelBendaharaUrl} alt="Stempel Bendahara" className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/75 shadow-xs">
-                            {settings.stempelBendaharaUrl}
+                  const bendaharaName = isPutra
+                    ? (settings.namaBendaharaPutra || settings.namaBendahara || 'Ustadz Ahmad Fauzi, S.E.')
+                    : (settings.namaBendaharaPutri || settings.namaBendahara || 'Ustadzah Siti Aminah');
+
+                  const bendaharaTtd = isPutra
+                    ? (settings.ttdBendaharaPutraUrl || settings.ttdBendaharaUrl)
+                    : (settings.ttdBendaharaPutriUrl || settings.ttdBendaharaUrl);
+
+                  const bendaharaStempel = isPutra
+                    ? (settings.stempelBendaharaPutraUrl || settings.stempelBendaharaUrl || settings.stempelPesantrenUrl)
+                    : (settings.stempelBendaharaPutriUrl || settings.stempelBendaharaUrl || settings.stempelPesantrenUrl);
+
+                  const bendaharaJabatan = isPutra ? 'Bendahara Putra' : 'Bendahara Putri';
+                  const bendaharaSub = isPutra ? 'Bendahara Pondok Pesantren (Putra)' : 'Bendahara Pondok Pesantren (Putri)';
+
+                  return (
+                    <div className="text-left space-y-1 relative w-[280px] pl-2 font-sans">
+                      <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(settings.address)}, {receiptBill.paymentDate || new Date().toISOString().split('T')[0]}</p>
+                      <p className="text-[10px] text-slate-900 font-bold uppercase tracking-wider">Mengetahui, {bendaharaJabatan}</p>
+                      
+                      <div className="h-16 w-full relative flex items-center justify-start select-none my-2">
+                        {/* Tanda tangan on the left */}
+                        <div className="z-10 relative flex items-center justify-start">
+                          {isImageUrl(bendaharaTtd) ? (
+                            <img src={bendaharaTtd} alt={`TTD ${bendaharaJabatan}`} className="h-16 max-w-[170px] object-contain mix-blend-multiply" referrerPolicy="no-referrer" />
+                          ) : (
+                            <span className="text-sm font-serif text-slate-900 italic font-bold tracking-wide underline">
+                              {bendaharaTtd || bendaharaName}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Stempel rendered on the LEFT of signature with overlapping model */}
+                        {bendaharaStempel && (
+                          <div className="z-20 absolute -left-6 sm:-left-8 -top-2 pointer-events-none opacity-85">
+                            {isImageUrl(bendaharaStempel) ? (
+                              <img src={bendaharaStempel} alt={`Stempel ${bendaharaJabatan}`} className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="border border-double border-emerald-600/60 text-emerald-700/90 rounded-full h-16 w-16 flex items-center justify-center text-[7px] font-extrabold uppercase rotate-[-8deg] leading-tight text-center bg-white/75 shadow-xs">
+                                {bendaharaStempel}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
 
-                  <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{settings.namaBendahara || "Ustadzah Siti Aminah"}</p>
-                  <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Bendahara Pondok Pesantren</p>
-                </div>
+                      <p className="text-xs font-black text-slate-950 underline leading-none uppercase">{bendaharaName}</p>
+                      <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">{bendaharaSub}</p>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -11593,9 +12533,9 @@ export default function AdminDashboard({
                           )}
                         </div>
 
-                        {/* Stamp: Berada di SEBELAH KANAN tanda tangan dengan model tumpang tindih */}
+                        {/* Stamp: Berada di SEBELAH KIRI tanda tangan dengan model tumpang tindih */}
                         {settings.stempelPengasuhUrl && (
-                          <div className="z-20 absolute left-[50px] -top-1 pointer-events-none opacity-85">
+                          <div className="z-20 absolute -left-4 -top-1 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelPengasuhUrl) ? (
                               <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-14 w-14 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (
@@ -11829,7 +12769,7 @@ export default function AdminDashboard({
                         </div>
 
                         {(settings.stempelPengasuhUrl || settings.stempelPesantrenUrl) && (
-                          <div className="z-20 absolute left-[60px] -top-2 pointer-events-none opacity-85">
+                          <div className="z-20 absolute -left-6 -top-2 pointer-events-none opacity-85">
                             <img src={settings.stempelPengasuhUrl || settings.stempelPesantrenUrl} alt="Stempel" className="h-18 w-18 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                           </div>
                         )}
@@ -11866,9 +12806,9 @@ export default function AdminDashboard({
                           )}
                         </div>
 
-                        {/* Stempel di sebelah KANAN tanda tangan dengan model tumpang tindih */}
+                        {/* Stempel di sebelah KIRI tanda tangan dengan model tumpang tindih */}
                         {isImageUrl(settings.stempelPengasuhUrl) && (
-                          <div className="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                          <div className="z-20 absolute -left-6 sm:-left-8 -top-2 pointer-events-none opacity-85">
                             <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                           </div>
                         )}
@@ -12116,9 +13056,9 @@ export default function AdminDashboard({
                           )}
                         </div>
 
-                        {/* Stempel: Berada di SEBELAH KANAN tanda tangan dengan model tumpang tindih */}
+                        {/* Stempel: Berada di SEBELAH KIRI tanda tangan dengan model tumpang tindih */}
                         {settings.stempelPengasuhUrl && (
-                          <div className="z-20 absolute left-[75px] sm:left-[90px] -top-2 pointer-events-none opacity-85">
+                          <div className="z-20 absolute -left-6 sm:-left-8 -top-2 pointer-events-none opacity-85">
                             <img src={settings.stempelPengasuhUrl} alt="Stempel Pengasuh" className="h-20 w-20 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                           </div>
                         )}
@@ -12274,9 +13214,9 @@ export default function AdminDashboard({
                       )}
                     </div>
 
-                    {/* Stempel rendered on top overlapping */}
+                    {/* Stempel rendered on top overlapping on the left */}
                     {settings.stempelPcsbUrl && (
-                      <div className="z-20 absolute left-[60px] top-[-5px] pointer-events-none opacity-85">
+                      <div className="z-20 absolute -left-6 sm:-left-8 top-[-5px] pointer-events-none opacity-85">
                         {isImageUrl(settings.stempelPcsbUrl) ? (
                           <img src={settings.stempelPcsbUrl} alt="Stempel PCSB" className="h-24 w-24 object-contain rotate-[-12deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                         ) : (
@@ -13454,9 +14394,9 @@ export default function AdminDashboard({
                           )}
                         </div>
 
-                        {/* Stempel overlapping */}
+                        {/* Stempel overlapping on the left */}
                         {settings.stempelKeamananUrl && (
-                          <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
+                          <div className="z-20 absolute -left-6 sm:-left-8 -top-1 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelKeamananUrl) ? (
                               <img src={settings.stempelKeamananUrl} alt="Stempel Keamanan" className="h-26 w-26 object-contain rotate-[-8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (
@@ -13629,9 +14569,9 @@ export default function AdminDashboard({
                           )}
                         </div>
 
-                        {/* Stempel overlapping */}
+                        {/* Stempel overlapping on the left */}
                         {settings.stempelKetertibanUrl && (
-                          <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
+                          <div className="z-20 absolute -left-6 sm:-left-8 -top-1 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelKetertibanUrl) ? (
                               <img src={settings.stempelKetertibanUrl} alt="Stempel Ketertiban" className="h-26 w-26 object-contain rotate-[8deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (
@@ -13808,9 +14748,9 @@ export default function AdminDashboard({
                           )}
                         </div>
 
-                        {/* Stempel overlapping */}
+                        {/* Stempel overlapping on the left */}
                         {settings.stempelKesehatanUrl && (
-                          <div className="z-20 absolute left-[65px] -top-1 pointer-events-none opacity-85">
+                          <div className="z-20 absolute -left-6 sm:-left-8 -top-1 pointer-events-none opacity-85">
                             {isImageUrl(settings.stempelKesehatanUrl) ? (
                               <img src={settings.stempelKesehatanUrl} alt="Stempel Kesehatan" className="h-26 w-26 object-contain rotate-[-6deg] mix-blend-multiply" referrerPolicy="no-referrer" />
                             ) : (

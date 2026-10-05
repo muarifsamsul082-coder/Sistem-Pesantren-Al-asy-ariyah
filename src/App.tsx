@@ -39,9 +39,23 @@ export const DEFAULT_SETTINGS: PortalSettings = {
   namaKetuaPcsb: "Ustadz Muhammad Syakir, S.Ag",
   ttdKetuaPcsbUrl: "✒️ M. Syakir",
   stempelPcsbUrl: "💠 STEMPEL PANITIA PCSB",
-  namaBendahara: "Ustadzah Siti Aminah",
-  ttdBendaharaUrl: "✍️ Siti Aminah",
-  stempelBendaharaUrl: "💰 STEMPEL BENDAHARA PONPES",
+  namaBendahara: "Ustadz Ahmad Fauzi, S.E.",
+  ttdBendaharaUrl: "✍️ Ahmad Fauzi",
+  stempelBendaharaUrl: "💰 STEMPEL BENDAHARA",
+  namaBendaharaPutra: "Ustadz Ahmad Fauzi, S.E.",
+  ttdBendaharaPutraUrl: "✍️ Ahmad Fauzi",
+  stempelBendaharaPutraUrl: "💰 STEMPEL BENDAHARA PUTRA",
+  namaBendaharaPutri: "Ustadzah Siti Aminah, S.Pd",
+  ttdBendaharaPutriUrl: "✍️ Siti Aminah",
+  stempelBendaharaPutriUrl: "💰 STEMPEL BENDAHARA PUTRI",
+  namaLurahPutra: "Ustadz Muhammad Hasan, S.Pd",
+  ttdLurahPutraUrl: "✍️ M. Hasan",
+  namaLurahPutri: "Ustadzah Nurul Hidayah, S.Ag",
+  ttdLurahPutriUrl: "✍️ Nurul Hidayah",
+  namaSekretarisPutra: "Ustadz Rizky Ananda, S.Kom",
+  ttdSekretarisPutraUrl: "✍️ Rizky Ananda",
+  namaSekretarisPutri: "Ustadzah Aisyah Maharani",
+  ttdSekretarisPutriUrl: "✍️ Aisyah",
   namaKeamanan: "Ustadz Junaidi Al-Anshori",
   ttdKeamananUrl: "🛡️ Junaidi",
   stempelKeamananUrl: "👮 STEMPEL DEPT KEAMANAN",
@@ -247,13 +261,24 @@ export default function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [currentView, adminTab, staffTab, santriTab]);
 
-  // Enforce automatic session cleanup on tab close (via sessionStorage) and inactivity timeout
+  // Enforce automatic session cleanup on tab close (via sessionStorage) and inactivity/away timeout
   React.useEffect(() => {
-    // Inactivity timer (25 minutes of no user activity)
-    const INACTIVITY_TIMEOUT_MS = 25 * 60 * 1000;
+    // Batas waktu inaktivitas atau keluar dari aplikasi (15 menit)
+    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
     const recordActivity = () => {
       sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
+    };
+
+    const performAutoLogout = (reason: string) => {
+      setSession(null);
+      sessionStorage.removeItem('pesantren_session');
+      sessionStorage.removeItem('pesantren_current_view');
+      sessionStorage.removeItem('pesantren_last_activity');
+      sessionStorage.removeItem('pesantren_tab_hidden_at');
+      localStorage.removeItem('pesantren_session');
+      setView('home');
+      console.log(`Auto logout triggered: ${reason}`);
     };
 
     const checkInactivity = () => {
@@ -262,12 +287,25 @@ export default function App() {
 
       const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || '0', 10);
       if (lastActivity > 0 && Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS) {
-        setSession(null);
-        sessionStorage.removeItem('pesantren_session');
-        sessionStorage.removeItem('pesantren_current_view');
-        sessionStorage.removeItem('pesantren_last_activity');
-        localStorage.removeItem('pesantren_session');
-        setView('home');
+        performAutoLogout('Inaktivitas melebihi 15 menit');
+      }
+    };
+
+    // Deteksi ketika pengguna keluar/berpindah dari tab/aplikasi untuk waktu yang lama
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        sessionStorage.setItem('pesantren_tab_hidden_at', Date.now().toString());
+      } else {
+        const stored = sessionStorage.getItem('pesantren_session');
+        if (!stored) return;
+
+        const hiddenAt = parseInt(sessionStorage.getItem('pesantren_tab_hidden_at') || '0', 10);
+        if (hiddenAt > 0 && Date.now() - hiddenAt > INACTIVITY_TIMEOUT_MS) {
+          performAutoLogout('Telah lama meninggalkan aplikasi');
+          return;
+        }
+        sessionStorage.removeItem('pesantren_tab_hidden_at');
+        checkInactivity();
       }
     };
 
@@ -277,10 +315,12 @@ export default function App() {
 
     const activityEvents = ['mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
     activityEvents.forEach(evt => window.addEventListener(evt, recordActivity, { passive: true }));
-    const intervalId = setInterval(checkInactivity, 30000);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const intervalId = setInterval(checkInactivity, 15000);
 
     return () => {
       activityEvents.forEach(evt => window.removeEventListener(evt, recordActivity));
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(intervalId);
     };
   }, []);
@@ -311,7 +351,17 @@ export default function App() {
     };
 
     setNews(getOrSet('pesantren_news', []));
-    setAnnouncements(getOrSet('pesantren_announcements', []));
+    
+    // Pastikan maklumat yang dihapus admin tidak dimuat kembali
+    let loadedAnn = getOrSet('pesantren_announcements', []);
+    try {
+      const rawDel = localStorage.getItem('pesantren_deleted_announcement_ids');
+      if (rawDel) {
+        const delSet = new Set(JSON.parse(rawDel));
+        loadedAnn = (Array.isArray(loadedAnn) ? loadedAnn : []).filter((a: any) => a && a.id && !delSet.has(a.id));
+      }
+    } catch (e) {}
+    setAnnouncements(loadedAnn);
     
     // Ensure uppercase names in PPDB
     let loadedPpdb = getOrSet('pesantren_ppdb', []);
@@ -896,18 +946,18 @@ export default function App() {
     window.addEventListener('pesantren_settings_updated', handleSettingsUpdated);
     window.addEventListener('focus', handleWindowFocus);
 
-    // Restore login session: use sessionStorage with localStorage fallback so closing tab or refreshing never abruptly kicks user out
-    const storedSession = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
+    // Restore login session: gunakan HANYA sessionStorage agar saat tab ditutup/dihapus, aplikasi otomatis keluar
+    const storedSession = sessionStorage.getItem('pesantren_session');
     if (storedSession) {
       try {
-        const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || localStorage.getItem('pesantren_last_activity') || '0', 10);
-        const INACTIVITY_TIMEOUT_MS = 25 * 60 * 1000;
+        const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || '0', 10);
+        const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
         if (lastActivity > 0 && Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS) {
           sessionStorage.removeItem('pesantren_session');
           sessionStorage.removeItem('pesantren_current_view');
           sessionStorage.removeItem('pesantren_last_activity');
+          sessionStorage.removeItem('pesantren_tab_hidden_at');
           localStorage.removeItem('pesantren_session');
-          localStorage.removeItem('pesantren_last_activity');
           setSession(null);
           setView('home');
           return;
@@ -928,12 +978,10 @@ export default function App() {
         }
         setSession(parsedSess);
         sessionStorage.setItem('pesantren_session', JSON.stringify(parsedSess));
-        localStorage.setItem('pesantren_session', JSON.stringify(parsedSess));
         sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
-        localStorage.setItem('pesantren_last_activity', Date.now().toString());
 
         // CRITICAL: Preserve active menu on refresh! Do not force reset to overview/dashboard
-        const savedView = sessionStorage.getItem('pesantren_current_view') || localStorage.getItem('pesantren_current_view');
+        const savedView = sessionStorage.getItem('pesantren_current_view');
         if (savedView) {
           setView(savedView);
         } else {
@@ -966,11 +1014,11 @@ export default function App() {
 
   // Update localStorage when lists change
   React.useEffect(() => {
-    if (news.length > 0) localStorage.setItem('pesantren_news', JSON.stringify(news));
+    localStorage.setItem('pesantren_news', JSON.stringify(news));
   }, [news]);
 
   React.useEffect(() => {
-    if (announcements.length > 0) localStorage.setItem('pesantren_announcements', JSON.stringify(announcements));
+    localStorage.setItem('pesantren_announcements', JSON.stringify(announcements));
   }, [announcements]);
 
   React.useEffect(() => {
@@ -1026,7 +1074,6 @@ export default function App() {
     setSession(newSession);
     sessionStorage.setItem('pesantren_session', JSON.stringify(newSession));
     sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
-    localStorage.setItem('pesantren_session', JSON.stringify(newSession));
     
     // Always open first/statistics tab on fresh login
     setAdminTab('overview');
