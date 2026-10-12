@@ -102,30 +102,51 @@ export default function PublicPortal({
               />
             </div>
 
-            <motion.div 
-              whileHover={{ scale: 1.01 }}
-              className="p-4 bg-emerald-950/60 rounded-xl border-l-4 border-amber-400 text-xs text-emerald-100 leading-relaxed font-medium transition shadow-inner"
-            >
-              <span className="font-extrabold uppercase text-[10px] text-amber-300 block tracking-widest mb-1 font-sans">Visi Pesantren:</span>
-              "{settings.vision}"
-            </motion.div>
+            <div className="space-y-4">
+              <motion.div 
+                whileHover={{ scale: 1.01 }}
+                className="p-4 bg-emerald-950/60 rounded-xl border-l-4 border-amber-400 text-xs text-emerald-100 leading-relaxed font-medium transition shadow-inner"
+              >
+                <span className="font-extrabold uppercase text-[10px] text-amber-300 block tracking-widest mb-1 font-sans">Visi Pesantren:</span>
+                "{settings.vision || "Terwujudnya pusat pendidikan Islam rujukan yang unggul dalam mencetak ulama handal, cendekiawan saleh, dan pemimpin yang amanah berlandaskan nilai-nilai Ahlussunnah wal Jama'ah."}"
+              </motion.div>
 
-            <div className="space-y-3">
-              <span className="font-extrabold uppercase text-[10px] text-amber-300 block tracking-widest">Misi Pesantren:</span>
-              <ul className="space-y-2 text-xs text-emerald-100/90 leading-relaxed list-disc pl-4 font-sans">
-                {settings.mission.map((m, idx) => (
-                  <motion.li 
-                    key={idx}
-                    initial={{ opacity: 0, x: -10 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: false }}
-                    transition={{ duration: 0.6, delay: 0.12 * idx }}
-                    className="hover:text-amber-200 transition-all font-sans"
-                  >
-                    {m}
-                  </motion.li>
-                ))}
-              </ul>
+              <motion.div 
+                whileHover={{ scale: 1.01 }}
+                className="p-4 bg-emerald-950/60 rounded-xl border-l-4 border-teal-400 text-xs text-emerald-100 leading-relaxed font-medium transition shadow-inner space-y-2"
+              >
+                <span className="font-extrabold uppercase text-[10px] text-teal-300 block tracking-widest font-sans">Misi Pesantren:</span>
+                <ul className="space-y-2 text-xs text-emerald-100/90 leading-relaxed list-disc pl-4 font-sans">
+                  {(() => {
+                    const missionList = (Array.isArray(settings.mission) 
+                      ? settings.mission 
+                      : typeof settings.mission === 'string' 
+                      ? (settings.mission as string).split('\n') 
+                      : []
+                    ).map(item => String(item || '').trim()).filter(Boolean);
+
+                    const displayMissions = missionList.length > 0 ? missionList : [
+                      "Menyelenggarakan pendidikan kepesantrenan berasas salafus shalih dengan metode pembelajaran kontemporer.",
+                      "Menanamkan pembiasaan akhlak mulia, disiplin ibadah, dan kemandirian santri.",
+                      "Meningkatkan keterampilan pengingat Al-Qur'an dan pengkajian kitab kuning secara mendalam.",
+                      "Mengembangkan bakat santri di bidang bahasa, sains, dan kewirausahaan untuk menjawab tantangan zaman."
+                    ];
+
+                    return displayMissions.map((m, idx) => (
+                      <motion.li 
+                        key={idx}
+                        initial={{ opacity: 0, x: -10 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: false }}
+                        transition={{ duration: 0.6, delay: 0.1 * idx }}
+                        className="hover:text-amber-200 transition-all font-sans"
+                      >
+                        {m}
+                      </motion.li>
+                    ));
+                  })()}
+                </ul>
+              </motion.div>
             </div>
           </motion.div>
 

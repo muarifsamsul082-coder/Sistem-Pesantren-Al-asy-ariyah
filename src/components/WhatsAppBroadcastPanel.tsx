@@ -27,6 +27,73 @@ interface WhatsAppBroadcastPanelProps {
   currentAdminName?: string;
 }
 
+// Template surat & pemberitahuan resmi pesantren untuk broadcast WhatsApp
+export const getLetterTemplates = (settings: PortalSettings) => {
+  const school = settings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
+  const pengasuh = settings.namaPengasuh || "KH. Asy'ari Al-Hafidz";
+  const bendahara = settings.namaBendaharaPutra || settings.namaBendahara || "Ustadz Ahmad Fauzi, S.E.";
+  const akademik = settings.namaAkademik || "Bagian Pendidikan & Madrasah";
+
+  return [
+    {
+      id: 'surat_tagihan',
+      label: '💰 Pemberitahuan Pembayaran Syahriyah / SPP',
+      title: 'Pemberitahuan Pembayaran Syahriyah',
+      body: `Assalamu'alaikum Wr. Wb. Bapak/Ibu {nama_wali},
+
+Diberitahukan perihal administrasi pembayaran syahriyah/SPP pondok pesantren ${school} untuk ananda *{nama_santri}* (NIS: {nis}, Kelas: {kelas}).
+
+Rincian kewajiban pembayaran dapat ditunaikan melalui transfer rekening resmi pesantren atau setor tunai di kantor bendahara. Setelah melakukan pembayaran, bukti pembayaran dapat diunggah melalui Portal Santri resmi.
+
+Jazakumullah khairan katsiran atas perhatian, kerja sama, dan dukungannya.
+Wassalamu'alaikum Wr. Wb.
+-- ${bendahara} (Bendahara ${school}) --`
+    },
+    {
+      id: 'surat_tunggakan',
+      label: '⚠️ Peringatan Pembayaran Lewat Jatuh Tempo / Menunggak',
+      title: 'Peringatan Tagihan Lewat Jatuh Tempo',
+      body: `Assalamu'alaikum Wr. Wb. Bapak/Ibu {nama_wali},
+
+Mengingatkan kembali dengan hormat, berdasarkan catatan pembukuan bendahara ${school}, tagihan syahriyah/administrasi ananda *{nama_santri}* (NIS: {nis}, Kelas: {kelas}) saat ini telah *melewati batas jatuh tempo (menunggak)*.
+
+Mohon bantuan Bapak/Ibu wali santri untuk dapat segera menyelesaikan kewajiban administrasi tersebut demi kelancaran kegiatan operasional dan pendidikan santri di pesantren.
+
+Apabila pembayaran telah ditunaikan, mohon konfirmasi atau kirimkan bukti pembayaran ke kantor bendahara.
+
+Wassalamu'alaikum Wr. Wb.
+-- ${bendahara} (Bendahara ${school}) --`
+    },
+    {
+      id: 'surat_undangan',
+      label: '✉️ Undangan Pertemuan Wali Santri',
+      title: 'Undangan Pertemuan Wali Santri',
+      body: `Assalamu'alaikum Wr. Wb. Bapak/Ibu {nama_wali},
+
+Mengharap kehadiran Bapak/Ibu Wali dari ananda *{nama_santri}* (NIS: {nis}, Kelas: {kelas}) dalam agenda *Pertemuan & Silaturahmi Wali Santri* yang insya Allah akan diselenggarakan di aula ${school}.
+
+Kehadiran serta masukan dari Bapak/Ibu sekalian sangat berharga demi kemajuan pendidikan, akhlak, dan pembinaan ananda di pondok pesantren.
+
+Atas perhatian dan kehadirannya, kami haturkan terima kasih.
+Wassalamu'alaikum Wr. Wb.
+-- ${pengasuh} (Pengasuh ${school}) --`
+    },
+    {
+      id: 'surat_ujian',
+      label: '📝 Pemberitahuan Waktu & Jadwal Ujian Santri',
+      title: 'Pemberitahuan Waktu & Jadwal Ujian Santri',
+      body: `Assalamu'alaikum Wr. Wb. Bapak/Ibu {nama_wali},
+
+Diberitahukan kepada seluruh wali santri, khususnya wali dari ananda *{nama_santri}* (NIS: {nis}, Kelas: {kelas}), bahwa agenda *Ujian Semester (Imtihan Diniyah & Ujian Formal)* di ${school} akan segera dilaksanakan sesuai kalender akademik pesantren.
+
+Mohon doa restu dan motivasi dari Bapak/Ibu agar ananda senantiasa diberikan kesehatan, ketenangan, kemudahan dalam belajar, serta memperoleh hasil ujian yang berkah dan memuaskan.
+
+Wassalamu'alaikum Wr. Wb.
+-- ${akademik} (${school}) --`
+    }
+  ];
+};
+
 export default function WhatsAppBroadcastPanel({
   students,
   bills,
@@ -39,6 +106,9 @@ export default function WhatsAppBroadcastPanel({
   rooms = [],
   currentAdminName = 'Admin Pesantren'
 }: WhatsAppBroadcastPanelProps) {
+  // Template list memoized with current settings
+  const letterTemplates = useMemo(() => getLetterTemplates(settings), [settings]);
+
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('Semua');
@@ -130,8 +200,11 @@ export default function WhatsAppBroadcastPanel({
     return messageBody
       .replace(/\{nama_santri\}/g, std.fullName || '')
       .replace(/\{nama_wali\}/g, waliName)
-      .replace(/\{nis\}/g, std.nis || '')
-      .replace(/\{kelas\}/g, std.classFormal || std.classMadrasah || std.class || '');
+      .replace(/\{nis\}/g, std.nis || '-')
+      .replace(/\{kelas\}/g, std.classFormal || std.classMadrasah || std.class || '-')
+      .replace(/\{kamar\}/g, std.kamar || '-')
+      .replace(/\{pesantren\}/g, settings.schoolName || "Pondok Pesantren Al-Asy'ariyah")
+      .replace(/\{pengasuh\}/g, settings.namaPengasuh || "Pengasuh Pondok Pesantren");
   };
 
   const selectedStudentsList = useMemo(() => {
@@ -298,6 +371,71 @@ export default function WhatsAppBroadcastPanel({
             </span>
           </div>
 
+          {/* Template Surat Pesantren */}
+          <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-extrabold text-emerald-950 uppercase tracking-wide">
+                Template Surat & Pemberitahuan
+              </label>
+              {messageBody && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMessageBody('');
+                    setMessageTitle('Pemberitahuan Pesantren');
+                  }}
+                  className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer"
+                >
+                  Kosongkan Teks
+                </button>
+              )}
+            </div>
+            <select
+              value=""
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) return;
+                const tmpl = letterTemplates.find(t => t.id === val);
+                if (tmpl) {
+                  setMessageTitle(tmpl.title);
+                  setMessageBody(tmpl.body);
+                }
+              }}
+              className="w-full px-2.5 py-1.5 text-xs border border-emerald-300 rounded-lg bg-white text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-emerald-700 cursor-pointer shadow-2xs"
+            >
+              <option value="">-- Pilih Template Surat Resmi Pesantren --</option>
+              {letterTemplates.map(t => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+
+            {/* Quick Template Badge Pills */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {letterTemplates.map(tmpl => (
+                <button
+                  key={tmpl.id}
+                  type="button"
+                  onClick={() => {
+                    setMessageTitle(tmpl.title);
+                    setMessageBody(tmpl.body);
+                  }}
+                  className={`text-[10.5px] px-2 py-0.5 rounded-lg border font-semibold transition cursor-pointer flex items-center gap-1 ${
+                    messageTitle === tmpl.title
+                      ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs'
+                      : 'bg-white hover:bg-emerald-100/70 text-emerald-950 border-emerald-200 shadow-2xs'
+                  }`}
+                  title={`Gunakan template: ${tmpl.title}`}
+                >
+                  <span>{tmpl.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <p className="text-[10px] text-emerald-800 leading-tight">
+              Klik salah satu tombol atau pilih di dropdown untuk mengisi template surat resmi pesantren secara instan.
+            </p>
+          </div>
+
           <div>
             <label className="block text-[11px] font-bold text-slate-700 mb-1">
               Judul Pesan (Catatan Log)
@@ -312,15 +450,16 @@ export default function WhatsAppBroadcastPanel({
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-1.5">
               <label className="block text-[11px] font-bold text-slate-700">
                 Isi Pesan WhatsApp
               </label>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[9px] text-slate-400 font-medium mr-0.5">Tag:</span>
                 <button
                   type="button"
                   onClick={() => setMessageBody(prev => prev + ' {nama_santri}')}
-                  className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded cursor-pointer transition font-mono"
+                  className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
                   title="Sisipkan nama santri"
                 >
                   +{'{nama_santri}'}
@@ -328,10 +467,42 @@ export default function WhatsAppBroadcastPanel({
                 <button
                   type="button"
                   onClick={() => setMessageBody(prev => prev + ' {nama_wali}')}
-                  className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded cursor-pointer transition font-mono"
+                  className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
                   title="Sisipkan nama wali"
                 >
                   +{'{nama_wali}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessageBody(prev => prev + ' {nis}')}
+                  className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
+                  title="Sisipkan NIS santri"
+                >
+                  +{'{nis}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessageBody(prev => prev + ' {kelas}')}
+                  className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
+                  title="Sisipkan kelas santri"
+                >
+                  +{'{kelas}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessageBody(prev => prev + ' {kamar}')}
+                  className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
+                  title="Sisipkan kamar asrama santri"
+                >
+                  +{'{kamar}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessageBody(prev => prev + ' {pesantren}')}
+                  className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
+                  title="Sisipkan nama pesantren"
+                >
+                  +{'{pesantren}'}
                 </button>
               </div>
             </div>

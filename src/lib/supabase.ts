@@ -222,12 +222,24 @@ CREATE TABLE IF NOT EXISTS public.settings (
   -- DAFTAR PENGURUS YANG MENJABAT & TANDA TANGAN
   nama_pengurus TEXT,
   ttd_pengurus_url TEXT,
-  nama_ketua_pcsb TEXT,
-  ttd_ketua_pcsb_url TEXT,
-  stempel_pcsb_url TEXT,
+  nama_dewan_masyayikh TEXT,
+  ttd_dewan_masyayikh_url TEXT,
+  nama_sekretaris_putra TEXT,
+  ttd_sekretaris_putra_url TEXT,
+  nama_sekretaris_putri TEXT,
+  ttd_sekretaris_putri_url TEXT,
   nama_bendahara TEXT,
   ttd_bendahara_url TEXT,
   stempel_bendahara_url TEXT,
+  nama_bendahara_putra TEXT,
+  ttd_bendahara_putra_url TEXT,
+  stempel_bendahara_putra_url TEXT,
+  nama_bendahara_putri TEXT,
+  ttd_bendahara_putri_url TEXT,
+  stempel_bendahara_putri_url TEXT,
+  nama_ketua_pcsb TEXT,
+  ttd_ketua_pcsb_url TEXT,
+  stempel_pcsb_url TEXT,
   nama_keamanan TEXT,
   ttd_keamanan_url TEXT,
   stempel_keamanan_url TEXT,
@@ -247,6 +259,9 @@ CREATE TABLE IF NOT EXISTS public.settings (
 
   -- DATA KANAL PEMBAYARAN, REKENING & KELAS
   rekening_list JSONB DEFAULT '[]'::jsonb,
+  pesantren_bank_name TEXT,
+  pesantren_bank_account_number TEXT,
+  pesantren_bank_account_name TEXT,
   available_formal_classes JSONB DEFAULT '["VII SMP Formal", "VIII SMP Formal", "IX SMP Formal", "X MA Formal", "XI MA Formal", "XII MA Formal", "-"]'::jsonb,
   available_madrasah_classes JSONB DEFAULT '["1A MI Diniyah", "1B MI Diniyah", "2A MI Diniyah", "3A MI Diniyah", "1A MTs Diniyah", "1B MTs Diniyah", "2A MTs Diniyah", "2B MTs Diniyah", "3A MTs Diniyah", "1A MA Diniyah", "2A MA Diniyah", "3A MA Diniyah"]'::jsonb,
   
@@ -650,6 +665,9 @@ ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS stempel_akademik_url TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS custom_officials JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS stempel_pesantren_url TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS rekening_list JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS pesantren_bank_name TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS pesantren_bank_account_number TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS pesantren_bank_account_name TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS available_formal_classes JSONB;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS available_madrasah_classes JSONB;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ppdb_open BOOLEAN DEFAULT true;

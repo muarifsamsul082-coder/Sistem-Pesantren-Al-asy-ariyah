@@ -499,13 +499,31 @@ export default function StaffDashboard({
     const sharedPengasuhSig = pesantrenSettings?.ttdPengasuhUrl || pesantrenSettings?.ttdPengurusUrl || '';
     const sharedPengasuhSeal = pesantrenSettings?.stempelPengasuhUrl || pesantrenSettings?.stempelPesantrenUrl || '';
 
+    const settingsDeptName = dept === 'keamanan'
+      ? pesantrenSettings?.namaKeamanan
+      : dept === 'ketertiban'
+      ? pesantrenSettings?.namaKetertiban
+      : pesantrenSettings?.namaKesehatan;
+
+    const settingsDeptSig = dept === 'keamanan'
+      ? pesantrenSettings?.ttdKeamananUrl
+      : dept === 'ketertiban'
+      ? pesantrenSettings?.ttdKetertibanUrl
+      : pesantrenSettings?.ttdKesehatanUrl;
+
+    const settingsDeptSeal = dept === 'keamanan'
+      ? pesantrenSettings?.stempelKeamananUrl
+      : dept === 'ketertiban'
+      ? pesantrenSettings?.stempelKetertibanUrl
+      : pesantrenSettings?.stempelKesehatanUrl;
+
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         return {
-          name: parsed.name || defaults[dept].name,
-          signature: sharedPengasuhSig || parsed.signature || defaults[dept].signature,
-          seal: sharedPengasuhSeal || parsed.seal || defaults[dept].seal,
+          name: settingsDeptName || parsed.name || defaults[dept].name,
+          signature: settingsDeptSig || sharedPengasuhSig || parsed.signature || defaults[dept].signature,
+          seal: settingsDeptSeal || sharedPengasuhSeal || parsed.seal || defaults[dept].seal,
           letterTemplate1: parsed.letterTemplate1 || defaults[dept].letterTemplate1,
           letterTemplate2: parsed.letterTemplate2 || defaults[dept].letterTemplate2,
           letterTemplate3: parsed.letterTemplate3 || defaults[dept].letterTemplate3
@@ -516,8 +534,9 @@ export default function StaffDashboard({
     }
     return {
       ...defaults[dept],
-      signature: sharedPengasuhSig || defaults[dept].signature,
-      seal: sharedPengasuhSeal || defaults[dept].seal
+      name: settingsDeptName || defaults[dept].name,
+      signature: settingsDeptSig || sharedPengasuhSig || defaults[dept].signature,
+      seal: settingsDeptSeal || sharedPengasuhSeal || defaults[dept].seal
     };
   };
 
