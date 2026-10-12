@@ -49,6 +49,7 @@ import {
   syncSettingsWithSupabase,
   syncMasterClassesWithSupabase,
   pushMasterClassesToSupabase,
+  pushAlumniToSupabase,
   checkMissingSupabaseTables,
   type TableSyncStatus
 } from '../lib/supabase';
@@ -61,6 +62,7 @@ import {
 } from '../lib/dateUtils';
 import WhatsAppBroadcastPanel from './WhatsAppBroadcastPanel';
 import FinancialReportPanel from './FinancialReportPanel';
+import { StudentBillingReceiptModal } from './StudentBillingReceiptModal';
 
 interface AdminDashboardProps {
   students: Student[];
@@ -614,6 +616,7 @@ export default function AdminDashboard({
 
   const handleApprovePermit = (studentId: string, logId: string) => {
     const signer = currentAdminName || settings.namaPengurus || 'Administrator Pesantren';
+    let updatedList: Student[] = [];
     setStudents(prev => {
       const updated = prev.map(s => {
         if (s.id === studentId) {
@@ -627,27 +630,31 @@ export default function AdminDashboard({
         }
         return s;
       });
-      localStorage.setItem('pesantren_students', JSON.stringify(updated));
+      updatedList = updated;
+      return updated;
+    });
 
-      // Push to Supabase & Server to prevent reverting ("mental") across all devices & wali accounts
-      pushAllStudentsToSupabase(updated).catch(e => console.warn('Supabase sync students error:', e));
+    if (updatedList.length > 0) {
+      localStorage.setItem('pesantren_students', JSON.stringify(updatedList));
+      pushAllStudentsToSupabase(updatedList).catch(e => console.warn('Supabase sync students error:', e));
       try {
         fetch('/api/students', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updated)
+          body: JSON.stringify(updatedList)
         }).catch(e => console.warn('Server sync students error:', e));
       } catch (e) {}
-      window.dispatchEvent(new Event('pesantren_db_sync'));
-      window.dispatchEvent(new Event('storage'));
-
-      return updated;
-    });
+      setTimeout(() => {
+        window.dispatchEvent(new Event('pesantren_db_sync'));
+        window.dispatchEvent(new Event('storage'));
+      }, 0);
+    }
     logAdminActivity('Keamanan', `Menyetujui izin keluar untuk siswa ID ${studentId} (Log ID: ${logId})`);
   };
 
   const handleRejectPermit = (studentId: string, logId: string) => {
     const signer = currentAdminName || settings.namaPengurus || 'Administrator Pesantren';
+    let updatedList: Student[] = [];
     setStudents(prev => {
       const updated = prev.map(s => {
         if (s.id === studentId) {
@@ -661,22 +668,25 @@ export default function AdminDashboard({
         }
         return s;
       });
-      localStorage.setItem('pesantren_students', JSON.stringify(updated));
+      updatedList = updated;
+      return updated;
+    });
 
-      // Push to Supabase & Server to prevent reverting ("mental") across all devices & wali accounts
-      pushAllStudentsToSupabase(updated).catch(e => console.warn('Supabase sync students error:', e));
+    if (updatedList.length > 0) {
+      localStorage.setItem('pesantren_students', JSON.stringify(updatedList));
+      pushAllStudentsToSupabase(updatedList).catch(e => console.warn('Supabase sync students error:', e));
       try {
         fetch('/api/students', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updated)
+          body: JSON.stringify(updatedList)
         }).catch(e => console.warn('Server sync students error:', e));
       } catch (e) {}
-      window.dispatchEvent(new Event('pesantren_db_sync'));
-      window.dispatchEvent(new Event('storage'));
-
-      return updated;
-    });
+      setTimeout(() => {
+        window.dispatchEvent(new Event('pesantren_db_sync'));
+        window.dispatchEvent(new Event('storage'));
+      }, 0);
+    }
     logAdminActivity('Keamanan', `Menolak izin keluar untuk siswa ID ${studentId} (Log ID: ${logId})`);
   };
 
@@ -808,11 +818,18 @@ export default function AdminDashboard({
       seal: currentSettings.stempelKesehatanUrl || kesObj.seal || '🩺 POSKESTREN AL-ASY\'ARIYAH'
     };
 
-    localStorage.setItem('keamanan_config', JSON.stringify(updatedKam));
-    localStorage.setItem('ketertiban_config', JSON.stringify(updatedKet));
-    localStorage.setItem('kesehatan_config', JSON.stringify(updatedKes));
+    const kamStr = JSON.stringify(updatedKam);
+    const ketStr = JSON.stringify(updatedKet);
+    const kesStr = JSON.stringify(updatedKes);
 
-    window.dispatchEvent(new Event('staff_configs_updated'));
+    if (kam !== kamStr || ket !== ketStr || kes !== kesStr) {
+      localStorage.setItem('keamanan_config', kamStr);
+      localStorage.setItem('ketertiban_config', ketStr);
+      localStorage.setItem('kesehatan_config', kesStr);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('staff_configs_updated'));
+      }, 0);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -1238,6 +1255,34 @@ export default function AdminDashboard({
   const [editStdClassFormal, setEditStdClassFormal] = React.useState('');
   const [editStdClassMadrasah, setEditStdClassMadrasah] = React.useState('');
 
+  // Student Billing Statement & Receipt Print Modal State (A4 PDF)
+  const [isStudentBillingReceiptModalOpen, setIsStudentBillingReceiptModalOpen] = React.useState(false);
+  const [selectedStudentForBillingReceipt, setSelectedStudentForBillingReceipt] = React.useState<Student | null>(null);
+
+  const openStudentBillingReceipt = (std: Student | null) => {
+    setSelectedStudentForBillingReceipt(std);
+    setIsStudentBillingReceiptModalOpen(true);
+  };
+
+  const openEditStudent = (s: Student) => {
+    const classParts = (s.class || '').split('•').map(p => p.trim());
+    const formal = s.classFormal || s.classSore || classParts[0] || (availableFormalClasses && availableFormalClasses[0]) || '';
+    const madrasah = s.classMadrasah || s.classPagi || classParts[1] || (availableMadrasahClasses && availableMadrasahClasses[0]) || '';
+    setEditStdClassFormal(formal);
+    setEditStdClassMadrasah(madrasah);
+    setEditingStudent({
+      ...s,
+      classFormal: formal,
+      classSore: formal,
+      classMadrasah: madrasah,
+      classPagi: madrasah,
+      fullName: (s.fullName || '').trim(),
+      nis: s.nis || '',
+      kamar: s.kamar || '',
+      status: s.status || 'Aktif',
+    });
+  };
+
   React.useEffect(() => {
     if (availableFormalClasses && availableFormalClasses.length > 0 && !newStdClassFormal) {
       setNewStdClassFormal(availableFormalClasses[0]);
@@ -1252,10 +1297,13 @@ export default function AdminDashboard({
 
   React.useEffect(() => {
     if (editingStudent) {
-      setEditStdClassFormal(editingStudent.classFormal || (availableFormalClasses[0] || ''));
-      setEditStdClassMadrasah(editingStudent.classMadrasah || (availableMadrasahClasses[0] || ''));
+      const classParts = (editingStudent.class || '').split('•').map(p => p.trim());
+      const formal = editingStudent.classFormal || editingStudent.classSore || classParts[0] || (availableFormalClasses[0] || '');
+      const madrasah = editingStudent.classMadrasah || editingStudent.classPagi || classParts[1] || (availableMadrasahClasses[0] || '');
+      setEditStdClassFormal(formal);
+      setEditStdClassMadrasah(madrasah);
     }
-  }, [editingStudent, availableFormalClasses, availableMadrasahClasses]);
+  }, [editingStudent?.id, availableFormalClasses, availableMadrasahClasses]);
 
   // Bill creation state
   const [billRecipientType, setBillRecipientType] = React.useState<'single' | 'all'>('single');
@@ -1528,6 +1576,7 @@ export default function AdminDashboard({
   // Sinkronisasi otomatis dua arah dari Daftar Pengurus & Tanda Tangan ke Persetujuan & Akun Pengurus
   const syncOfficialsToStaffUsers = React.useCallback((s: PortalSettings) => {
     let anyChanged = false;
+    let finalUpdated: any[] = [];
     setStaffUsers(prev => {
       const updated = prev.map(u => {
         const r = (u.role || '').toLowerCase().trim();
@@ -1583,13 +1632,19 @@ export default function AdminDashboard({
       });
 
       if (anyChanged) {
-        localStorage.setItem('pesantren_staff_users', JSON.stringify(updated));
-        window.dispatchEvent(new Event('pesantren_staff_users_updated'));
-        if (isSupabaseConfigured()) pushAllStaffUsersToSupabase(updated).catch(() => {});
+        finalUpdated = updated;
         return updated;
       }
       return prev;
     });
+
+    if (anyChanged && finalUpdated.length > 0) {
+      localStorage.setItem('pesantren_staff_users', JSON.stringify(finalUpdated));
+      setTimeout(() => {
+        window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+      }, 0);
+      if (isSupabaseConfigured()) pushAllStaffUsersToSupabase(finalUpdated).catch(() => {});
+    }
     return anyChanged;
   }, []);
 
@@ -2365,58 +2420,61 @@ export default function AdminDashboard({
 
   // Otomatis sinkronkan nama pengurus dari menu Daftar Pengurus ke menu Persetujuan & Akun Pengurus
   React.useEffect(() => {
-    if (settings) {
-      setStaffUsers(prev => {
-        let changed = false;
-        const updated = prev.map(u => {
-          const r = (u.role || '').toLowerCase().trim();
-          let targetName: string | undefined = undefined;
+    if (!settings) return;
 
-          if ((r === 'keamanan' || r.includes('kamtib')) && settings.namaKeamanan) {
-            targetName = settings.namaKeamanan.trim();
-          } else if (r === 'ketertiban' && settings.namaKetertiban) {
-            targetName = settings.namaKetertiban.trim();
-          } else if ((r === 'kesehatan' || r.includes('poskestren')) && settings.namaKesehatan) {
-            targetName = settings.namaKesehatan.trim();
-          } else if (r.includes('bendahara') && (settings.namaBendaharaPutra || settings.namaBendahara)) {
-            targetName = (settings.namaBendaharaPutra || settings.namaBendahara)!.trim();
-          } else if (r.includes('sekretaris') && (settings.namaSekretarisPutra || settings.namaSekretarisPutri)) {
-            targetName = (settings.namaSekretarisPutra || settings.namaSekretarisPutri)!.trim();
-          } else if ((r.includes('akademik') || r.includes('pendidikan') || r.includes('madrasah')) && settings.namaAkademik) {
-            targetName = settings.namaAkademik.trim();
-          } else if ((r.includes('pcsb') || r.includes('ppdb')) && settings.namaKetuaPcsb) {
-            targetName = settings.namaKetuaPcsb.trim();
-          } else if ((r.includes('penasihat') || r.includes('masyayikh')) && settings.namaDewanMasyayikh) {
-            targetName = settings.namaDewanMasyayikh.trim();
-          } else if ((r === 'admin' || r.includes('pengasuh')) && settings.namaPengasuh) {
-            targetName = settings.namaPengasuh.trim();
-          }
+    setStaffUsers(prev => {
+      let changed = false;
+      const updated = prev.map(u => {
+        const r = (u.role || '').toLowerCase().trim();
+        let targetName: string | undefined = undefined;
 
-          if (!targetName && settings.customOfficials) {
-            const found = settings.customOfficials.find(o => 
-              o.position?.toLowerCase().includes(r) || r.includes(o.position?.toLowerCase() || '')
-            );
-            if (found && found.name) targetName = found.name.trim();
-          }
-
-          if (targetName && targetName !== u.fullName) {
-            changed = true;
-            const emailKey = (u.email || '').toLowerCase();
-            if (emailKey) {
-              localStorage.setItem('staff_custom_name_' + emailKey, targetName);
-            }
-            return { ...u, fullName: targetName, name: targetName };
-          }
-          return u;
-        });
-        if (changed) {
-          localStorage.setItem('pesantren_staff_users', JSON.stringify(updated));
-          window.dispatchEvent(new Event('pesantren_staff_users_updated'));
-          return updated;
+        if ((r === 'keamanan' || r.includes('kamtib')) && settings.namaKeamanan) {
+          targetName = settings.namaKeamanan.trim();
+        } else if (r === 'ketertiban' && settings.namaKetertiban) {
+          targetName = settings.namaKetertiban.trim();
+        } else if ((r === 'kesehatan' || r.includes('poskestren')) && settings.namaKesehatan) {
+          targetName = settings.namaKesehatan.trim();
+        } else if (r.includes('bendahara') && (settings.namaBendaharaPutra || settings.namaBendahara)) {
+          targetName = (settings.namaBendaharaPutra || settings.namaBendahara)!.trim();
+        } else if (r.includes('sekretaris') && (settings.namaSekretarisPutra || settings.namaSekretarisPutri)) {
+          targetName = (settings.namaSekretarisPutra || settings.namaSekretarisPutri)!.trim();
+        } else if ((r.includes('akademik') || r.includes('pendidikan') || r.includes('madrasah')) && settings.namaAkademik) {
+          targetName = settings.namaAkademik.trim();
+        } else if ((r.includes('pcsb') || r.includes('ppdb')) && settings.namaKetuaPcsb) {
+          targetName = settings.namaKetuaPcsb.trim();
+        } else if ((r.includes('penasihat') || r.includes('masyayikh')) && settings.namaDewanMasyayikh) {
+          targetName = settings.namaDewanMasyayikh.trim();
+        } else if ((r === 'admin' || r.includes('pengasuh')) && settings.namaPengasuh) {
+          targetName = settings.namaPengasuh.trim();
         }
-        return prev;
+
+        if (!targetName && settings.customOfficials) {
+          const found = settings.customOfficials.find(o => 
+            o.position?.toLowerCase().includes(r) || r.includes(o.position?.toLowerCase() || '')
+          );
+          if (found && found.name) targetName = found.name.trim();
+        }
+
+        if (targetName && targetName !== u.fullName) {
+          changed = true;
+          const emailKey = (u.email || '').toLowerCase();
+          if (emailKey) {
+            localStorage.setItem('staff_custom_name_' + emailKey, targetName);
+          }
+          return { ...u, fullName: targetName, name: targetName };
+        }
+        return u;
       });
-    }
+
+      if (changed) {
+        localStorage.setItem('pesantren_staff_users', JSON.stringify(updated));
+        setTimeout(() => {
+          window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+        }, 0);
+        return updated;
+      }
+      return prev;
+    });
   }, [
     settings.namaKeamanan, 
     settings.namaKetertiban, 
@@ -3290,6 +3348,19 @@ export default function AdminDashboard({
     });
 
     setStudents(updatedStudents);
+    localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
+    markLocalDataChanged('students');
+    fetch('/api/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedStudents)
+    }).catch(err => console.warn('Server sync tahfidz error:', err));
+    if (isSupabaseConfigured()) {
+      pushAllStudentsToSupabase(updatedStudents).catch(() => {});
+    }
+    setTimeout(() => {
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+    }, 0);
     showAlert('success', `Berhasil mencatat setoran hafalan Juz ${newJuz} untuk santri.`);
     setSelectedStudentForTahfidz(null);
   };
@@ -3372,10 +3443,17 @@ export default function AdminDashboard({
     setStudents(updatedStudentsList);
     localStorage.setItem('pesantren_students', JSON.stringify(updatedStudentsList));
     markLocalDataChanged('students');
+    fetch('/api/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedStudentsList)
+    }).catch(err => console.warn('Server push added student error:', err));
     if (isSupabaseConfigured()) {
       pushStudentToSupabase(added).catch(err => console.error('Cloud push student error:', err));
     }
-    window.dispatchEvent(new Event('pesantren_db_sync'));
+    setTimeout(() => {
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+    }, 0);
 
     logAdminActivity(
       'DAFTAR_MANUAL',
@@ -6388,8 +6466,19 @@ export default function AdminDashboard({
                                       const updatedStudents = students.map(s => s.id === std.id ? { ...s, kamar: chosenRoom } : s);
                                       setStudents(updatedStudents);
                                       localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
-                                      window.dispatchEvent(new Event('pesantren_db_sync'));
-                                      window.dispatchEvent(new Event('storage'));
+                                      markLocalDataChanged('students');
+                                      fetch('/api/students', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(updatedStudents)
+                                      }).catch(err => console.warn('Server sync room error:', err));
+                                      if (isSupabaseConfigured()) {
+                                        pushAllStudentsToSupabase(updatedStudents).catch(() => {});
+                                      }
+                                      setTimeout(() => {
+                                        window.dispatchEvent(new Event('pesantren_db_sync'));
+                                        window.dispatchEvent(new Event('storage'));
+                                      }, 0);
                                       showAlert('success', `Berhasil menetapkan ${std.fullName} ke kamar ${chosenRoom}!`);
                                     }}
                                     className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-xs shadow-xs transition cursor-pointer"
@@ -12207,11 +12296,12 @@ export default function AdminDashboard({
                   return;
                 }
               }
-              const finalClassFormal = editStdClassFormal || '-';
-              const finalClassMadrasah = editStdClassMadrasah || '-';
+              const finalClassFormal = editingStudent.classFormal || editingStudent.classSore || editStdClassFormal || (availableFormalClasses && availableFormalClasses[0]) || '-';
+              const finalClassMadrasah = editingStudent.classMadrasah || editingStudent.classPagi || editStdClassMadrasah || (availableMadrasahClasses && availableMadrasahClasses[0]) || '-';
               const finalClass = `${finalClassFormal} • ${finalClassMadrasah}`;
               const updatedStudent: Student = {
                 ...editingStudent,
+                fullName: (editingStudent.fullName || '').trim(),
                 classFormal: finalClassFormal,
                 classMadrasah: finalClassMadrasah,
                 classPagi: finalClassMadrasah,
@@ -12220,12 +12310,12 @@ export default function AdminDashboard({
               };
               logAdminActivity(
                 'EDIT_PROFIL',
-                `Mengedit data profil santri: ${editingStudent.fullName} (${editingStudent.nis})`,
-                editingStudent.id,
-                editingStudent.fullName
+                `Mengedit data profil santri: ${updatedStudent.fullName} (${updatedStudent.nis})`,
+                updatedStudent.id,
+                updatedStudent.fullName
               );
               const updatedStudentsList = students.map(s => s.id === editingStudent.id ? updatedStudent : s);
-              const updatedBillsList = bills.map(b => b.studentId === editingStudent.id ? { ...b, studentName: editingStudent.fullName } : b);
+              const updatedBillsList = bills.map(b => b.studentId === editingStudent.id ? { ...b, studentName: updatedStudent.fullName } : b);
               setStudents(updatedStudentsList);
               setBills(updatedBillsList);
               localStorage.setItem('pesantren_students', JSON.stringify(updatedStudentsList));
@@ -12233,10 +12323,18 @@ export default function AdminDashboard({
               markLocalDataChanged('students');
               markLocalDataChanged('bills');
 
+              fetch('/api/students', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedStudentsList)
+              }).catch(err => console.warn('Server update students error:', err));
+
               if (isSupabaseConfigured()) {
                 pushStudentToSupabase(updatedStudent).catch(err => console.error('Cloud update student error:', err));
               }
-              window.dispatchEvent(new Event('pesantren_db_sync'));
+              setTimeout(() => {
+                window.dispatchEvent(new Event('pesantren_db_sync'));
+              }, 0);
 
               // Send automatic WhatsApp notice on status update (e.g. Alumni)
               if (originalStudent && originalStudent.status !== updatedStudent.status && updatedStudent.parentPhone) {
@@ -12310,8 +12408,11 @@ export default function AdminDashboard({
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500 mb-0.5">Sekolah Formal (Sore) {editingStudent.status === 'Alumni' && '(Pendidikan Terakhir)'}</label>
                   <select
-                    value={editStdClassFormal}
-                    onChange={(e) => setEditStdClassFormal(e.target.value)}
+                    value={editingStudent.classFormal || editingStudent.classSore || editStdClassFormal || (availableFormalClasses[0] || '')}
+                    onChange={(e) => {
+                      setEditStdClassFormal(e.target.value);
+                      setEditingStudent({ ...editingStudent, classFormal: e.target.value, classSore: e.target.value });
+                    }}
                     className="w-full px-3 py-1.5 border border-emerald-100 rounded bg-white text-xs font-bold"
                   >
                     {availableFormalClasses.map((cls) => (
@@ -12322,8 +12423,11 @@ export default function AdminDashboard({
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500 mb-0.5">Sekolah Non-Formal (Madrasah) {editingStudent.status === 'Alumni' && '(Pendidikan Terakhir)'}</label>
                   <select
-                    value={editStdClassMadrasah}
-                    onChange={(e) => setEditStdClassMadrasah(e.target.value)}
+                    value={editingStudent.classMadrasah || editingStudent.classPagi || editStdClassMadrasah || (availableMadrasahClasses[0] || '')}
+                    onChange={(e) => {
+                      setEditStdClassMadrasah(e.target.value);
+                      setEditingStudent({ ...editingStudent, classMadrasah: e.target.value, classPagi: e.target.value });
+                    }}
                     className="w-full px-3 py-1.5 border border-emerald-100 rounded bg-white text-xs font-bold"
                   >
                     {availableMadrasahClasses.map((cls) => (
@@ -12692,12 +12796,26 @@ export default function AdminDashboard({
                     setBills(updatedBills);
                     localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
                     localStorage.setItem('pesantren_bills', JSON.stringify(updatedBills));
+                    try {
+                      const rawDel = JSON.parse(localStorage.getItem('pesantren_deleted_student_ids') || '[]');
+                      if (!rawDel.includes(stdId)) {
+                        rawDel.push(stdId);
+                        localStorage.setItem('pesantren_deleted_student_ids', JSON.stringify(rawDel));
+                      }
+                    } catch (e) {}
                     markLocalDataChanged('students');
                     markLocalDataChanged('bills');
+                    fetch('/api/students', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updatedStudents)
+                    }).catch(err => console.warn('Server delete students error:', err));
                     if (isSupabaseConfigured()) {
                       deleteStudentFromSupabase(stdId).catch(console.error);
                     }
-                    window.dispatchEvent(new Event('pesantren_db_sync'));
+                    setTimeout(() => {
+                      window.dispatchEvent(new Event('pesantren_db_sync'));
+                    }, 0);
                     setTightDeleteStudent(null);
                     showAlert('success', 'Data santri berhasil dihapus selamanya melalui prosedur ketat.');
                   } catch (err) {

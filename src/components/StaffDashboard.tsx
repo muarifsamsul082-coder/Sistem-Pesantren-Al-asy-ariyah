@@ -389,10 +389,17 @@ export default function StaffDashboard({
     } catch (e) {
       console.error("Local storage error:", e);
     }
-    window.dispatchEvent(new Event('pesantren_db_sync'));
+    fetch('/api/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch(e => console.warn("Server sync students error:", e));
     if (isSupabaseConfigured()) {
       pushAllStudentsToSupabase(updated).catch(e => console.error("Cloud push students error:", e));
     }
+    setTimeout(() => {
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+    }, 0);
   };
 
   // Save profile settings

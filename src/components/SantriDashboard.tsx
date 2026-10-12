@@ -223,7 +223,14 @@ export default function SantriDashboard({
         } catch (e) {
           console.error(e);
         }
-        window.dispatchEvent(new Event('pesantren_db_sync'));
+        fetch('/api/students', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        }).catch(e => console.warn("Server sync student permit error:", e));
+        setTimeout(() => {
+          window.dispatchEvent(new Event('pesantren_db_sync'));
+        }, 0);
         if (targetUpdatedStudent && isSupabaseConfigured()) {
           pushStudentToSupabase(targetUpdatedStudent).catch(e => console.error("Cloud push student permit error:", e));
         }

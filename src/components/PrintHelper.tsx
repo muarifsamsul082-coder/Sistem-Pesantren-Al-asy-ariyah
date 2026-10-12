@@ -250,3 +250,102 @@ export function downloadPrintableTableHTML(elementId: string, title: string) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+export function downloadPrintableA4ReceiptHTML(elementId: string, title: string) {
+  const element = document.getElementById(elementId);
+  if (!element) {
+    console.error(`Element with id ${elementId} not found.`);
+    alert('Elemen dokumen tidak ditemukan.');
+    return;
+  }
+
+  const clone = element.cloneNode(true) as HTMLElement;
+  const interactivePanels = clone.querySelectorAll('.print\\:hidden, button');
+  interactivePanels.forEach(el => el.remove());
+
+  const cleanHTML = clone.innerHTML;
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #f3f4f6;
+      color: #111827;
+      padding: 2rem 1rem;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .print-sheet {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      padding: 2.2rem 2.5rem;
+      width: 210mm;
+      max-width: 100%;
+      min-height: 297mm;
+      margin: 0 auto;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+      box-sizing: border-box;
+    }
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 10mm 12mm 12mm 12mm;
+      }
+      body {
+        background-color: white !important;
+        padding: 0 !important;
+      }
+      .print-sheet {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: auto !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body onload="window.print()">
+  <div class="print-sheet">
+    ${cleanHTML}
+  </div>
+  
+  <div class="mt-8 text-center no-print max-w-md mx-auto space-y-4 px-4">
+    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-950">
+      <p class="font-bold text-base mb-1">⎙ Lembar Rekapitulasi Tagihan Siap Cetak (Format A4)</p>
+      <p class="text-gray-650 leading-relaxed font-medium">
+        Dokumen ini telah diatur khusus untuk ukuran <strong>A4 Portrait</strong>. Anda dapat langsung mencetak atau memilih opsi <strong>"Save as PDF" (Simpan sebagai PDF)</strong> pada tujuan printer Anda.
+      </p>
+    </div>
+    
+    <button onclick="window.print()" class="w-full sm:w-auto px-6 py-2 bg-gradient-to-r from-emerald-800 to-teal-900 text-white font-extrabold rounded-lg hover:from-emerald-700 hover:to-teal-850 cursor-pointer text-sm shadow-md transition duration-200">
+      Cetak / Simpan PDF Sekarang ⎙
+    </button>
+  </div>
+</body>
+</html>
+`;
+
+  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.html`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

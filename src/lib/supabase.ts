@@ -1836,23 +1836,27 @@ export async function deleteAnnouncementFromSupabase(id: string): Promise<void> 
 // STUDENTS SYNC & PUSH
 // ------------------------------------------------------------------------------
 export function formatStudentToSupabasePayload(s: Student) {
+  const compositeClass = s.class || (s.classFormal && s.classMadrasah ? `${s.classFormal} • ${s.classMadrasah}` : s.classMadrasah || s.classFormal || null);
   return {
     id: s.id,
-    nis: s.nis,
+    nis: s.nis || 'UNTITLED',
     full_name: s.fullName,
-    gender: s.gender,
+    gender: s.gender || 'Laki-laki',
+    class: compositeClass,
+    class_name: compositeClass,
     class_pagi: s.classMadrasah || s.classPagi || null,
     class_sore: s.classFormal || s.classSore || null,
-    class_name: s.class || (s.classFormal && s.classMadrasah ? `${s.classFormal} • ${s.classMadrasah}` : s.classMadrasah || s.classFormal || null),
     class_madrasah: s.classMadrasah || s.classPagi || null,
     class_formal: s.classFormal || s.classSore || null,
     akun_madrasah: s.akunMadrasah || null,
-    parent_name: s.parentName,
-    parent_phone: s.parentPhone,
+    parent_name: s.parentName || null,
+    parent_phone: s.parentPhone || null,
+    phone: (s as any).phone || s.parentPhone || null,
     guardian_name: s.guardianName || null,
-    email: s.email,
-    address: s.address,
-    status: s.status,
+    guardian_phone: (s as any).guardianPhone || s.parentPhone || null,
+    email: s.email || null,
+    address: s.address || null,
+    status: s.status || 'Aktif',
     kamar: s.kamar || null,
     photo_url: s.photoUrl || null,
     birth_place: s.birthPlace || null,
@@ -1864,10 +1868,10 @@ export function formatStudentToSupabasePayload(s: Student) {
     blood_type: s.bloodType || null,
     health_history: s.healthHistory || null,
     current_hafalan: s.currentHafalan || '0 Juz',
-    tahfidz_logs: s.tahfidzLogs || [],
-    security_logs: s.securityLogs || [],
-    discipline_logs: s.disciplineLogs || [],
-    health_logs: s.healthLogs || [],
+    tahfidz_logs: Array.isArray(s.tahfidzLogs) ? s.tahfidzLogs : [],
+    security_logs: Array.isArray(s.securityLogs) ? s.securityLogs : [],
+    discipline_logs: Array.isArray(s.disciplineLogs) ? s.disciplineLogs : [],
+    health_logs: Array.isArray(s.healthLogs) ? s.healthLogs : [],
     alumni_id: s.alumniId || null,
     tahun_keluar: s.tahunKeluar || null,
     alumni_reason: s.alumniReason || null
@@ -1876,70 +1880,129 @@ export function formatStudentToSupabasePayload(s: Student) {
 
 export async function syncStudentsWithSupabase(studentsList: Student[]): Promise<Student[]> {
   const client = getSupabaseClient();
-  if (!client) return studentsList;
+  
+  // Track deleted student IDs to prevent resurrection
+  let deletedIds = new Set<string>();
+  try {
+    const rawDel = typeof localStorage !== 'undefined' ? localStorage.getItem('pesantren_deleted_student_ids') : null;
+    if (rawDel) {
+      const parsed = JSON.parse(rawDel);
+      if (Array.isArray(parsed)) deletedIds = new Set(parsed);
+    }
+  } catch (e) {}
+
+  const cleanLocalList = studentsList.filter(s => s && s.id && !deletedIds.has(s.id));
+
+  if (!client) return cleanLocalList;
+
   if (isLocalDataRecentlyChanged('students')) {
-    pushAllStudentsToSupabase(studentsList).catch(e => console.error('Auto-push recent students error:', e));
-    return studentsList;
+    pushAllStudentsToSupabase(cleanLocalList).catch(e => console.error('Auto-push recent students error:', e));
+    return cleanLocalList;
   }
 
   try {
     const { data, error } = await client.from('students').select('*');
     if (error) {
       console.warn('Error fetching students from Supabase:', error);
-      return studentsList;
+      return cleanLocalList;
     }
+
     if (data && data.length > 0) {
-      const remoteMapped: Student[] = data.map((item: any) => ({
-        id: item.id,
-        nis: item.nis,
-        fullName: item.full_name,
-        gender: item.gender as any,
-        classPagi: item.class_madrasah || item.class_pagi || '',
-        classSore: item.class_formal || item.class_sore || '',
-        class: item.class_name || (item.class_formal && item.class_madrasah ? `${item.class_formal} • ${item.class_madrasah}` : item.class_madrasah || item.class_formal || '-'),
-        classMadrasah: item.class_madrasah || item.class_pagi || '',
-        classFormal: item.class_formal || item.class_sore || '',
-        akunMadrasah: item.akun_madrasah,
-        parentName: item.parent_name,
-        parentPhone: item.parent_phone,
-        guardianName: item.guardian_name,
-        email: item.email,
-        address: item.address,
-        status: item.status as any || 'Aktif',
-        kamar: item.kamar,
-        photoUrl: item.photo_url,
-        birthPlace: item.birth_place,
-        birthDate: item.birth_date,
-        kk: item.kk,
-        nik: item.nik,
-        fatherName: item.father_name,
-        motherName: item.mother_name,
-        bloodType: item.blood_type,
-        healthHistory: item.health_history,
-        currentHafalan: item.current_hafalan || '0 Juz',
-        tahfidzLogs: Array.isArray(item.tahfidz_logs) ? item.tahfidz_logs : [],
-        securityLogs: Array.isArray(item.security_logs) ? item.security_logs : [],
-        disciplineLogs: Array.isArray(item.discipline_logs) ? item.discipline_logs : [],
-        healthLogs: Array.isArray(item.health_logs) ? item.health_logs : [],
-        alumniId: item.alumni_id,
-        tahunKeluar: item.tahun_keluar,
-        alumniReason: item.alumni_reason
-      }));
+      // If any deleted students still exist on remote Supabase, purge them
+      const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
+      if (staleInRemote.length > 0) {
+        staleInRemote.forEach((stale: any) => {
+          client.from('students').delete().eq('id', stale.id).catch(() => {});
+        });
+      }
+
+      const activeRemoteData = data.filter((item: any) => item && item.id && !deletedIds.has(item.id));
+
+      const remoteMapped: Student[] = activeRemoteData.map((item: any) => {
+        const cFormal = item.class_formal || item.class_sore || '';
+        const cMadrasah = item.class_madrasah || item.class_pagi || '';
+        const cComposite = item.class || item.class_name || (cFormal && cMadrasah ? `${cFormal} • ${cMadrasah}` : cMadrasah || cFormal || '-');
+
+        return {
+          id: item.id,
+          nis: item.nis || '',
+          fullName: item.full_name || item.name || '',
+          gender: (item.gender as any) || 'Laki-laki',
+          classPagi: cMadrasah,
+          classSore: cFormal,
+          class: cComposite,
+          classMadrasah: cMadrasah,
+          classFormal: cFormal,
+          akunMadrasah: item.akun_madrasah,
+          parentName: item.parent_name || '',
+          parentPhone: item.parent_phone || item.phone || '',
+          guardianName: item.guardian_name,
+          email: item.email || '',
+          address: item.address || '',
+          status: (item.status as any) || 'Aktif',
+          kamar: item.kamar || '',
+          photoUrl: item.photo_url,
+          birthPlace: item.birth_place,
+          birthDate: item.birth_date,
+          kk: item.kk,
+          nik: item.nik,
+          fatherName: item.father_name,
+          motherName: item.mother_name,
+          bloodType: item.blood_type,
+          healthHistory: item.health_history,
+          currentHafalan: item.current_hafalan || '0 Juz',
+          tahfidzLogs: Array.isArray(item.tahfidz_logs) ? item.tahfidz_logs : [],
+          securityLogs: Array.isArray(item.security_logs) ? item.security_logs : [],
+          disciplineLogs: Array.isArray(item.discipline_logs) ? item.discipline_logs : [],
+          healthLogs: Array.isArray(item.health_logs) ? item.health_logs : [],
+          alumniId: item.alumni_id,
+          tahunKeluar: item.tahun_keluar,
+          alumniReason: item.alumni_reason
+        };
+      });
+
+      // Intelligently merge remote with local rich fields
+      const map = new Map<string, Student>();
+      cleanLocalList.forEach(s => { if (s && s.id) map.set(s.id, s); });
+
+      remoteMapped.forEach(remote => {
+        const local = map.get(remote.id);
+        if (!local) {
+          map.set(remote.id, remote);
+        } else {
+          map.set(remote.id, {
+            ...local,
+            ...remote,
+            // Keep richer local logs if remote returned empty array
+            tahfidzLogs: (remote.tahfidzLogs && remote.tahfidzLogs.length > 0) ? remote.tahfidzLogs : (local.tahfidzLogs || []),
+            securityLogs: (remote.securityLogs && remote.securityLogs.length > 0) ? remote.securityLogs : (local.securityLogs || []),
+            disciplineLogs: (remote.disciplineLogs && remote.disciplineLogs.length > 0) ? remote.disciplineLogs : (local.disciplineLogs || []),
+            healthLogs: (remote.healthLogs && remote.healthLogs.length > 0) ? remote.healthLogs : (local.healthLogs || []),
+            photoUrl: remote.photoUrl || local.photoUrl,
+            kk: remote.kk || local.kk,
+            nik: remote.nik || local.nik,
+            birthPlace: remote.birthPlace || local.birthPlace,
+            birthDate: remote.birthDate || local.birthDate,
+            fatherName: remote.fatherName || local.fatherName,
+            motherName: remote.motherName || local.motherName,
+          });
+        }
+      });
 
       // Check for locally added students not yet in cloud
-      const missingInRemote = studentsList.filter(l => !data.some((r: any) => r.id === l.id));
+      const missingInRemote = cleanLocalList.filter(l => !data.some((r: any) => r.id === l.id));
       if (missingInRemote.length > 0) {
-        await pushAllStudentsToSupabase(missingInRemote);
-        return [...remoteMapped, ...missingInRemote];
+        pushAllStudentsToSupabase(missingInRemote).catch(() => {});
       }
-      return remoteMapped;
-    } else if (studentsList.length > 0) {
-      await pushAllStudentsToSupabase(studentsList);
+
+      return Array.from(map.values());
+    } else if (cleanLocalList.length > 0) {
+      await pushAllStudentsToSupabase(cleanLocalList);
     }
   } catch (err) {
     console.error('Error syncing students with Supabase:', err);
   }
-  return studentsList;
+  return cleanLocalList;
 }
 
 export async function pushStudentToSupabase(student: Student): Promise<void> {
@@ -1951,12 +2014,13 @@ export async function pushStudentToSupabase(student: Student): Promise<void> {
     const { error } = await client.from('students').upsert(payload);
     if (error) {
       console.warn('Upsert student failed with full payload, trying safe core payload:', error);
-      await client.from('students').upsert({
+      const safePayload = {
         id: student.id,
-        nis: student.nis,
+        nis: student.nis || 'UNTITLED',
         full_name: student.fullName,
-        gender: student.gender,
-        class_name: student.class,
+        gender: student.gender || 'Laki-laki',
+        class: student.class || null,
+        class_name: student.class || null,
         class_madrasah: student.classMadrasah || student.classPagi || null,
         class_formal: student.classFormal || student.classSore || null,
         phone: (student as any).phone || student.parentPhone || null,
@@ -1965,7 +2029,18 @@ export async function pushStudentToSupabase(student: Student): Promise<void> {
         kamar: student.kamar || null,
         parent_name: student.parentName || null,
         parent_phone: student.parentPhone || null
-      });
+      };
+      const { error: safeErr } = await client.from('students').upsert(safePayload);
+      if (safeErr) {
+        console.warn('Safe payload failed, trying minimal core payload:', safeErr);
+        await client.from('students').upsert({
+          id: student.id,
+          nis: student.nis || 'UNTITLED',
+          full_name: student.fullName,
+          gender: student.gender || 'Laki-laki',
+          status: student.status || 'Aktif'
+        });
+      }
     }
   } catch (err) {
     console.error('Failed to save student to Supabase:', err);
@@ -1977,7 +2052,27 @@ export async function pushAllStudentsToSupabase(studentsList: Student[]): Promis
   if (!client || studentsList.length === 0) return;
   try {
     const payload = studentsList.map(formatStudentToSupabasePayload);
-    await client.from('students').upsert(payload);
+    const { error } = await client.from('students').upsert(payload);
+    if (error) {
+      console.warn('Bulk upsert students failed with full payload, trying safe core payloads:', error);
+      const corePayload = studentsList.map(s => ({
+        id: s.id,
+        nis: s.nis || 'UNTITLED',
+        full_name: s.fullName,
+        gender: s.gender || 'Laki-laki',
+        class: s.class || null,
+        class_name: s.class || null,
+        class_madrasah: s.classMadrasah || s.classPagi || null,
+        class_formal: s.classFormal || s.classSore || null,
+        phone: (s as any).phone || s.parentPhone || null,
+        address: s.address || null,
+        status: s.status || 'Aktif',
+        kamar: s.kamar || null,
+        parent_name: s.parentName || null,
+        parent_phone: s.parentPhone || null
+      }));
+      await client.from('students').upsert(corePayload);
+    }
   } catch (err) {
     console.error('Error pushing all students to Supabase:', err);
   }

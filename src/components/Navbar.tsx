@@ -113,17 +113,29 @@ export default function Navbar({
   }, []);
 
   React.useEffect(() => {
-    checkPendingStaff();
-    window.addEventListener('pesantren_staff_users_updated', checkPendingStaff);
-    window.addEventListener('storage', checkPendingStaff);
+    const timer = setTimeout(() => {
+      checkPendingStaff();
+    }, 0);
+    const handleStaffUpdate = () => {
+      setTimeout(() => {
+        checkPendingStaff();
+      }, 0);
+    };
+    window.addEventListener('pesantren_staff_users_updated', handleStaffUpdate);
+    window.addEventListener('storage', handleStaffUpdate);
     return () => {
-      window.removeEventListener('pesantren_staff_users_updated', checkPendingStaff);
-      window.removeEventListener('storage', checkPendingStaff);
+      clearTimeout(timer);
+      window.removeEventListener('pesantren_staff_users_updated', handleStaffUpdate);
+      window.removeEventListener('storage', handleStaffUpdate);
     };
   }, [checkPendingStaff]);
 
   React.useEffect(() => {
-    const handleUpdate = () => setProfileUpdateTrigger(prev => prev + 1);
+    const handleUpdate = () => {
+      setTimeout(() => {
+        setProfileUpdateTrigger(prev => prev + 1);
+      }, 0);
+    };
     window.addEventListener('staff_configs_updated', handleUpdate);
     window.addEventListener('pesantren_settings_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);

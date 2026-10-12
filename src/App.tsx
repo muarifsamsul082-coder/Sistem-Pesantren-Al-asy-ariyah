@@ -410,25 +410,43 @@ export default function App() {
       loadedStudents = [];
     }
 
-    const seenNis = new Set<string>();
-    let wasModified = false;
-    let maleRoomIdx = 0;
-    let femaleRoomIdx = 0;
+    if (isLocalDataRecentlyChanged('students')) {
+      setStudents(loadedStudents);
+    } else {
+      const seenNis = new Set<string>();
+      let wasModified = false;
+      let maleRoomIdx = 0;
+      let femaleRoomIdx = 0;
 
-    const processedStudents = loadedStudents.map((s: any) => {
-      if (!s) return null;
-      let currentNis = s.nis || 'UNTITLED';
-      let currentKamar = (s.kamar || '').replace(/^Kamar\s+/i, '').trim();
+      const processedStudents = loadedStudents.map((s: any) => {
+        if (!s) return null;
+        let currentNis = s.nis || 'UNTITLED';
+        let currentKamar = (s.kamar || '').replace(/^Kamar\s+/i, '').trim();
 
-      if (currentKamar !== s.kamar) {
-        wasModified = true;
-      }
+        if (currentKamar !== s.kamar) {
+          wasModified = true;
+        }
 
-      // Check if student's room exists in valid rooms for their gender
-      const validRooms = s.gender === 'Perempuan' ? validFemaleRooms : validMaleRooms;
-      if (s.status === 'Aktif') {
-        if (!currentKamar || !validRooms.includes(currentKamar)) {
-          if (validRooms.length > 0) {
+        // Check if student's room exists in valid rooms for their gender
+        const validRooms = s.gender === 'Perempuan' ? validFemaleRooms : validMaleRooms;
+        const validRoomsLower = validRooms.map((r: string) => r.toLowerCase().trim());
+
+        if (s.status === 'Aktif') {
+          if (!currentKamar) {
+            if (validRooms.length > 0) {
+              if (s.gender === 'Perempuan') {
+                currentKamar = validFemaleRooms[femaleRoomIdx % validFemaleRooms.length];
+                femaleRoomIdx++;
+              } else {
+                currentKamar = validMaleRooms[maleRoomIdx % validMaleRooms.length];
+                maleRoomIdx++;
+              }
+            } else {
+              currentKamar = s.gender === 'Perempuan' ? 'Az-Zahra 1' : 'Al-Ghazali 1';
+            }
+            wasModified = true;
+          } else if (currentKamar !== 'Luar Pondok' && validRooms.length > 0 && !validRoomsLower.includes(currentKamar.toLowerCase().trim())) {
+            // Only reassign if room list is populated and current room is truly invalid
             if (s.gender === 'Perempuan') {
               currentKamar = validFemaleRooms[femaleRoomIdx % validFemaleRooms.length];
               femaleRoomIdx++;
@@ -436,95 +454,84 @@ export default function App() {
               currentKamar = validMaleRooms[maleRoomIdx % validMaleRooms.length];
               maleRoomIdx++;
             }
-          } else {
-            currentKamar = s.gender === 'Perempuan' ? 'Az-Zahra 1' : 'Al-Ghazali 1';
-          }
-          wasModified = true;
-        }
-      }
-
-      // Ensure NIS is 4 digits
-      let cleanNis = currentNis.replace(/[^0-9]/g, '');
-      if (cleanNis.length !== 4) {
-        const numVal = parseInt(cleanNis, 10);
-        cleanNis = isNaN(numVal) || numVal <= 0 ? '0001' : String(numVal).padStart(4, '0');
-      }
-
-      currentNis = cleanNis;
-
-      // Handle duplicate NIS in 4-digit format
-      while (seenNis.has(currentNis)) {
-        wasModified = true;
-        let numericNis = parseInt(currentNis, 10);
-        if (isNaN(numericNis) || numericNis <= 0) {
-          numericNis = 1;
-        }
-        const nextNum = (numericNis + 1) % 10000;
-        currentNis = String(nextNum).padStart(4, '0');
-      }
-      seenNis.add(currentNis);
-
-      let finalClassMadrasah = s.classMadrasah;
-      let finalClassFormal = s.classFormal || s.classSore;
-
-      // Ensure classMadrasah is accurately parsed and preserved (especially MI classes like 1A MI Diniyah)
-      if (s.class && /MI/i.test(s.class) && !/MTs/i.test(s.class)) {
-        // Extract exact MI class e.g. "1A MI", "1A MI Diniyah", etc.
-        const miMatch = s.class.match(/(\d+[A-Za-z]?\s*MI(?:\s*Diniyah)?)/i);
-        if (miMatch && miMatch[1]) {
-          finalClassMadrasah = miMatch[1];
-          wasModified = true;
-        } else {
-          finalClassMadrasah = '1A MI Diniyah';
-          wasModified = true;
-        }
-      } else if (s.classPagi && /MI/i.test(s.classPagi)) {
-        finalClassMadrasah = s.classPagi;
-        wasModified = true;
-      } else if (!finalClassMadrasah) {
-        finalClassMadrasah = s.classPagi || '1A MI Diniyah';
-        wasModified = true;
-      }
-
-      if (!finalClassFormal) {
-        if (s.class && /SMP|MTS\s*Formal|SMA|MA\s*Formal|SD/i.test(s.class)) {
-          const formMatch = s.class.match(/((?:VII|VIII|IX|X|XI|XII|\d+)\s*(?:SMP|MTS|SMA|MA|SD)(?:\s*Formal)?)/i);
-          if (formMatch && formMatch[1]) {
-            finalClassFormal = formMatch[1];
             wasModified = true;
           }
         }
-        if (!finalClassFormal) {
-          finalClassFormal = s.classSore || 'VII SMP Formal';
+
+        // Ensure NIS is 4 digits
+        let cleanNis = currentNis.replace(/[^0-9]/g, '');
+        if (cleanNis.length !== 4) {
+          const numVal = parseInt(cleanNis, 10);
+          cleanNis = isNaN(numVal) || numVal <= 0 ? '0001' : String(numVal).padStart(4, '0');
+        }
+
+        currentNis = cleanNis;
+
+        // Handle duplicate NIS in 4-digit format
+        while (seenNis.has(currentNis)) {
+          wasModified = true;
+          let numericNis = parseInt(currentNis, 10);
+          if (isNaN(numericNis) || numericNis <= 0) {
+            numericNis = 1;
+          }
+          const nextNum = (numericNis + 1) % 10000;
+          currentNis = String(nextNum).padStart(4, '0');
+        }
+        seenNis.add(currentNis);
+
+        let finalClassMadrasah = s.classMadrasah || s.classPagi;
+        let finalClassFormal = s.classFormal || s.classSore;
+
+        if (!finalClassMadrasah) {
+          if (s.class && /MI/i.test(s.class) && !/MTs/i.test(s.class)) {
+            const miMatch = s.class.match(/(\d+[A-Za-z]?\s*MI(?:\s*Diniyah)?)/i);
+            finalClassMadrasah = (miMatch && miMatch[1]) ? miMatch[1] : '1A MI Diniyah';
+          } else {
+            finalClassMadrasah = '1A MI Diniyah';
+          }
           wasModified = true;
         }
+
+        if (!finalClassFormal) {
+          if (s.class && /SMP|MTS\s*Formal|SMA|MA\s*Formal|SD/i.test(s.class)) {
+            const formMatch = s.class.match(/((?:VII|VIII|IX|X|XII|\d+)\s*(?:SMP|MTS|SMA|MA|SD)(?:\s*Formal)?)/i);
+            if (formMatch && formMatch[1]) {
+              finalClassFormal = formMatch[1];
+              wasModified = true;
+            }
+          }
+          if (!finalClassFormal) {
+            finalClassFormal = 'VII SMP Formal';
+            wasModified = true;
+          }
+        }
+
+        const compositeClass = (finalClassFormal && finalClassMadrasah)
+          ? `${finalClassFormal} • ${finalClassMadrasah}`
+          : s.class || `${finalClassFormal || 'Formal'} • ${finalClassMadrasah || 'Madrasah'}`;
+
+        return {
+          ...s,
+          nis: currentNis,
+          kamar: currentKamar,
+          classMadrasah: finalClassMadrasah || s.classMadrasah,
+          classFormal: finalClassFormal || s.classFormal,
+          class: compositeClass,
+          fullName: (s.fullName || '').trim(),
+          parentName: (s.parentName || '').trim(),
+          fatherName: (s.fatherName || '').trim(),
+          motherName: (s.motherName || '').trim(),
+          guardianName: s.guardianName ? s.guardianName.trim() : undefined,
+        };
+      }).filter(Boolean);
+
+      try {
+        localStorage.setItem('pesantren_students', JSON.stringify(processedStudents));
+      } catch (setErr) {
+        console.error("Failed to save pesantren_students", setErr);
       }
-
-      const compositeClass = (finalClassFormal && finalClassMadrasah)
-        ? `${finalClassFormal} • ${finalClassMadrasah}`
-        : s.class || `${finalClassFormal || 'Formal'} • ${finalClassMadrasah || 'Madrasah'}`;
-
-      return {
-        ...s,
-        nis: currentNis,
-        kamar: currentKamar,
-        classMadrasah: finalClassMadrasah || s.classMadrasah,
-        classFormal: finalClassFormal || s.classFormal,
-        class: compositeClass,
-        fullName: (s.fullName || '').toUpperCase(),
-        parentName: (s.parentName || '').toUpperCase(),
-        fatherName: (s.fatherName || '').toUpperCase(),
-        motherName: (s.motherName || '').toUpperCase(),
-        guardianName: s.guardianName ? s.guardianName.toUpperCase() : undefined,
-      };
-    }).filter(Boolean);
-
-    try {
-      localStorage.setItem('pesantren_students', JSON.stringify(processedStudents));
-    } catch (setErr) {
-      console.error("Failed to save pesantren_students", setErr);
+      setStudents(processedStudents);
     }
-    setStudents(processedStudents);
 
     setBills(getOrSet('pesantren_bills', []));
     
@@ -690,33 +697,115 @@ export default function App() {
 
       // Sync Students from server across devices
       try {
-        const stdRes = await fetch('/api/students');
-        if (stdRes.ok) {
-          const stdJson = await stdRes.json();
-          if (stdJson && stdJson.success && Array.isArray(stdJson.students) && stdJson.students.length > 0) {
-            const localStd = getLocal<Student[]>('pesantren_students', []);
-            const map = new Map<string, Student>();
-            localStd.forEach(s => { if (s && s.id) map.set(s.id, s); });
-            stdJson.students.forEach((s: Student) => { if (s && s.id) map.set(s.id, s); });
-            const merged = Array.from(map.values());
-            setStudents(merged);
-            localStorage.setItem('pesantren_students', JSON.stringify(merged));
+        const localStd = getLocal<Student[]>('pesantren_students', []);
+        let deletedStdIds: Set<string>;
+        try {
+          const rawDel = JSON.parse(localStorage.getItem('pesantren_deleted_student_ids') || '[]');
+          deletedStdIds = new Set(Array.isArray(rawDel) ? rawDel : []);
+        } catch {
+          deletedStdIds = new Set();
+        }
+
+        if (isLocalDataRecentlyChanged('students')) {
+          // If recently changed locally, push local students to server rather than overwriting
+          const cleanLocal = localStd.filter(s => s && s.id && !deletedStdIds.has(s.id));
+          fetch('/api/students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cleanLocal)
+          }).catch(e => console.warn('Push recent local students to server error:', e));
+        } else {
+          const stdRes = await fetch('/api/students');
+          if (stdRes.ok) {
+            const stdJson = await stdRes.json();
+            if (stdJson && stdJson.success && Array.isArray(stdJson.students)) {
+              const serverStd = stdJson.students.filter((s: any) => s && s.id && !deletedStdIds.has(s.id));
+
+              if (serverStd.length > 0) {
+                // If not recently edited locally, accept server students so other devices see updates immediately!
+                setStudents(serverStd);
+                localStorage.setItem('pesantren_students', JSON.stringify(serverStd));
+              } else if (localStd.length > 0) {
+                fetch('/api/students', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(localStd)
+                }).catch(() => {});
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      // Sync Bills from server across devices
+      try {
+        const localBills = getLocal<Bill[]>('pesantren_bills', []);
+        let deletedBillIds: Set<string>;
+        try {
+          const rawDel = JSON.parse(localStorage.getItem('pesantren_deleted_bill_ids') || '[]');
+          deletedBillIds = new Set(Array.isArray(rawDel) ? rawDel : []);
+        } catch {
+          deletedBillIds = new Set();
+        }
+
+        if (isLocalDataRecentlyChanged('bills')) {
+          const cleanLocalBills = localBills.filter(b => b && b.id && !deletedBillIds.has(b.id));
+          fetch('/api/bills', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cleanLocalBills)
+          }).catch(e => console.warn('Push recent local bills to server error:', e));
+        } else {
+          const billsRes = await fetch('/api/bills');
+          if (billsRes.ok) {
+            const billsJson = await billsRes.json();
+            if (billsJson && billsJson.success && Array.isArray(billsJson.bills)) {
+              const serverBills = billsJson.bills.filter((b: any) => b && b.id && !deletedBillIds.has(b.id));
+              if (serverBills.length > 0) {
+                setBills(serverBills);
+                localStorage.setItem('pesantren_bills', JSON.stringify(serverBills));
+              } else if (localBills.length > 0) {
+                fetch('/api/bills', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(localBills)
+                }).catch(() => {});
+              }
+            }
           }
         }
       } catch (e) {}
 
       // Sync Alumni from server across devices (separated database)
       try {
+        const localAlumni = getLocal<Student[]>('pesantren_alumni', []);
+        let deletedAlumniIds: Set<string>;
+        try {
+          const rawDel = JSON.parse(localStorage.getItem('pesantren_deleted_student_ids') || '[]');
+          deletedAlumniIds = new Set(Array.isArray(rawDel) ? rawDel : []);
+        } catch {
+          deletedAlumniIds = new Set();
+        }
+
         const almRes = await fetch('/api/alumni');
         if (almRes.ok) {
           const almJson = await almRes.json();
           if (almJson && almJson.success && Array.isArray(almJson.alumni)) {
-            const localAlumni = getLocal<Student[]>('pesantren_alumni', []);
-            const map = new Map<string, Student>();
-            localAlumni.forEach(a => { if (a && a.id) map.set(a.id, a); });
-            almJson.alumni.forEach((a: Student) => { if (a && a.id) map.set(a.id, a); });
-            const mergedAlumni = Array.from(map.values());
-            localStorage.setItem('pesantren_alumni', JSON.stringify(mergedAlumni));
+            const serverAlumni = almJson.alumni.filter((a: any) => a && a.id && !deletedAlumniIds.has(a.id));
+            const currentLocalAlumni = localAlumni.filter(a => a && a.id && !deletedAlumniIds.has(a.id));
+            if (serverAlumni.length > 0) {
+              const map = new Map<string, Student>();
+              serverAlumni.forEach((a: Student) => { if (a && a.id) map.set(a.id, a); });
+              currentLocalAlumni.forEach(a => { if (a && a.id) map.set(a.id, a); });
+              const mergedAlumni = Array.from(map.values());
+              localStorage.setItem('pesantren_alumni', JSON.stringify(mergedAlumni));
+            } else if (currentLocalAlumni.length > 0) {
+              fetch('/api/alumni', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(currentLocalAlumni)
+              }).catch(() => {});
+            }
           }
         }
       } catch (e) {}
