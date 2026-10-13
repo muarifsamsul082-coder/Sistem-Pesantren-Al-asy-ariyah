@@ -3543,7 +3543,22 @@ export default function AdminDashboard({
         });
       });
 
-      setBills([...generatedBills, ...bills]);
+      const allNewBills = [...generatedBills, ...bills];
+      setBills(allNewBills);
+      localStorage.setItem('pesantren_bills', JSON.stringify(allNewBills));
+      markLocalDataChanged('bills');
+      fetch('/api/bills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(allNewBills)
+      }).catch(err => console.warn('Server sync bills error:', err));
+      if (isSupabaseConfigured()) {
+        pushAllBillsToSupabase(generatedBills).catch(e => console.error('Cloud push package bills error:', e));
+      }
+      setTimeout(() => {
+        window.dispatchEvent(new Event('pesantren_db_sync'));
+        window.dispatchEvent(new Event('storage'));
+      }, 0);
       
       if (sendWhatsAppOnBill) {
         targetStudents.forEach(async (std) => {
@@ -3582,7 +3597,23 @@ export default function AdminDashboard({
           dueDate: billDueDate,
           status: 'Belum Lunas'
         };
-        setBills([added, ...bills]);
+        const allNewBills = [added, ...bills];
+        setBills(allNewBills);
+        localStorage.setItem('pesantren_bills', JSON.stringify(allNewBills));
+        markLocalDataChanged('bills');
+        fetch('/api/bills', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(allNewBills)
+        }).catch(err => console.warn('Server sync bill error:', err));
+        if (isSupabaseConfigured()) {
+          pushBillToSupabase(added).catch(e => console.error('Cloud push single bill error:', e));
+        }
+        setTimeout(() => {
+          window.dispatchEvent(new Event('pesantren_db_sync'));
+          window.dispatchEvent(new Event('storage'));
+        }, 0);
+
         showAlert('success', `Tagihan "${billTitle}" berhasil dibuat untuk santri ${studentObj.fullName} (Total Wajib Masuk: Rp ${breakdown.finalAmount.toLocaleString('id-ID')}).`);
 
         if (sendWhatsAppOnBill) {
@@ -3614,7 +3645,22 @@ export default function AdminDashboard({
             status: 'Belum Lunas'
           };
         });
-        setBills([...newBills, ...bills]);
+        const allNewBills = [...newBills, ...bills];
+        setBills(allNewBills);
+        localStorage.setItem('pesantren_bills', JSON.stringify(allNewBills));
+        markLocalDataChanged('bills');
+        fetch('/api/bills', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(allNewBills)
+        }).catch(err => console.warn('Server sync bills error:', err));
+        if (isSupabaseConfigured()) {
+          pushAllBillsToSupabase(newBills).catch(e => console.error('Cloud push bulk bills error:', e));
+        }
+        setTimeout(() => {
+          window.dispatchEvent(new Event('pesantren_db_sync'));
+          window.dispatchEvent(new Event('storage'));
+        }, 0);
         
         if (sendWhatsAppOnBill) {
           const gwToken = settings.waGatewayToken || localStorage.getItem('pesantren_wa_gateway_token') || '';
@@ -5619,11 +5665,19 @@ export default function AdminDashboard({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setEditingStudent(s)}
+                                onClick={() => openEditStudent(s)}
                                 className="p-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition cursor-pointer"
                                 title="Edit Data Santri"
                               >
                                 <Edit className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openStudentBillingReceipt(s)}
+                                className="p-1 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition cursor-pointer"
+                                title="Cetak Rekap Tagihan & Pembayaran (A4 PDF)"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 type="button"
@@ -5691,6 +5745,13 @@ export default function AdminDashboard({
                                     className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-amber-300 rounded-xl text-[10px] font-extrabold flex items-center gap-1.5 cursor-pointer transition shadow-sm"
                                   >
                                     <Printer className="h-3 w-3" /> Cetak Kartu Santri Keanggotaan ⎙
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openStudentBillingReceipt(s)}
+                                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-extrabold flex items-center gap-1.5 cursor-pointer transition shadow-sm"
+                                  >
+                                    <FileText className="h-3 w-3" /> Rekap Tagihan Santri (A4 PDF) ⎙
                                   </button>
                                 </div>
                               </div>
@@ -5914,7 +5975,7 @@ export default function AdminDashboard({
                                 Detail
                               </button>
                               <button
-                                onClick={() => setEditingStudent(alumni)}
+                                onClick={() => openEditStudent(alumni)}
                                 className="p-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition cursor-pointer"
                                 title="Edit Alumni"
                               >
@@ -6031,7 +6092,7 @@ export default function AdminDashboard({
                           onClick={() => {
                             const target = selectedAlumniForDetails;
                             setSelectedAlumniForDetails(null);
-                            setEditingStudent(target);
+                            if (target) openEditStudent(target);
                           }}
                           className="flex-1 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-xl cursor-pointer text-xs transition text-center border border-emerald-200 flex items-center justify-center gap-1"
                         >
@@ -6820,6 +6881,19 @@ export default function AdminDashboard({
                                             try {
                                               localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
                                             } catch (err) {}
+                                            markLocalDataChanged('students');
+                                            fetch('/api/students', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify(updatedStudents)
+                                            }).catch(err => console.warn('Server sync room remove error:', err));
+                                            if (isSupabaseConfigured()) {
+                                              pushAllStudentsToSupabase(updatedStudents).catch(() => {});
+                                            }
+                                            setTimeout(() => {
+                                              window.dispatchEvent(new Event('pesantren_db_sync'));
+                                              window.dispatchEvent(new Event('storage'));
+                                            }, 0);
 
                                             // If this student was Ketua Kamar, clear ketua fields
                                             if (isKetua) {
@@ -6830,6 +6904,9 @@ export default function AdminDashboard({
                                               try {
                                                 localStorage.setItem('pesantren_rooms', JSON.stringify(updatedRooms));
                                               } catch (err) {}
+                                              if (isSupabaseConfigured()) {
+                                                pushRoomToSupabase(updatedRoom).catch(() => {});
+                                              }
                                             }
 
                                             showAlert('success', `Santri ${student.fullName} telah dikeluarkan dari kamar ${editingRoom.name}.`);
@@ -6898,13 +6975,24 @@ export default function AdminDashboard({
                 Akses buku kas terpisah untuk memantau pendapatan SPP putra/putri dan pengeluaran operasional bendahara putra maupun bendahara putri.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveTab('laporan_keuangan')}
-              className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-xl text-xs transition cursor-pointer shadow-md shrink-0 flex items-center gap-1.5"
-            >
-              <span>Buka Menu Laporan Keuangan ↗</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => openStudentBillingReceipt(null)}
+                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold rounded-xl text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 border border-emerald-400"
+                title="Cetak lembar A4 rekapitulasi tagihan dan pembayaran santri"
+              >
+                <Printer className="h-4 w-4 text-amber-300" />
+                <span>Cetak Rekap Tagihan Santri (A4 PDF) ⎙</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('laporan_keuangan')}
+                className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-xl text-xs transition cursor-pointer shadow-md flex items-center gap-1.5"
+              >
+                <span>Buka Menu Laporan Keuangan ↗</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-200">
@@ -7620,6 +7708,18 @@ export default function AdminDashboard({
                         title="Kirim Rincian Tagihan ke WhatsApp Wali Santri"
                       >
                         WA Wali
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = students.find(s => s.id === b.studentId || (s.nis && b.nis && s.nis === b.nis) || (s.fullName && b.studentName && s.fullName.toLowerCase() === b.studentName.toLowerCase())) || null;
+                          openStudentBillingReceipt(target);
+                        }}
+                        className="text-amber-800 hover:text-amber-950 font-bold text-[9px] flex items-center justify-center gap-1 mt-1 w-full cursor-pointer bg-amber-50 hover:bg-amber-100 py-0.5 px-1 rounded border border-amber-200"
+                        title="Cetak lembar rekapitulasi semua tagihan santri ini (A4 PDF)"
+                      >
+                        Rekap Santri A4 ⎙
                       </button>
 
                       {b.status === 'Lunas' && (
@@ -8492,6 +8592,204 @@ export default function AdminDashboard({
               </button>
             </div>
           </h3>
+
+          {/* KONEKSI & SINKRONISASI DATABASE SUPABASE CLOUD (MULTI-PERANGKAT) */}
+          <div className="mb-6 p-5 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-900 via-teal-950 to-slate-950 text-white shadow-lg space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <Database className="h-6 w-6 text-amber-400 shrink-0" />
+                <div>
+                  <h4 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
+                    Koneksi & Sinkronisasi Database Supabase Cloud
+                    <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                      isCloudConnected 
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' 
+                        : 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                    }`}>
+                      {isCloudConnected ? '● Terkoneksi Realtime' : '○ Belum Dikonfigurasi'}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-emerald-200/90 leading-relaxed">
+                    Pastikan seluruh data (santri, tagihan, kamar, perizinan) tersinkron otomatis ke tabel Supabase agar perubahan seketika tampak di semua HP, laptop, dan tablet.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setShowManualDbConfig(!showManualDbConfig)}
+                  className="px-3 py-1.5 bg-emerald-800/80 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition border border-emerald-600/60 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Settings className="h-3.5 w-3.5 text-amber-300" />
+                  <span>{showManualDbConfig ? 'Tutup Form Kredensial' : 'Kelola Kredensial URL & Key'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* URL & Anon Key Inputs (collapsible or displayed when not configured) */}
+            {(showManualDbConfig || !isCloudConnected) && (
+              <div className="p-4 bg-slate-900/90 rounded-xl border border-emerald-700/60 space-y-3 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-emerald-300 uppercase mb-1">
+                      Supabase Project URL
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://your-project.supabase.co"
+                      value={supabaseUrlInput}
+                      onChange={(e) => setSupabaseUrlInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:ring-1 focus:ring-emerald-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-emerald-300 uppercase mb-1">
+                      Supabase Anon / Public Key (JWT)
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      value={supabaseKeyInput}
+                      onChange={(e) => setSupabaseKeyInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:ring-1 focus:ring-emerald-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={supabaseTestStatus.loading}
+                      onClick={async () => {
+                        setSupabaseTestStatus({ loading: true, message: 'Menguji koneksi...', success: null });
+                        await saveSupabaseCredentialsLocally(supabaseUrlInput, supabaseKeyInput);
+                        const res = await testSupabaseConnection();
+                        setSupabaseTestStatus({ loading: false, message: res.message, success: res.success });
+                        if (res.success) {
+                          setIsCloudConnected(true);
+                          showAlert('success', 'Uji koneksi berhasil! Database Supabase terhubung.');
+                        } else {
+                          showAlert('danger', res.message);
+                        }
+                      }}
+                      className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-bold transition cursor-pointer border border-slate-600 flex items-center gap-1.5"
+                    >
+                      {supabaseTestStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      <span>Uji Koneksi Supabase</span>
+                    </button>
+
+                    {supabaseTestStatus.message && (
+                      <span className={`text-[11px] font-bold ${supabaseTestStatus.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {supabaseTestStatus.message}
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!supabaseUrlInput.trim() || !supabaseKeyInput.trim()) {
+                        showAlert('danger', 'Harap isi URL dan Anon Key Supabase terlebih dahulu.');
+                        return;
+                      }
+                      await saveSupabaseCredentialsLocally(supabaseUrlInput, supabaseKeyInput);
+                      const res = await testSupabaseConnection();
+                      if (res.success) {
+                        setIsCloudConnected(true);
+                        showAlert('success', 'Kredensial Supabase berhasil disimpan dan disiarkan ke semua perangkat!');
+                        window.dispatchEvent(new Event('pesantren_db_sync'));
+                      } else {
+                        showAlert('info', `Kredensial disimpan, namun respon Supabase: ${res.message}`);
+                      }
+                    }}
+                    className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold rounded-lg text-xs transition cursor-pointer shadow-md flex items-center gap-1.5"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    <span>Simpan & Aktifkan Sinkronisasi Semua Perangkat</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Action Cloud Sync Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="text-[11px] text-emerald-200 font-medium flex items-center gap-2">
+                <span>🔄 Realtime Listener: Aktif di port WebSocket</span>
+                <span className="text-emerald-400">•</span>
+                <span>Auto-Polling: Tiap 5 Detik</span>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  disabled={supabasePushStatus.loading || !isCloudConnected}
+                  onClick={async () => {
+                    setSupabasePushStatus({ loading: true, message: 'Mengunggah seluruh data...', success: null });
+                    try {
+                      const res = await pushAllLocalDataToSupabase({
+                        students,
+                        bills,
+                        news,
+                        announcements,
+                        ppdbList,
+                        rooms: rooms || [],
+                        settings,
+                        events
+                      });
+                      setSupabasePushStatus({ loading: false, message: res.message, success: res.success });
+                      if (res.success) {
+                        showAlert('success', `Berhasil mengunggah & menyinkronkan seluruh data lokal ke tabel Supabase (${res.count} data)!`);
+                        window.dispatchEvent(new Event('pesantren_db_sync'));
+                      } else {
+                        showAlert('danger', res.message);
+                      }
+                    } catch (e: any) {
+                      setSupabasePushStatus({ loading: false, message: 'Gagal mengunggah', success: false });
+                      showAlert('danger', 'Gagal mengunggah: ' + String(e));
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-sm flex items-center gap-1.5 border border-emerald-500/50"
+                  title="Unggah seluruh santri, tagihan, kamar, dan pengaturan ke tabel Supabase"
+                >
+                  {supabasePushStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5 text-amber-300" />}
+                  <span>Unggah Semua Data Lokal ke Supabase ☁️</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={supabasePullStatus.loading || !isCloudConnected}
+                  onClick={async () => {
+                    setSupabasePullStatus({ loading: true, message: 'Menarik data...', success: null });
+                    try {
+                      const remoteStd = await syncStudentsWithSupabase(students);
+                      if (Array.isArray(remoteStd) && remoteStd.length > 0) {
+                        setStudents(remoteStd);
+                        localStorage.setItem('pesantren_students', JSON.stringify(remoteStd));
+                      }
+                      const remoteB = await syncBillsWithSupabase(bills);
+                      if (Array.isArray(remoteB)) {
+                        setBills(remoteB);
+                        localStorage.setItem('pesantren_bills', JSON.stringify(remoteB));
+                      }
+                      setSupabasePullStatus({ loading: false, message: 'Selesai', success: true });
+                      showAlert('success', 'Data terbaru berhasil ditarik dari Supabase dan diperbarui di layar!');
+                      window.dispatchEvent(new Event('pesantren_db_sync'));
+                    } catch (e: any) {
+                      setSupabasePullStatus({ loading: false, message: 'Gagal menarik', success: false });
+                      showAlert('danger', 'Gagal menarik data dari Supabase: ' + String(e));
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-teal-800 hover:bg-teal-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-sm flex items-center gap-1.5 border border-teal-600/50"
+                  title="Tarik data santri & tagihan terbaru dari tabel Supabase"
+                >
+                  {supabasePullStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 text-emerald-300" />}
+                  <span>Tarik Data Terbaru dari Supabase ⟳</span>
+                </button>
+              </div>
+            </div>
+          </div>
 
           <form onSubmit={(e) => e.preventDefault()} className="space-y-4 text-xs">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -12329,11 +12627,27 @@ export default function AdminDashboard({
                 body: JSON.stringify(updatedStudentsList)
               }).catch(err => console.warn('Server update students error:', err));
 
+              fetch('/api/bills', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedBillsList)
+              }).catch(err => console.warn('Server update bills error:', err));
+
               if (isSupabaseConfigured()) {
                 pushStudentToSupabase(updatedStudent).catch(err => console.error('Cloud update student error:', err));
+                pushAllStudentsToSupabase(updatedStudentsList).catch(err => console.error('Cloud update all students error:', err));
+                if (updatedStudent.status === 'Alumni') {
+                  pushAlumniToSupabase(updatedStudent).catch(err => console.error('Cloud update alumni error:', err));
+                }
               }
               setTimeout(() => {
                 window.dispatchEvent(new Event('pesantren_db_sync'));
+                window.dispatchEvent(new Event('storage'));
+                try {
+                  const bc = new BroadcastChannel('pesantren_multi_device_sync');
+                  bc.postMessage({ type: 'sync', entity: 'students', timestamp: Date.now() });
+                  bc.close();
+                } catch (e) {}
               }, 0);
 
               // Send automatic WhatsApp notice on status update (e.g. Alumni)
@@ -12834,6 +13148,17 @@ export default function AdminDashboard({
           </div>
         </div>
       )}
+
+      {/* MODAL: CETAK REKAPITULASI TAGIHAN SANTRI (A4 PDF) */}
+      <StudentBillingReceiptModal
+        isOpen={isStudentBillingReceiptModalOpen}
+        onClose={() => setIsStudentBillingReceiptModalOpen(false)}
+        student={selectedStudentForBillingReceipt}
+        allStudents={students}
+        onSelectStudent={(std) => setSelectedStudentForBillingReceipt(std)}
+        bills={bills}
+        settings={settings}
+      />
 
       {/* MODAL: CETAK KWITANSI RESMI (ADMIN PERSPECTIVE APPROVED) */}
       {receiptBill && (

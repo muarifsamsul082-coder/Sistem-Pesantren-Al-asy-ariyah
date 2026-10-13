@@ -1857,7 +1857,7 @@ export function formatStudentToSupabasePayload(s: Student) {
     email: s.email || null,
     address: s.address || null,
     status: s.status || 'Aktif',
-    kamar: s.kamar || null,
+    kamar: s.kamar !== undefined ? (s.kamar || null) : null,
     photo_url: s.photoUrl || null,
     birth_place: s.birthPlace || null,
     birth_date: s.birthDate || null,
@@ -1874,7 +1874,8 @@ export function formatStudentToSupabasePayload(s: Student) {
     health_logs: Array.isArray(s.healthLogs) ? s.healthLogs : [],
     alumni_id: s.alumniId || null,
     tahun_keluar: s.tahunKeluar || null,
-    alumni_reason: s.alumniReason || null
+    alumni_reason: s.alumniReason || null,
+    updated_at: new Date().toISOString()
   };
 }
 
@@ -1895,7 +1896,8 @@ export async function syncStudentsWithSupabase(studentsList: Student[]): Promise
 
   if (!client) return cleanLocalList;
 
-  if (isLocalDataRecentlyChanged('students')) {
+  // If local data was modified in this browser session in the last 6 seconds, push local list to remote
+  if (isLocalDataRecentlyChanged('students', 6000)) {
     pushAllStudentsToSupabase(cleanLocalList).catch(e => console.error('Auto-push recent students error:', e));
     return cleanLocalList;
   }
@@ -1912,90 +1914,69 @@ export async function syncStudentsWithSupabase(studentsList: Student[]): Promise
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         staleInRemote.forEach((stale: any) => {
-          client.from('students').delete().eq('id', stale.id).catch(() => {});
+          Promise.resolve(client.from('students').delete().eq('id', stale.id)).catch(() => {});
         });
       }
 
       const activeRemoteData = data.filter((item: any) => item && item.id && !deletedIds.has(item.id));
+
+      const localMap = new Map<string, Student>();
+      cleanLocalList.forEach(s => { if (s && s.id) localMap.set(s.id, s); });
 
       const remoteMapped: Student[] = activeRemoteData.map((item: any) => {
         const cFormal = item.class_formal || item.class_sore || '';
         const cMadrasah = item.class_madrasah || item.class_pagi || '';
         const cComposite = item.class || item.class_name || (cFormal && cMadrasah ? `${cFormal} • ${cMadrasah}` : cMadrasah || cFormal || '-');
 
+        const local = localMap.get(item.id);
+
         return {
           id: item.id,
-          nis: item.nis || '',
-          fullName: item.full_name || item.name || '',
-          gender: (item.gender as any) || 'Laki-laki',
-          classPagi: cMadrasah,
-          classSore: cFormal,
-          class: cComposite,
-          classMadrasah: cMadrasah,
-          classFormal: cFormal,
-          akunMadrasah: item.akun_madrasah,
-          parentName: item.parent_name || '',
-          parentPhone: item.parent_phone || item.phone || '',
-          guardianName: item.guardian_name,
-          email: item.email || '',
-          address: item.address || '',
-          status: (item.status as any) || 'Aktif',
-          kamar: item.kamar || '',
-          photoUrl: item.photo_url,
-          birthPlace: item.birth_place,
-          birthDate: item.birth_date,
-          kk: item.kk,
-          nik: item.nik,
-          fatherName: item.father_name,
-          motherName: item.mother_name,
-          bloodType: item.blood_type,
-          healthHistory: item.health_history,
-          currentHafalan: item.current_hafalan || '0 Juz',
-          tahfidzLogs: Array.isArray(item.tahfidz_logs) ? item.tahfidz_logs : [],
-          securityLogs: Array.isArray(item.security_logs) ? item.security_logs : [],
-          disciplineLogs: Array.isArray(item.discipline_logs) ? item.discipline_logs : [],
-          healthLogs: Array.isArray(item.health_logs) ? item.health_logs : [],
-          alumniId: item.alumni_id,
-          tahunKeluar: item.tahun_keluar,
-          alumniReason: item.alumni_reason
+          nis: item.nis || (local ? local.nis : ''),
+          fullName: item.full_name || item.name || (local ? local.fullName : ''),
+          gender: (item.gender as any) || (local ? local.gender : 'Laki-laki'),
+          classPagi: cMadrasah || (local ? local.classPagi : ''),
+          classSore: cFormal || (local ? local.classSore : ''),
+          class: cComposite || (local ? local.class : '-'),
+          classMadrasah: cMadrasah || (local ? local.classMadrasah : ''),
+          classFormal: cFormal || (local ? local.classFormal : ''),
+          akunMadrasah: item.akun_madrasah !== undefined ? item.akun_madrasah : (local ? local.akunMadrasah : undefined),
+          parentName: item.parent_name !== undefined ? (item.parent_name || '') : (local ? local.parentName : ''),
+          parentPhone: item.parent_phone || item.phone || (local ? local.parentPhone : ''),
+          guardianName: item.guardian_name !== undefined ? item.guardian_name : (local ? local.guardianName : undefined),
+          guardianPhone: item.guardian_phone || (local ? (local as any).guardianPhone : undefined),
+          email: item.email !== undefined ? (item.email || '') : (local ? local.email : ''),
+          address: item.address !== undefined ? (item.address || '') : (local ? local.address : ''),
+          status: (item.status as any) || (local ? local.status : 'Aktif'),
+          kamar: item.kamar !== undefined ? (item.kamar || '') : (local ? (local.kamar || '') : ''),
+          photoUrl: item.photo_url !== undefined ? item.photo_url : (local ? local.photoUrl : undefined),
+          birthPlace: item.birth_place !== undefined ? item.birth_place : (local ? local.birthPlace : undefined),
+          birthDate: item.birth_date !== undefined ? item.birth_date : (local ? local.birthDate : undefined),
+          kk: item.kk !== undefined ? item.kk : (local ? local.kk : undefined),
+          nik: item.nik !== undefined ? item.nik : (local ? local.nik : undefined),
+          fatherName: item.father_name !== undefined ? item.father_name : (local ? local.fatherName : undefined),
+          motherName: item.mother_name !== undefined ? item.mother_name : (local ? local.motherName : undefined),
+          bloodType: item.blood_type !== undefined ? item.blood_type : (local ? local.bloodType : undefined),
+          healthHistory: item.health_history !== undefined ? item.health_history : (local ? local.healthHistory : undefined),
+          currentHafalan: item.current_hafalan || (local ? local.currentHafalan : '0 Juz'),
+          tahfidzLogs: (Array.isArray(item.tahfidz_logs) && item.tahfidz_logs.length > 0) ? item.tahfidz_logs : (local?.tahfidzLogs || []),
+          securityLogs: (Array.isArray(item.security_logs) && item.security_logs.length > 0) ? item.security_logs : (local?.securityLogs || []),
+          disciplineLogs: (Array.isArray(item.discipline_logs) && item.discipline_logs.length > 0) ? item.discipline_logs : (local?.disciplineLogs || []),
+          healthLogs: (Array.isArray(item.health_logs) && item.health_logs.length > 0) ? item.health_logs : (local?.healthLogs || []),
+          alumniId: item.alumni_id || (local ? local.alumniId : undefined),
+          tahunKeluar: item.tahun_keluar || (local ? local.tahunKeluar : undefined),
+          alumniReason: item.alumni_reason || (local ? local.alumniReason : undefined)
         };
       });
 
-      // Intelligently merge remote with local rich fields
-      const map = new Map<string, Student>();
-      cleanLocalList.forEach(s => { if (s && s.id) map.set(s.id, s); });
-
-      remoteMapped.forEach(remote => {
-        const local = map.get(remote.id);
-        if (!local) {
-          map.set(remote.id, remote);
-        } else {
-          map.set(remote.id, {
-            ...local,
-            ...remote,
-            // Keep richer local logs if remote returned empty array
-            tahfidzLogs: (remote.tahfidzLogs && remote.tahfidzLogs.length > 0) ? remote.tahfidzLogs : (local.tahfidzLogs || []),
-            securityLogs: (remote.securityLogs && remote.securityLogs.length > 0) ? remote.securityLogs : (local.securityLogs || []),
-            disciplineLogs: (remote.disciplineLogs && remote.disciplineLogs.length > 0) ? remote.disciplineLogs : (local.disciplineLogs || []),
-            healthLogs: (remote.healthLogs && remote.healthLogs.length > 0) ? remote.healthLogs : (local.healthLogs || []),
-            photoUrl: remote.photoUrl || local.photoUrl,
-            kk: remote.kk || local.kk,
-            nik: remote.nik || local.nik,
-            birthPlace: remote.birthPlace || local.birthPlace,
-            birthDate: remote.birthDate || local.birthDate,
-            fatherName: remote.fatherName || local.fatherName,
-            motherName: remote.motherName || local.motherName,
-          });
-        }
-      });
-
-      // Check for locally added students not yet in cloud
+      // Check if there are newly added local students not yet in cloud
       const missingInRemote = cleanLocalList.filter(l => !data.some((r: any) => r.id === l.id));
-      if (missingInRemote.length > 0) {
+      if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('students', 15000)) {
         pushAllStudentsToSupabase(missingInRemote).catch(() => {});
+        return [...remoteMapped, ...missingInRemote];
       }
 
-      return Array.from(map.values());
+      return remoteMapped;
     } else if (cleanLocalList.length > 0) {
       await pushAllStudentsToSupabase(cleanLocalList);
     }
@@ -2011,7 +1992,7 @@ export async function pushStudentToSupabase(student: Student): Promise<void> {
   if (!client) return;
   try {
     const payload = formatStudentToSupabasePayload(student);
-    const { error } = await client.from('students').upsert(payload);
+    const { error } = await client.from('students').upsert(payload, { onConflict: 'id' });
     if (error) {
       console.warn('Upsert student failed with full payload, trying safe core payload:', error);
       const safePayload = {
@@ -2026,11 +2007,12 @@ export async function pushStudentToSupabase(student: Student): Promise<void> {
         phone: (student as any).phone || student.parentPhone || null,
         address: student.address || null,
         status: student.status || 'Aktif',
-        kamar: student.kamar || null,
+        kamar: student.kamar !== undefined ? (student.kamar || null) : null,
         parent_name: student.parentName || null,
-        parent_phone: student.parentPhone || null
+        parent_phone: student.parentPhone || null,
+        updated_at: new Date().toISOString()
       };
-      const { error: safeErr } = await client.from('students').upsert(safePayload);
+      const { error: safeErr } = await client.from('students').upsert(safePayload, { onConflict: 'id' });
       if (safeErr) {
         console.warn('Safe payload failed, trying minimal core payload:', safeErr);
         await client.from('students').upsert({
@@ -2038,8 +2020,9 @@ export async function pushStudentToSupabase(student: Student): Promise<void> {
           nis: student.nis || 'UNTITLED',
           full_name: student.fullName,
           gender: student.gender || 'Laki-laki',
-          status: student.status || 'Aktif'
-        });
+          status: student.status || 'Aktif',
+          kamar: student.kamar || null
+        }, { onConflict: 'id' });
       }
     }
   } catch (err) {
@@ -2052,7 +2035,7 @@ export async function pushAllStudentsToSupabase(studentsList: Student[]): Promis
   if (!client || studentsList.length === 0) return;
   try {
     const payload = studentsList.map(formatStudentToSupabasePayload);
-    const { error } = await client.from('students').upsert(payload);
+    const { error } = await client.from('students').upsert(payload, { onConflict: 'id' });
     if (error) {
       console.warn('Bulk upsert students failed with full payload, trying safe core payloads:', error);
       const corePayload = studentsList.map(s => ({
@@ -2067,11 +2050,12 @@ export async function pushAllStudentsToSupabase(studentsList: Student[]): Promis
         phone: (s as any).phone || s.parentPhone || null,
         address: s.address || null,
         status: s.status || 'Aktif',
-        kamar: s.kamar || null,
+        kamar: s.kamar !== undefined ? (s.kamar || null) : null,
         parent_name: s.parentName || null,
-        parent_phone: s.parentPhone || null
+        parent_phone: s.parentPhone || null,
+        updated_at: new Date().toISOString()
       }));
-      await client.from('students').upsert(corePayload);
+      await client.from('students').upsert(corePayload, { onConflict: 'id' });
     }
   } catch (err) {
     console.error('Error pushing all students to Supabase:', err);
@@ -2297,7 +2281,7 @@ export function formatBillToSupabasePayload(b: Bill) {
     student_name: b.studentName,
     nis: b.nis || null,
     title: b.title,
-    amount: b.amount,
+    amount: Number(b.amount) || 0,
     due_date: b.dueDate,
     status: b.status,
     category: b.category || null,
@@ -2307,14 +2291,15 @@ export function formatBillToSupabasePayload(b: Bill) {
     sender_bank: b.senderBank || null,
     sender_account_number: b.senderAccountNumber || null,
     verification_status: b.verificationStatus || null,
-    verification_logs: b.verificationLogs || []
+    verification_logs: Array.isArray(b.verificationLogs) ? b.verificationLogs : [],
+    updated_at: new Date().toISOString()
   };
 }
 
 export async function syncBillsWithSupabase(billsList: Bill[]): Promise<Bill[]> {
   const client = getSupabaseClient();
   if (!client) return billsList;
-  if (isLocalDataRecentlyChanged('bills')) {
+  if (isLocalDataRecentlyChanged('bills', 6000)) {
     pushAllBillsToSupabase(billsList).catch(e => console.error('Auto-push recent bills error:', e));
     return billsList;
   }
@@ -2353,7 +2338,7 @@ export async function syncBillsWithSupabase(billsList: Bill[]): Promise<Bill[]> 
 
       const cleanRemote = remoteMapped.filter(b => b && !deletedIds.includes(b.id));
       const missingInRemote = billsList.filter(l => l && !deletedIds.includes(l.id) && !data.some((r: any) => r.id === l.id));
-      if (missingInRemote.length > 0) {
+      if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('bills', 15000)) {
         await pushAllBillsToSupabase(missingInRemote);
         return [...cleanRemote, ...missingInRemote];
       }
@@ -2373,7 +2358,7 @@ export async function pushBillToSupabase(bill: Bill): Promise<void> {
   if (!client) return;
   try {
     const payload = formatBillToSupabasePayload(bill);
-    const { error } = await client.from('bills').upsert(payload);
+    const { error } = await client.from('bills').upsert(payload, { onConflict: 'id' });
     if (error) {
       console.warn('Upsert bill failed with full payload, trying safe core payload:', error);
       await client.from('bills').upsert({
@@ -2387,8 +2372,9 @@ export async function pushBillToSupabase(bill: Bill): Promise<void> {
         status: bill.status || 'Belum Lunas',
         category: bill.category || 'SPP Syahriyah',
         payment_date: bill.paymentDate || null,
-        payment_method: bill.paymentMethod || null
-      });
+        payment_method: bill.paymentMethod || null,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
     }
   } catch (err) {
     console.error('Failed to save bill to Supabase:', err);
@@ -2400,7 +2386,7 @@ export async function pushAllBillsToSupabase(billsList: Bill[]): Promise<void> {
   if (!client || billsList.length === 0) return;
   try {
     const payload = billsList.map(formatBillToSupabasePayload);
-    await client.from('bills').upsert(payload);
+    await client.from('bills').upsert(payload, { onConflict: 'id' });
   } catch (err) {
     console.error('Error pushing all bills to Supabase:', err);
   }

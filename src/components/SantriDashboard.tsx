@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Student, Bill, Announcement, PortalSettings, SecurityLog, compressImage } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
+import { StudentBillingReceiptModal } from './StudentBillingReceiptModal';
 import { isSupabaseConfigured, pushStudentToSupabase, pushBillToSupabase, markLocalDataChanged } from '../lib/supabase';
 import { generateDynamicQrisString, getUniqueTransferCode, validateQrisString, QrisValidationResult, generateQrisQrCodeWithLogo, getBillAmountBreakdown } from '../lib/qris';
 
@@ -59,6 +60,7 @@ export default function SantriDashboard({
 }: SantriDashboardProps) {
   const [selectedBill, setSelectedBill] = React.useState<Bill | null>(null);
   const [receiptBill, setReceiptBill] = React.useState<Bill | null>(null);
+  const [isStudentBillingReceiptModalOpen, setIsStudentBillingReceiptModalOpen] = React.useState(false);
   const [bank, setBank] = React.useState('Transfer BRI');
   const [proofUrl, setProofUrl] = React.useState('');
   const [success, setSuccess] = React.useState(false);
@@ -558,10 +560,21 @@ export default function SantriDashboard({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left Column: Syahriyah SPP & Pembayaran (col-span-7) */}
             <div className="lg:col-span-7 bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 space-y-4 animate-fade-in text-left">
-              <h3 className="font-bold text-base text-emerald-950 flex items-center gap-1.5 border-b border-gray-100 pb-2">
-                <CreditCard className="h-4 w-4 text-emerald-750" />
-                Syahriyah SPP & Pembayaran Buku Kitab
-              </h3>
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2 flex-wrap gap-2">
+                <h3 className="font-bold text-base text-emerald-950 flex items-center gap-1.5">
+                  <CreditCard className="h-4 w-4 text-emerald-750" />
+                  Syahriyah SPP & Pembayaran Buku Kitab
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsStudentBillingReceiptModalOpen(true)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-650 hover:to-teal-750 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer border border-emerald-600 active:scale-95"
+                  title="Cetak lembar rekapitulasi semua tagihan & status pembayaran (A4 PDF)"
+                >
+                  <Printer className="h-3.5 w-3.5 text-amber-300" />
+                  <span>Cetak Rekap Tagihan (A4 PDF) ⎙</span>
+                </button>
+              </div>
 
               {studentBills.length === 0 ? (
                 <p className="text-center py-6 text-xs text-gray-400">Belum ada rincian tagihan beredar untuk akun Anda saat ini.</p>
@@ -1712,6 +1725,15 @@ export default function SantriDashboard({
           </div>
         </div>
       )}
+
+      {/* MODAL: CETAK REKAPITULASI TAGIHAN SANTRI (A4 PDF) */}
+      <StudentBillingReceiptModal
+        isOpen={isStudentBillingReceiptModalOpen}
+        onClose={() => setIsStudentBillingReceiptModalOpen(false)}
+        student={student}
+        bills={bills}
+        settings={settings}
+      />
 
     </div>
   );

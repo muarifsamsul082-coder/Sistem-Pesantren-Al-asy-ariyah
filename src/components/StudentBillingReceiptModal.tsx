@@ -307,7 +307,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                 REKAPITULASI TAGIHAN & PEMBAYARAN SANTRI
               </h3>
               <p className="text-[11px] text-gray-500 mt-1">
-                Tahun Akademik {settings.academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`} • Status Kesiswaan: {activeStudent.status}
+                Tahun Akademik {(settings as any).academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`} • Status Kesiswaan: {activeStudent.status}
               </p>
             </div>
 
@@ -455,8 +455,8 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                             </td>
                             <td className="py-2 px-3">
                               <strong className="block text-slate-900 leading-tight">{bill.title}</strong>
-                              {bill.notes && (
-                                <span className="text-[9px] text-gray-400 block mt-0.5">{bill.notes}</span>
+                              {(bill as any).notes && (
+                                <span className="text-[9px] text-gray-400 block mt-0.5">{(bill as any).notes}</span>
                               )}
                             </td>
                             <td className="py-2 px-3 text-[11px] text-gray-600 font-medium">
@@ -533,7 +533,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                 2. Untuk tagihan yang belum lunas, pembayaran dapat dilakukan secara tunai di kantor bendahara pesantren atau via transfer ke rekening resmi:
                 {Array.isArray(settings.rekeningList) && settings.rekeningList.length > 0 ? (
                   <strong className="text-emerald-900 block mt-0.5">
-                    {settings.rekeningList.map(r => `• ${r.bank}: ${r.accountNumber} a.n. ${r.holderName}`).join(' | ')}
+                    {settings.rekeningList.map(r => `• ${r.bankName || (r as any).bank || 'Bank'}: ${r.accountNumber} a.n. ${r.accountName || (r as any).holderName || "Pesantren"}`).join(' | ')}
                   </strong>
                 ) : (
                   <strong className="text-emerald-900 block mt-0.5">
