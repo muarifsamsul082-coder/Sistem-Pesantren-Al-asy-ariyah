@@ -32,6 +32,9 @@ import {
   syncExpensesWithSupabase, 
   pushExpenseToSupabase, 
   deleteExpenseFromSupabase,
+  markIdAsDeleted,
+  getDeletedIdsSet,
+  markLocalDataChanged,
   isSupabaseConfigured 
 } from '../lib/supabase';
 
@@ -42,6 +45,8 @@ interface FinancialReportPanelProps {
   currentAdminName?: string;
   showAlert: (type: 'success' | 'danger', message: string) => void;
   logAdminActivity: (actionType: string, description: string, targetId?: string, targetName?: string) => void;
+  onEditBill?: (bill: Bill) => void;
+  onDeleteBill?: (billId: string, studentName?: string, amount?: number) => void;
 }
 
 export default function FinancialReportPanel({
@@ -50,83 +55,135 @@ export default function FinancialReportPanel({
   settings,
   currentAdminName = 'Admin Bendahara',
   showAlert,
-  logAdminActivity
+  logAdminActivity,
+  onEditBill,
+  onDeleteBill
 }: FinancialReportPanelProps) {
   // Expenses state
   const [expenses, setExpenses] = useState<FinancialExpense[]>(() => {
+    const deletedIds = getDeletedIdsSet('expenses');
     try {
       const saved = localStorage.getItem('pesantren_financial_expenses');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(e => e && e.id && !deletedIds.has(e.id));
+        }
+      }
     } catch (e) {
       console.error(e);
     }
     // Default initial mock/seed expenses so the report is immediately insightful
     return [
       {
-        id: 'exp-init-1',
+        id: 'exp-2026-01',
         bendaharaType: 'putra',
         bendaharaName: 'Ustadz M. Fauzan (Bendahara Putra)',
-        date: '2026-08-05',
+        date: '2026-10-02',
         category: 'Konsumsi & Dapur',
-        amount: 3500000,
-        description: 'Belanja beras 3 kuintal & lauk pauk dapur asrama putra',
-        recipient: 'Toko Beras Barokah',
-        createdAt: '2026-08-05T08:30:00Z'
+        amount: 4250000,
+        description: 'Belanja beras 4 kuintal & bahan sembako dapur santri putra',
+        recipient: 'Toko Beras Barokah Modung',
+        createdAt: '2026-10-02T08:30:00Z'
       },
       {
-        id: 'exp-init-2',
+        id: 'exp-2026-02',
         bendaharaType: 'putri',
         bendaharaName: 'Ustadzah Siti Aminah (Bendahara Putri)',
-        date: '2026-08-06',
+        date: '2026-10-03',
         category: 'Konsumsi & Dapur',
-        amount: 3200000,
-        description: 'Belanja bahan pangan sayuran & sembako dapur santri putri',
-        recipient: 'Pasar Tradisional Gayam',
-        createdAt: '2026-08-06T09:00:00Z'
+        amount: 3800000,
+        description: 'Pengadaan sayur mayur, lauk pauk & gas elpiji dapur asrama putri',
+        recipient: 'Pasar Tradisional Modung',
+        createdAt: '2026-10-03T09:00:00Z'
       },
       {
-        id: 'exp-init-3',
+        id: 'exp-2026-03',
         bendaharaType: 'putra',
         bendaharaName: 'Ustadz M. Fauzan (Bendahara Putra)',
-        date: '2026-08-10',
+        date: '2026-10-05',
         category: 'Operasional Listrik & Air',
-        amount: 1450000,
-        description: 'Pembayaran token listrik PLN gedung asrama putra & pompa air',
+        amount: 1650000,
+        description: 'Pembelian token listrik PLN gedung asrama putra & pompa air wudhu',
         recipient: 'PLN Persero',
-        createdAt: '2026-08-10T10:15:00Z'
+        createdAt: '2026-10-05T10:15:00Z'
       },
       {
-        id: 'exp-init-4',
+        id: 'exp-2026-04',
         bendaharaType: 'putri',
         bendaharaName: 'Ustadzah Siti Aminah (Bendahara Putri)',
-        date: '2026-08-11',
+        date: '2026-10-06',
         category: 'Operasional Listrik & Air',
-        amount: 1200000,
-        description: 'Pembayaran token listrik PLN komplek asrama putri Khadijah',
+        amount: 1350000,
+        description: 'Pembayaran token PLN asrama santri putri Khadijah & kamar mandi',
         recipient: 'PLN Persero',
-        createdAt: '2026-08-11T11:00:00Z'
+        createdAt: '2026-10-06T11:00:00Z'
       },
       {
-        id: 'exp-init-5',
+        id: 'exp-2026-05',
         bendaharaType: 'putra',
         bendaharaName: 'Ustadz M. Fauzan (Bendahara Putra)',
-        date: '2026-08-15',
+        date: '2026-10-08',
         category: 'Sarana & Prasarana',
         amount: 850000,
-        description: 'Perbaikan instalasi kran & genteng kamar Al-Ghazali putra',
+        description: 'Perbaikan instalasi kran air tempat wudhu & perapihan genteng putra',
         recipient: 'TB. Sinar Abadi',
-        createdAt: '2026-08-15T14:20:00Z'
+        createdAt: '2026-10-08T14:20:00Z'
       },
       {
-        id: 'exp-init-6',
+        id: 'exp-2026-06',
         bendaharaType: 'putri',
         bendaharaName: 'Ustadzah Siti Aminah (Bendahara Putri)',
-        date: '2026-08-18',
+        date: '2026-10-09',
+        category: 'Sarana & Prasarana',
+        amount: 480000,
+        description: 'Penggantian lampu LED hemat energi & perbaikan kipas angin asrama putri',
+        recipient: 'Toko Elektronik Makmur',
+        createdAt: '2026-10-09T13:40:00Z'
+      },
+      {
+        id: 'exp-2026-07',
+        bendaharaType: 'putra',
+        bendaharaName: 'Ustadz M. Fauzan (Bendahara Putra)',
+        date: '2026-10-10',
         category: 'Kitab & Pendidikan',
-        amount: 1750000,
-        description: 'Pengadaan kitab Fathul Qorib & jurumiyah kelas 1A MI/MTs putri',
+        amount: 1850000,
+        description: 'Pengadaan kitab Fathul Qorib & Jurumiyah santri diniyah wustha',
         recipient: 'Penerbit Menara Kudus',
-        createdAt: '2026-08-18T13:40:00Z'
+        createdAt: '2026-10-10T10:00:00Z'
+      },
+      {
+        id: 'exp-2026-08',
+        bendaharaType: 'putri',
+        bendaharaName: 'Ustadzah Siti Aminah (Bendahara Putri)',
+        date: '2026-10-11',
+        category: 'Medis & Kesehatan',
+        amount: 650000,
+        description: 'Stok obat-obatan darurat, vitamin C & P3K Poskestren santri putri',
+        recipient: 'Apotek Kimia Farma',
+        createdAt: '2026-10-11T15:10:00Z'
+      },
+      {
+        id: 'exp-2026-09',
+        bendaharaType: 'putra',
+        bendaharaName: 'Ustadz M. Fauzan (Bendahara Putra)',
+        date: '2026-10-12',
+        category: 'Honor Pengajar/Asatidz',
+        amount: 4500000,
+        description: 'Bisyarah / Honor asatidz pengajar sorogan kitab kuning diniyah putra',
+        recipient: 'Asatidz Pengajar Kitab',
+        createdAt: '2026-10-12T16:00:00Z'
+      },
+      {
+        id: 'exp-2026-10',
+        bendaharaType: 'putri',
+        bendaharaName: 'Ustadzah Siti Aminah (Bendahara Putri)',
+        date: '2026-10-13',
+        category: 'Honor Pengajar/Asatidz',
+        amount: 4000000,
+        description: 'Bisyarah ustadzah pengajar madrasah diniyah putri & tahfidz',
+        recipient: 'Ustadzah Pengajar',
+        createdAt: '2026-10-13T16:30:00Z'
       }
     ];
   });
@@ -157,9 +214,11 @@ export default function FinancialReportPanel({
         const res = await fetch('/api/financial-expenses');
         if (res.ok) {
           const json = await res.json();
-          if (json && json.success && Array.isArray(json.expenses) && json.expenses.length > 0) {
-            setExpenses(json.expenses);
-            localStorage.setItem('pesantren_financial_expenses', JSON.stringify(json.expenses));
+          if (json && json.success && Array.isArray(json.expenses)) {
+            const deletedIds = getDeletedIdsSet('expenses');
+            const clean = json.expenses.filter((e: any) => e && e.id && !deletedIds.has(e.id));
+            setExpenses(clean);
+            localStorage.setItem('pesantren_financial_expenses', JSON.stringify(clean));
           }
         }
       } catch (e) {}
@@ -167,9 +226,11 @@ export default function FinancialReportPanel({
       if (isSupabaseConfigured()) {
         try {
           const remote = await syncExpensesWithSupabase(expenses);
-          if (Array.isArray(remote) && remote.length > 0) {
-            setExpenses(remote);
-            localStorage.setItem('pesantren_financial_expenses', JSON.stringify(remote));
+          if (Array.isArray(remote)) {
+            const deletedIds = getDeletedIdsSet('expenses');
+            const clean = remote.filter((e: any) => e && e.id && !deletedIds.has(e.id));
+            setExpenses(clean);
+            localStorage.setItem('pesantren_financial_expenses', JSON.stringify(clean));
           }
         } catch (e) {}
       }
@@ -180,7 +241,11 @@ export default function FinancialReportPanel({
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'pesantren_financial_expenses' && e.newValue) {
         try {
-          setExpenses(JSON.parse(e.newValue));
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            const deletedIds = getDeletedIdsSet('expenses');
+            setExpenses(parsed.filter((e: any) => e && e.id && !deletedIds.has(e.id)));
+          }
         } catch (err) {}
       }
     };
@@ -189,8 +254,8 @@ export default function FinancialReportPanel({
   }, []);
 
   // Filter States
-  const [activeSubTab, setActiveSubTab] = useState<'rekap' | 'pemasukan' | 'pengeluaran'>('rekap');
-  const [selectedPeriod, setSelectedPeriod] = useState<'semua' | 'bulan_ini' | 'custom'>('semua');
+  const [activeSubTab, setActiveSubTab] = useState<'buku_kas' | 'pemasukan' | 'pengeluaran'>('buku_kas');
+  const [selectedPeriod, setSelectedPeriod] = useState<'semua' | 'bulan_ini' | 'tahun_ini' | 'custom'>('semua');
   const [filterMonth, setFilterMonth] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -200,10 +265,12 @@ export default function FinancialReportPanel({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [genderFilter, setGenderFilter] = useState<'semua' | 'putra' | 'putri'>('semua');
   const [expenseBendaharaFilter, setExpenseBendaharaFilter] = useState<'semua' | 'putra' | 'putri'>('semua');
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('semua');
 
   // Modal States
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<FinancialExpense | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<FinancialExpense | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [viewReceiptModalUrl, setViewReceiptModalUrl] = useState<string | null>(null);
 
@@ -247,6 +314,10 @@ export default function FinancialReportPanel({
     if (selectedPeriod === 'semua') return true;
     if (selectedPeriod === 'bulan_ini') {
       return itemDate.startsWith(filterMonth);
+    }
+    if (selectedPeriod === 'tahun_ini') {
+      const year = filterMonth.slice(0, 4) || '2026';
+      return itemDate.startsWith(year);
     }
     if (selectedPeriod === 'custom') {
       if (startDate && itemDate < startDate) return false;
@@ -294,6 +365,7 @@ export default function FinancialReportPanel({
         if (!isDateInPeriod(exp.date)) return false;
         if (expenseBendaharaFilter === 'putra' && exp.bendaharaType !== 'putra') return false;
         if (expenseBendaharaFilter === 'putri' && exp.bendaharaType !== 'putri') return false;
+        if (expenseCategoryFilter !== 'semua' && exp.category !== expenseCategoryFilter) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           const matchDesc = (exp.description || '').toLowerCase().includes(q);
@@ -305,7 +377,63 @@ export default function FinancialReportPanel({
         return true;
       })
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [expenses, selectedPeriod, filterMonth, startDate, endDate, expenseBendaharaFilter, searchQuery]);
+  }, [expenses, selectedPeriod, filterMonth, startDate, endDate, expenseBendaharaFilter, expenseCategoryFilter, searchQuery]);
+
+  // Unified Chronological Cash Ledger (Buku Kas Terpadu)
+  const unifiedLedger = useMemo(() => {
+    const items: Array<{
+      id: string;
+      date: string;
+      type: 'in' | 'out';
+      title: string;
+      description?: string;
+      category: string;
+      sector: 'putra' | 'putri';
+      actorName: string;
+      amount: number;
+      paymentMethod?: string;
+      receiptUrl?: string;
+      rawBill?: any;
+      rawExpense?: FinancialExpense;
+    }> = [];
+
+    // Add Incomes (Paid Bills)
+    paidBillsWithGender.forEach(b => {
+      items.push({
+        id: `in-${b.id}`,
+        date: b.paidDate || b.paymentDate || b.dueDate || '',
+        type: 'in',
+        title: b.title,
+        description: `Pembayaran ${b.title} santri ${b.studentName || '-'} (${b.studentObj?.classFormal || b.studentObj?.class || '-'})`,
+        category: b.category || 'SPP Syahriyah',
+        sector: b.santriType || 'putra',
+        actorName: b.studentName || 'Santri',
+        amount: Number(b.amount || 0),
+        paymentMethod: b.paymentMethod || 'Kas Bendahara',
+        receiptUrl: b.paymentProofUrl,
+        rawBill: b
+      });
+    });
+
+    // Add Expenses
+    filteredExpenses.forEach(exp => {
+      items.push({
+        id: `out-${exp.id}`,
+        date: exp.date,
+        type: 'out',
+        title: exp.description,
+        description: exp.recipient ? `Toko/Penerima: ${exp.recipient}` : undefined,
+        category: exp.category,
+        sector: exp.bendaharaType,
+        actorName: exp.bendaharaName,
+        amount: Number(exp.amount || 0),
+        receiptUrl: exp.receiptUrl,
+        rawExpense: exp
+      });
+    });
+
+    return items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [paidBillsWithGender, filteredExpenses]);
 
   // Aggregate Calculations
   const stats = useMemo(() => {
@@ -437,6 +565,13 @@ export default function FinancialReportPanel({
         return next;
       });
 
+      // Synchronize with server multi-device storage
+      fetch('/api/financial-expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedExp)
+      }).catch(console.error);
+
       pushExpenseToSupabase(updatedExp).catch(console.error);
 
       logAdminActivity(
@@ -478,6 +613,13 @@ export default function FinancialReportPanel({
       return next;
     });
 
+    // Synchronize with server multi-device storage
+    fetch('/api/financial-expenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newExp)
+    }).catch(console.error);
+
     pushExpenseToSupabase(newExp).catch(console.error);
 
     logAdminActivity(
@@ -496,24 +638,43 @@ export default function FinancialReportPanel({
     setExpReceiptUrl('');
   };
 
-  // Handle Delete Expense with Confirmation and Instant Multi-tab/Supabase Sync
-  const handleDeleteExpense = (id: string, description: string) => {
-    if (!window.confirm(`Hapus catatan pengeluaran: "${description}"? Tindakan ini tidak dapat dibatalkan.`)) {
-      return;
-    }
+  // Open In-App Confirmation Modal for Deleting Expense (No window.confirm!)
+  const handleDeleteExpense = (exp: FinancialExpense) => {
+    setExpenseToDelete(exp);
+  };
+
+  // Confirm and Execute Permanent Deletion (Local + Server + Supabase + Tombstone)
+  const confirmDeleteExpense = () => {
+    if (!expenseToDelete) return;
+    const target = expenseToDelete;
+
+    // 1. Register tombstone to prevent resurrection / "mental"
+    markIdAsDeleted('expenses', target.id);
+    markLocalDataChanged('expenses');
+
+    // 2. Local state update
     setExpenses(prev => {
-      const next = prev.filter(e => e.id !== id);
+      const next = prev.filter(e => e.id !== target.id);
       try {
         localStorage.setItem('pesantren_financial_expenses', JSON.stringify(next));
       } catch (e) {}
       return next;
     });
-    deleteExpenseFromSupabase(id).catch(console.error);
+
+    // 3. Server API deletion
+    fetch(`/api/financial-expenses/${encodeURIComponent(target.id)}`, { method: 'DELETE' }).catch(console.error);
+
+    // 4. Supabase cloud database deletion
+    deleteExpenseFromSupabase(target.id).catch(console.error);
+
+    // 5. Activity log
     logAdminActivity(
       'PENGELUARAN_KAS',
-      `Menghapus catatan pengeluaran kas: ${description}`
+      `Menghapus catatan pengeluaran kas ${target.bendaharaType === 'putra' ? 'Bendahara Putra' : 'Bendahara Putri'}: ${target.description} (Rp ${Number(target.amount || 0).toLocaleString('id-ID')})`
     );
-    showAlert('success', 'Catatan pengeluaran kas berhasil dihapus secara permanen.');
+
+    showAlert('success', `Catatan pengeluaran "${target.description}" berhasil dihapus secara permanen.`);
+    setExpenseToDelete(null);
   };
 
   // Handle Receipt Upload
@@ -634,6 +795,18 @@ export default function FinancialReportPanel({
 
             <button
               type="button"
+              onClick={() => setSelectedPeriod('tahun_ini')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                selectedPeriod === 'tahun_ini'
+                  ? 'bg-emerald-800 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+            >
+              Tahun 2026
+            </button>
+
+            <button
+              type="button"
               onClick={() => setSelectedPeriod('custom')}
               className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
                 selectedPeriod === 'custom'
@@ -688,76 +861,13 @@ export default function FinancialReportPanel({
         </div>
       </div>
 
-      {/* SUMMARY DASHBOARD CARDS (PUTRA vs PUTRI) */}
+      {/* SUMMARY DASHBOARD CARDS (SIMPLIFIED & MODERN) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card 1: Kas Santri Putra */}
-        <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-5 rounded-2xl shadow-sm space-y-3 relative overflow-hidden">
-          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full pointer-events-none" />
+        {/* Card 1: Total Saldo Bersih Pesantren */}
+        <div className="bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white p-5 rounded-2xl shadow-sm space-y-3 relative overflow-hidden border border-emerald-800/40">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase font-black tracking-widest text-indigo-200 flex items-center gap-1">
-              <span>🔵</span> Sektor Kas Putra
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/30 text-indigo-100 border border-indigo-400/30">
-              Bendahara Putra
-            </span>
-          </div>
-
-          <div>
-            <span className="text-xs text-indigo-200 block">Sisa Saldo Kas Putra</span>
-            <div className="text-2xl font-black text-white tracking-tight mt-0.5">
-              Rp {stats.balancePutra.toLocaleString('id-ID')}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-indigo-800/80 grid grid-cols-2 gap-2 text-[11px]">
-            <div>
-              <span className="text-indigo-300 block text-[9.5px]">Pemasukan SPP ({stats.countPutra})</span>
-              <strong className="text-emerald-300 font-extrabold">+Rp {stats.incomePutra.toLocaleString('id-ID')}</strong>
-            </div>
-            <div>
-              <span className="text-indigo-300 block text-[9.5px]">Pengeluaran ({stats.countExpPutra})</span>
-              <strong className="text-rose-300 font-extrabold">-Rp {stats.expensePutra.toLocaleString('id-ID')}</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Kas Santri Putri */}
-        <div className="bg-gradient-to-br from-rose-900 to-slate-900 text-white p-5 rounded-2xl shadow-sm space-y-3 relative overflow-hidden">
-          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full pointer-events-none" />
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase font-black tracking-widest text-rose-200 flex items-center gap-1">
-              <span>🌸</span> Sektor Kas Putri
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-500/30 text-rose-100 border border-rose-400/30">
-              Bendahara Putri
-            </span>
-          </div>
-
-          <div>
-            <span className="text-xs text-rose-200 block">Sisa Saldo Kas Putri</span>
-            <div className="text-2xl font-black text-white tracking-tight mt-0.5">
-              Rp {stats.balancePutri.toLocaleString('id-ID')}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-rose-800/80 grid grid-cols-2 gap-2 text-[11px]">
-            <div>
-              <span className="text-rose-300 block text-[9.5px]">Pemasukan SPP ({stats.countPutri})</span>
-              <strong className="text-emerald-300 font-extrabold">+Rp {stats.incomePutri.toLocaleString('id-ID')}</strong>
-            </div>
-            <div>
-              <span className="text-rose-300 block text-[9.5px]">Pengeluaran ({stats.countExpPutri})</span>
-              <strong className="text-rose-300 font-extrabold">-Rp {stats.expensePutri.toLocaleString('id-ID')}</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Total Akumulasi Pesantren */}
-        <div className="bg-gradient-to-br from-emerald-900 to-teal-950 text-white p-5 rounded-2xl shadow-sm space-y-3 relative overflow-hidden">
-          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full pointer-events-none" />
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase font-black tracking-widest text-emerald-200 flex items-center gap-1">
-              <span>🏛️</span> Total Kas Gabungan Pesantren
+            <span className="text-[11px] uppercase font-black tracking-wider text-emerald-200 flex items-center gap-1.5">
+              <span>🏛️</span> Saldo Bersih Kas Pesantren
             </span>
             <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/30 text-emerald-100 border border-emerald-400/30">
               Putra + Putri
@@ -765,47 +875,107 @@ export default function FinancialReportPanel({
           </div>
 
           <div>
-            <span className="text-xs text-emerald-200 block">Total Saldo Bersih Pesantren</span>
-            <div className="text-2xl font-black text-amber-300 tracking-tight mt-0.5">
+            <span className="text-xs text-emerald-200 block">Sisa Saldo Kas Bersih</span>
+            <div className="text-2xl sm:text-3xl font-black text-amber-300 tracking-tight mt-0.5 font-mono">
               Rp {stats.netBalance.toLocaleString('id-ID')}
             </div>
           </div>
 
-          <div className="pt-2 border-t border-emerald-800/80 grid grid-cols-2 gap-2 text-[11px]">
+          <div className="pt-2 border-t border-emerald-800/70 grid grid-cols-2 gap-2 text-[11px]">
             <div>
               <span className="text-emerald-300 block text-[9.5px]">Total Pemasukan</span>
-              <strong className="text-white font-extrabold">Rp {stats.totalIncome.toLocaleString('id-ID')}</strong>
+              <strong className="text-white font-extrabold font-mono">Rp {stats.totalIncome.toLocaleString('id-ID')}</strong>
             </div>
             <div>
               <span className="text-emerald-300 block text-[9.5px]">Total Pengeluaran</span>
-              <strong className="text-rose-300 font-extrabold">Rp {stats.totalExpense.toLocaleString('id-ID')}</strong>
+              <strong className="text-rose-300 font-extrabold font-mono">Rp {stats.totalExpense.toLocaleString('id-ID')}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Kas Santri Putra */}
+        <div className="bg-white p-5 rounded-2xl shadow-xs border border-indigo-100 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] uppercase font-black tracking-wider text-indigo-950 flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block" /> Kas Santri Putra
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              Bendahara Putra
+            </span>
+          </div>
+
+          <div>
+            <span className="text-xs text-slate-500 block">Sisa Saldo Putra</span>
+            <div className="text-2xl font-black text-slate-900 tracking-tight mt-0.5 font-mono">
+              Rp {stats.balancePutra.toLocaleString('id-ID')}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
+            <div>
+              <span className="text-slate-400 block text-[9.5px]">Pemasukan SPP ({stats.countPutra})</span>
+              <strong className="text-emerald-700 font-extrabold font-mono">+Rp {stats.incomePutra.toLocaleString('id-ID')}</strong>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[9.5px]">Pengeluaran ({stats.countExpPutra})</span>
+              <strong className="text-rose-600 font-extrabold font-mono">-Rp {stats.expensePutra.toLocaleString('id-ID')}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Kas Santri Putri */}
+        <div className="bg-white p-5 rounded-2xl shadow-xs border border-rose-100 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] uppercase font-black tracking-wider text-rose-950 flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Kas Santri Putri
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+              Bendahara Putri
+            </span>
+          </div>
+
+          <div>
+            <span className="text-xs text-slate-500 block">Sisa Saldo Putri</span>
+            <div className="text-2xl font-black text-slate-900 tracking-tight mt-0.5 font-mono">
+              Rp {stats.balancePutri.toLocaleString('id-ID')}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
+            <div>
+              <span className="text-slate-400 block text-[9.5px]">Pemasukan SPP ({stats.countPutri})</span>
+              <strong className="text-emerald-700 font-extrabold font-mono">+Rp {stats.incomePutri.toLocaleString('id-ID')}</strong>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[9.5px]">Pengeluaran ({stats.countExpPutri})</span>
+              <strong className="text-rose-600 font-extrabold font-mono">-Rp {stats.expensePutri.toLocaleString('id-ID')}</strong>
             </div>
           </div>
         </div>
       </div>
 
-      {/* SUB-TABS NAVIGATION: REKAP ARUS KAS / PEMASUKAN / PENGELUARAN */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-        <div className="flex items-center gap-2">
+      {/* SUB-TABS NAVIGATION: BUKU KAS TERPADU / PEMASUKAN / PENGELUARAN */}
+      <div className="flex flex-wrap items-center justify-between border-b border-slate-200 pb-2 gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setActiveSubTab('rekap')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${
-              activeSubTab === 'rekap'
-                ? 'bg-emerald-800 text-white shadow-xs'
+            onClick={() => setActiveSubTab('buku_kas')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'buku_kas'
+                ? 'bg-emerald-850 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
             <Wallet className="h-4 w-4" />
-            <span>Rekap Arus Kas</span>
+            <span>Buku Kas Terpadu ({unifiedLedger.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveSubTab('pemasukan')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
               activeSubTab === 'pemasukan'
-                ? 'bg-emerald-800 text-white shadow-xs'
+                ? 'bg-emerald-850 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -816,9 +986,9 @@ export default function FinancialReportPanel({
           <button
             type="button"
             onClick={() => setActiveSubTab('pengeluaran')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
               activeSubTab === 'pengeluaran'
-                ? 'bg-emerald-800 text-white shadow-xs'
+                ? 'bg-emerald-850 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -826,117 +996,200 @@ export default function FinancialReportPanel({
             <span>Pengeluaran Bendahara ({filteredExpenses.length})</span>
           </button>
         </div>
+
+        <div className="text-[11px] font-bold text-slate-500">
+          Total {unifiedLedger.length} Transaksi Terdata
+        </div>
       </div>
 
-      {/* CONTENT: SUB-TAB 1: REKAP ARUS KAS (KOMPARASI SEKTOR PUTRA & PUTRI) */}
-      {activeSubTab === 'rekap' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Kolom Kiri: Rincian Sektor Putra */}
-          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between border-b border-indigo-50 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-indigo-600" />
-                <h3 className="font-extrabold text-sm text-slate-900 uppercase">
-                  Arus Kas Santri & Bendahara Putra
-                </h3>
-              </div>
-              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
-                PIC: Ustadz M. Fauzan
-              </span>
+      {/* CONTENT: SUB-TAB 1: BUKU KAS TERPADU (CHRONOLOGICAL CASH BOOK) */}
+      {activeSubTab === 'buku_kas' && (
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-extrabold text-sm text-slate-900 uppercase">
+                Buku Kas Umum (Pemasukan & Pengeluaran)
+              </h3>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Catatan kronologis seluruh mutasi keuangan pesantren (kredit & debit) secara terpadu.
+              </p>
             </div>
 
-            <div className="space-y-2.5 text-xs">
-              <div className="p-3 bg-indigo-50/60 rounded-xl flex justify-between items-center">
-                <span className="font-semibold text-slate-700">Total Pemasukan Tagihan/SPP Putra:</span>
-                <span className="font-extrabold text-indigo-950 text-sm">
-                  +Rp {stats.incomePutra.toLocaleString('id-ID')}
-                </span>
-              </div>
-
-              <div className="p-3 bg-rose-50/60 rounded-xl flex justify-between items-center">
-                <span className="font-semibold text-slate-700">Dana Dicairkan Bendahara Putra:</span>
-                <span className="font-extrabold text-rose-900 text-sm">
-                  -Rp {stats.expensePutra.toLocaleString('id-ID')}
-                </span>
-              </div>
-
-              <div className="p-3 bg-slate-900 text-white rounded-xl flex justify-between items-center">
-                <span className="font-bold text-indigo-200">Sisa Kas Tersedia (Putra):</span>
-                <span className="font-black text-amber-300 text-base">
-                  Rp {stats.balancePutra.toLocaleString('id-ID')}
-                </span>
-              </div>
-            </div>
-
-            {/* Pengeluaran Terakhir Putra */}
-            <div className="pt-2">
-              <h4 className="text-[11px] font-bold uppercase text-slate-500 mb-2">3 Pengeluaran Terakhir Bendahara Putra:</h4>
-              <div className="space-y-1.5">
-                {expenses.filter(e => e.bendaharaType === 'putra').slice(0, 3).map(e => (
-                  <div key={e.id} className="p-2 bg-slate-50 rounded-lg flex items-center justify-between text-xs">
-                    <div>
-                      <strong className="text-slate-900 block">{e.description}</strong>
-                      <span className="text-[10px] text-slate-500">{e.date} • {e.category}</span>
-                    </div>
-                    <span className="font-bold text-rose-700">Rp {e.amount.toLocaleString('id-ID')}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500">Filter Sektor:</span>
+              <button
+                type="button"
+                onClick={() => { setGenderFilter('semua'); setExpenseBendaharaFilter('semua'); }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  genderFilter === 'semua' && expenseBendaharaFilter === 'semua'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Semua
+              </button>
+              <button
+                type="button"
+                onClick={() => { setGenderFilter('putra'); setExpenseBendaharaFilter('putra'); }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                  genderFilter === 'putra' && expenseBendaharaFilter === 'putra'
+                    ? 'bg-indigo-900 text-white'
+                    : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
+                }`}
+              >
+                <span>🔵</span> Putra
+              </button>
+              <button
+                type="button"
+                onClick={() => { setGenderFilter('putri'); setExpenseBendaharaFilter('putri'); }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                  genderFilter === 'putri' && expenseBendaharaFilter === 'putri'
+                    ? 'bg-rose-900 text-white'
+                    : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
+                }`}
+              >
+                <span>🌸</span> Putri
+              </button>
             </div>
           </div>
 
-          {/* Kolom Kanan: Rincian Sektor Putri */}
-          <div className="bg-white rounded-2xl border border-rose-100 p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between border-b border-rose-50 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-rose-500" />
-                <h3 className="font-extrabold text-sm text-slate-900 uppercase">
-                  Arus Kas Santri & Bendahara Putri
-                </h3>
-              </div>
-              <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full">
-                PIC: {settings.namaBendahara || 'Ustadzah Siti Aminah'}
-              </span>
-            </div>
-
-            <div className="space-y-2.5 text-xs">
-              <div className="p-3 bg-rose-50/60 rounded-xl flex justify-between items-center">
-                <span className="font-semibold text-slate-700">Total Pemasukan Tagihan/SPP Putri:</span>
-                <span className="font-extrabold text-rose-950 text-sm">
-                  +Rp {stats.incomePutri.toLocaleString('id-ID')}
-                </span>
-              </div>
-
-              <div className="p-3 bg-rose-50/60 rounded-xl flex justify-between items-center">
-                <span className="font-semibold text-slate-700">Dana Dicairkan Bendahara Putri:</span>
-                <span className="font-extrabold text-rose-900 text-sm">
-                  -Rp {stats.expensePutri.toLocaleString('id-ID')}
-                </span>
-              </div>
-
-              <div className="p-3 bg-slate-900 text-white rounded-xl flex justify-between items-center">
-                <span className="font-bold text-rose-200">Sisa Kas Tersedia (Putri):</span>
-                <span className="font-black text-amber-300 text-base">
-                  Rp {stats.balancePutri.toLocaleString('id-ID')}
-                </span>
-              </div>
-            </div>
-
-            {/* Pengeluaran Terakhir Putri */}
-            <div className="pt-2">
-              <h4 className="text-[11px] font-bold uppercase text-slate-500 mb-2">3 Pengeluaran Terakhir Bendahara Putri:</h4>
-              <div className="space-y-1.5">
-                {expenses.filter(e => e.bendaharaType === 'putri').slice(0, 3).map(e => (
-                  <div key={e.id} className="p-2 bg-slate-50 rounded-lg flex items-center justify-between text-xs">
-                    <div>
-                      <strong className="text-slate-900 block">{e.description}</strong>
-                      <span className="text-[10px] text-slate-500">{e.date} • {e.category}</span>
-                    </div>
-                    <span className="font-bold text-rose-700">Rp {e.amount.toLocaleString('id-ID')}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* Table Buku Kas Terpadu */}
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                <tr>
+                  <th className="py-2.5 px-3 w-10 text-center">No</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Tanggal</th>
+                  <th className="py-2.5 px-3">Uraian Transaksi</th>
+                  <th className="py-2.5 px-3 text-center">Sektor</th>
+                  <th className="py-2.5 px-3">Kategori</th>
+                  <th className="py-2.5 px-3 text-right text-emerald-800">Kas Masuk (Rp)</th>
+                  <th className="py-2.5 px-3 text-right text-rose-700">Kas Keluar (Rp)</th>
+                  <th className="py-2.5 px-3 text-center">Bukti / Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {unifiedLedger.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-400 italic">
+                      Tidak ada catatan transaksi pada filter atau periode ini.
+                    </td>
+                  </tr>
+                ) : (
+                  unifiedLedger.map((item, idx) => (
+                    <tr key={item.id} className="hover:bg-slate-50/70 transition">
+                      <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                      <td className="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap text-[11px]">
+                        {item.date || '-'}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-extrabold text-slate-900">{item.title}</div>
+                        {item.description && (
+                          <div className="text-[10px] text-slate-500 mt-0.5">{item.description}</div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                          item.sector === 'putri'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                            : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                        }`}>
+                          {item.sector === 'putri' ? 'Putri' : 'Putra'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getCategoryBadgeClass(item.category)}`}>
+                          {item.category}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-800 whitespace-nowrap">
+                        {item.type === 'in' ? `+Rp ${item.amount.toLocaleString('id-ID')}` : '-'}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700 whitespace-nowrap">
+                        {item.type === 'out' ? `-Rp ${item.amount.toLocaleString('id-ID')}` : '-'}
+                      </td>
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {item.receiptUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setViewReceiptModalUrl(item.receiptUrl!)}
+                              className="p-1.5 text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50 rounded-lg transition cursor-pointer border border-transparent hover:border-emerald-200"
+                              title="Lihat Bukti Transfer / Kwitansi"
+                            >
+                              <Eye className="h-3.5 w-3.5 inline" />
+                            </button>
+                          )}
+                          {item.type === 'in' && item.rawBill && (
+                            <>
+                              {onEditBill && (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditBill(item.rawBill)}
+                                  className="p-1.5 hover:bg-blue-50 text-blue-600 hover:text-blue-800 rounded-lg transition cursor-pointer border border-transparent hover:border-blue-200"
+                                  title="Edit Data & Nominal Tagihan Masuk"
+                                >
+                                  <Pencil className="h-3.5 w-3.5 inline" />
+                                </button>
+                              )}
+                              {onDeleteBill && (
+                                <button
+                                  type="button"
+                                  onClick={() => onDeleteBill(item.rawBill.id, item.rawBill.studentName, item.rawBill.amount)}
+                                  className="p-1.5 hover:bg-rose-50 text-rose-600 hover:text-rose-800 rounded-lg transition cursor-pointer border border-transparent hover:border-rose-200"
+                                  title="Hapus Tagihan / Batalkan Pemasukan"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 inline" />
+                                </button>
+                              )}
+                            </>
+                          )}
+                          {item.type === 'out' && item.rawExpense && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditExpense(item.rawExpense!)}
+                                className="p-1.5 hover:bg-blue-50 text-blue-600 hover:text-blue-800 rounded-lg transition cursor-pointer border border-transparent hover:border-blue-200"
+                                title="Edit Catatan Pengeluaran"
+                              >
+                                <Pencil className="h-3.5 w-3.5 inline" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteExpense(item.rawExpense!)}
+                                className="p-1.5 hover:bg-rose-50 text-rose-600 hover:text-rose-800 rounded-lg transition cursor-pointer border border-transparent hover:border-rose-200"
+                                title="Hapus Catatan Pengeluaran"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 inline" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-50 font-black border-t-2 border-slate-300 text-slate-900">
+                  <td colSpan={5} className="py-2.5 px-3 text-right uppercase text-[10px] tracking-wider text-slate-600">
+                    TOTAL ARUS KAS PERIODE:
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono text-emerald-850">
+                    +Rp {unifiedLedger.filter(i => i.type === 'in').reduce((s, i) => s + i.amount, 0).toLocaleString('id-ID')}
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono text-rose-700">
+                    -Rp {unifiedLedger.filter(i => i.type === 'out').reduce((s, i) => s + i.amount, 0).toLocaleString('id-ID')}
+                  </td>
+                  <td className="py-2.5 px-3 text-center text-[10px] font-bold text-slate-600">
+                    Saldo: Rp {(
+                      unifiedLedger.filter(i => i.type === 'in').reduce((s, i) => s + i.amount, 0) -
+                      unifiedLedger.filter(i => i.type === 'out').reduce((s, i) => s + i.amount, 0)
+                    ).toLocaleString('id-ID')}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       )}
@@ -1102,6 +1355,33 @@ export default function FinancialReportPanel({
             </button>
           </div>
 
+          {/* Quick Category Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
+            <span className="text-[11px] font-bold text-slate-500 mr-1">Kategori:</span>
+            {[
+              'semua',
+              'Konsumsi & Dapur',
+              'Operasional Listrik & Air',
+              'Sarana & Prasarana',
+              'Kitab & Pendidikan',
+              'Honor Pengajar/Asatidz',
+              'Medis & Kesehatan'
+            ].map(cat => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setExpenseCategoryFilter(cat)}
+                className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition cursor-pointer ${
+                  expenseCategoryFilter === cat
+                    ? 'bg-emerald-800 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {cat === 'semua' ? 'Semua Kategori' : cat}
+              </button>
+            ))}
+          </div>
+
           {/* Table */}
           <div className="overflow-x-auto rounded-xl border border-slate-100">
             <table className="w-full text-xs text-left">
@@ -1183,7 +1463,7 @@ export default function FinancialReportPanel({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteExpense(exp.id, exp.description)}
+                            onClick={() => handleDeleteExpense(exp)}
                             className="p-1.5 hover:bg-rose-50 text-rose-600 hover:text-rose-800 rounded-lg transition cursor-pointer border border-transparent hover:border-rose-200"
                             title="Hapus Catatan Pengeluaran"
                           >
@@ -1319,6 +1599,33 @@ export default function FinancialReportPanel({
                 </div>
               </div>
 
+              {/* Quick Category Presets */}
+              <div>
+                <label className="block text-[9.5px] uppercase font-bold text-slate-400 mb-1">Preset Cepat Kategori:</label>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { label: '🍚 Beras & Dapur', cat: 'Konsumsi & Dapur', desc: 'Belanja beras & sembako dapur' },
+                    { label: '⚡ Listrik & Air', cat: 'Operasional Listrik & Air', desc: 'Pembelian token listrik PLN' },
+                    { label: '🛠️ Sarpras/Perbaikan', cat: 'Sarana & Prasarana', desc: 'Perbaikan sarana kamar & wudhu' },
+                    { label: '📚 Kitab Diniyah', cat: 'Kitab & Pendidikan', desc: 'Pengadaan kitab santri diniyah' },
+                    { label: '👨‍🏫 Bisyarah Asatidz', cat: 'Honor Pengajar/Asatidz', desc: 'Honorarium asatidz pengajar' },
+                    { label: '💊 Obat Poskestren', cat: 'Medis & Kesehatan', desc: 'Pengadaan obat-obatan P3K Poskestren' }
+                  ].map(p => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        setExpCategory(p.cat);
+                        if (!expDescription) setExpDescription(p.desc);
+                      }}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 text-[10px] font-semibold text-slate-700 transition cursor-pointer border border-slate-200"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Nominal Pengeluaran (Rp) */}
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-600 mb-0.5">Nominal Uang yang Diambil (Rupiah)</label>
@@ -1428,6 +1735,62 @@ export default function FinancialReportPanel({
             </div>
             <div className="max-h-[70vh] overflow-y-auto flex items-center justify-center bg-slate-100 rounded-xl p-2">
               <img src={viewReceiptModalUrl} alt="Bukti Kwitansi" className="max-w-full max-h-[65vh] object-contain rounded-lg" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI HAPUS PENGELUARAN KAS */}
+      {expenseToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 border border-rose-200 shadow-2xl text-left font-sans">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2.5 bg-rose-50 rounded-xl border border-rose-100">
+                <Trash2 className="h-6 w-6" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-sm text-slate-900">Konfirmasi Hapus Pengeluaran</h4>
+                <p className="text-[11px] text-slate-500 font-mono">ID: {expenseToDelete.id}</p>
+              </div>
+            </div>
+            
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-150 space-y-2 text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Keterangan Keperluan</span>
+                <span className="font-extrabold text-slate-900 text-sm">{expenseToDelete.description}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Nominal Kas</span>
+                <span className="font-mono font-black text-rose-700 text-sm">
+                  Rp {Number(expenseToDelete.amount || 0).toLocaleString('id-ID')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-[10px] text-slate-600">
+                <span>{expenseToDelete.date} • {expenseToDelete.category}</span>
+                <span className="font-bold text-indigo-900">{expenseToDelete.bendaharaName}</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-rose-700 font-semibold bg-rose-50/70 p-2.5 rounded-xl border border-rose-150">
+              ⚠️ Catatan pengeluaran kas ini akan dihapus permanen dari server lokal dan database Supabase agar tidak kembali lagi ("mental").
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setExpenseToDelete(null)}
+                className="px-4 py-2 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteExpense}
+                className="px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-extrabold text-xs rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Hapus Permanen</span>
+              </button>
             </div>
           </div>
         </div>

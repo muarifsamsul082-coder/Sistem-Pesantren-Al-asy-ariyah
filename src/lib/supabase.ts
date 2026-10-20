@@ -1606,26 +1606,42 @@ export async function syncNewsWithSupabase(newsList: News[]): Promise<News[]> {
       return newsList;
     }
     if (data && data.length > 0) {
-      const remoteMapped: News[] = data.map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        category: item.category as any,
-        date: item.date,
-        author: item.author,
-        excerpt: item.excerpt,
-        content: item.content,
-        image: item.image_url || ''
-      }));
+      const deletedIds = getDeletedIdsSet('news');
+
+      // Purge any deleted news from remote Supabase table immediately
+      const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
+      if (staleInRemote.length > 0) {
+        staleInRemote.forEach((stale: any) => {
+          Promise.resolve(client.from('news').delete().eq('id', stale.id)).catch(() => {});
+        });
+      }
+
+      const remoteMapped: News[] = data
+        .filter((item: any) => item && item.id && !deletedIds.has(item.id))
+        .map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          category: item.category as any,
+          date: item.date,
+          author: item.author,
+          excerpt: item.excerpt,
+          content: item.content,
+          image: item.image_url || ''
+        }));
 
       // Check if local has newly added news not yet in remote
-      const missingInRemote = newsList.filter(l => !data.some((r: any) => r.id === l.id));
-      if (missingInRemote.length > 0) {
+      const missingInRemote = newsList.filter(l => l && !deletedIds.has(l.id) && !data.some((r: any) => r.id === l.id));
+      if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('news', 15000)) {
         await pushAllNewsToSupabase(missingInRemote);
         return [...missingInRemote, ...remoteMapped];
       }
       return remoteMapped;
-    } else if (newsList.length > 0) {
-      await pushAllNewsToSupabase(newsList);
+    } else if (newsList.length > 0 && isLocalDataRecentlyChanged('news', 15000)) {
+      const deletedIds = getDeletedIdsSet('news');
+      const cleanNews = newsList.filter(n => n && !deletedIds.has(n.id));
+      if (cleanNews.length > 0) {
+        await pushAllNewsToSupabase(cleanNews);
+      }
     }
   } catch (err) {
     console.error('Failed to sync news with Supabase:', err);
@@ -1658,7 +1674,10 @@ export async function pushAllNewsToSupabase(newsList: News[]): Promise<void> {
   const client = getSupabaseClient();
   if (!client || newsList.length === 0) return;
   try {
-    const payload = newsList.map(n => ({
+    const deletedIds = getDeletedIdsSet('news');
+    const validNews = newsList.filter(n => n && n.id && !deletedIds.has(n.id));
+    if (validNews.length === 0) return;
+    const payload = validNews.map(n => ({
       id: n.id,
       title: n.title,
       category: n.category,
@@ -1676,9 +1695,17 @@ export async function pushAllNewsToSupabase(newsList: News[]): Promise<void> {
 
 export async function deleteNewsFromSupabase(id: string): Promise<void> {
   markLocalDataChanged('news');
+  markIdAsDeleted('news', id);
+  try {
+    fetch(`/api/news/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+  } catch (e) {}
   const client = getSupabaseClient();
   if (!client) return;
-  try { await client.from('news').delete().eq('id', id); } catch (e) { console.error('Failed to delete news:', e); }
+  try { 
+    await client.from('news').delete().eq('id', id); 
+  } catch (e) { 
+    console.error('Failed to delete news from Supabase:', e); 
+  }
 }
 
 // ------------------------------------------------------------------------------
@@ -1730,12 +1757,12 @@ export async function syncAnnouncementsWithSupabase(list: Announcement[]): Promi
         }));
 
       const missingInRemote = cleanLocalList.filter(l => !data.some((r: any) => r.id === l.id) && !deletedIds.has(l.id));
-      if (missingInRemote.length > 0) {
+      if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('announcements', 15000)) {
         await pushAllAnnouncementsToSupabase(missingInRemote);
         return [...missingInRemote, ...remoteMapped];
       }
       return remoteMapped;
-    } else if (cleanLocalList.length > 0) {
+    } else if (cleanLocalList.length > 0 && isLocalDataRecentlyChanged('announcements', 15000)) {
       await pushAllAnnouncementsToSupabase(cleanLocalList);
     }
   } catch (err) {
@@ -1808,16 +1835,9 @@ export async function pushAllAnnouncementsToSupabase(list: Announcement[]): Prom
 
 export async function deleteAnnouncementFromSupabase(id: string): Promise<void> {
   markLocalDataChanged('announcements');
-  
-  // Simpan permanen ke daftar ID terhapus di localStorage
+  markIdAsDeleted('announcements', id);
   try {
-    let delAnn: string[] = [];
-    const raw = localStorage.getItem('pesantren_deleted_announcement_ids');
-    if (raw) delAnn = JSON.parse(raw);
-    if (!delAnn.includes(id)) {
-      delAnn.push(id);
-      localStorage.setItem('pesantren_deleted_announcement_ids', JSON.stringify(delAnn));
-    }
+    fetch(`/api/announcements/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
   } catch (e) {}
 
   const client = getSupabaseClient();
@@ -1879,20 +1899,121 @@ export function formatStudentToSupabasePayload(s: Student) {
   };
 }
 
+// In-memory cache of deleted IDs to ensure synchronous cross-component protection within session
+const inMemoryDeletedIds: Record<string, Set<string>> = {
+  students: new Set(),
+  bills: new Set(),
+  expenses: new Set(),
+  alumni: new Set(),
+  ppdb: new Set(),
+  rooms: new Set(),
+  news: new Set(),
+  announcements: new Set(),
+};
+
+export async function loadServerDeletedIds(): Promise<Record<string, string[]>> {
+  try {
+    const res = await fetch('/api/deleted-ids');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.deletedIds) {
+        const record = data.deletedIds;
+        Object.keys(record).forEach(k => {
+          const list = record[k];
+          if (Array.isArray(list)) {
+            const singular = k.replace(/s$/, '');
+            const plural = singular + 's';
+            if (!inMemoryDeletedIds[plural]) inMemoryDeletedIds[plural] = new Set();
+            list.forEach(id => {
+              if (typeof id === 'string') {
+                inMemoryDeletedIds[plural].add(id);
+              }
+            });
+            try {
+              if (typeof localStorage !== 'undefined') {
+                const existing = JSON.parse(localStorage.getItem(`pesantren_deleted_${plural}_ids`) || '[]');
+                const combined = Array.from(new Set([...existing, ...list]));
+                localStorage.setItem(`pesantren_deleted_${plural}_ids`, JSON.stringify(combined.slice(-1000)));
+                localStorage.setItem(`pesantren_deleted_${singular}_ids`, JSON.stringify(combined.slice(-1000)));
+              }
+            } catch (e) {}
+          }
+        });
+        return record;
+      }
+    }
+  } catch (e) {}
+  return { students: [], bills: [], expenses: [], alumni: [], ppdb: [], rooms: [], news: [], announcements: [] };
+}
+
+export const getDeletedIdsSet = (type: string): Set<string> => {
+  const singular = type.replace(/s$/, '');
+  const plural = singular + 's';
+  const ids = new Set<string>(inMemoryDeletedIds[plural] || []);
+  if (typeof localStorage === 'undefined') return ids;
+  const keys = [
+    `pesantren_deleted_${singular}_ids`,
+    `pesantren_deleted_${plural}_ids`
+  ];
+  keys.forEach(k => {
+    try {
+      const raw = localStorage.getItem(k);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          arr.forEach(id => {
+            if (typeof id === 'string') {
+              ids.add(id);
+              if (!inMemoryDeletedIds[plural]) inMemoryDeletedIds[plural] = new Set();
+              inMemoryDeletedIds[plural].add(id);
+            }
+          });
+        }
+      }
+    } catch (e) {}
+  });
+  return ids;
+};
+
+export const markIdAsDeleted = (type: string, id: string) => {
+  if (!id || !type) return;
+  const singular = type.replace(/s$/, '');
+  const plural = singular + 's';
+  if (!inMemoryDeletedIds[plural]) inMemoryDeletedIds[plural] = new Set();
+  inMemoryDeletedIds[plural].add(id);
+  const keys = [
+    `pesantren_deleted_${singular}_ids`,
+    `pesantren_deleted_${plural}_ids`
+  ];
+  keys.forEach(key => {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+      const current: string[] = raw ? JSON.parse(raw) : [];
+      if (!current.includes(id)) {
+        current.push(id);
+        localStorage.setItem(key, JSON.stringify(current.slice(-1000)));
+      }
+    } catch (e) {}
+  });
+
+  // Broadcast to backend server so other devices immediately know this ID is purged
+  try {
+    fetch('/api/deleted-ids', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: plural, id })
+    }).catch(() => {});
+  } catch (e) {}
+};
+
 export async function syncStudentsWithSupabase(studentsList: Student[]): Promise<Student[]> {
   const client = getSupabaseClient();
   
   // Track deleted student IDs to prevent resurrection
-  let deletedIds = new Set<string>();
-  try {
-    const rawDel = typeof localStorage !== 'undefined' ? localStorage.getItem('pesantren_deleted_student_ids') : null;
-    if (rawDel) {
-      const parsed = JSON.parse(rawDel);
-      if (Array.isArray(parsed)) deletedIds = new Set(parsed);
-    }
-  } catch (e) {}
+  const deletedIds = getDeletedIdsSet('students');
 
-  const cleanLocalList = studentsList.filter(s => s && s.id && !deletedIds.has(s.id));
+  // Exclude deleted students and alumni from active students list
+  const cleanLocalList = studentsList.filter(s => s && s.id && !deletedIds.has(s.id) && s.status !== 'Alumni' && s.status !== 'Berhenti' && !s.status?.toLowerCase().includes('alumni'));
 
   if (!client) return cleanLocalList;
 
@@ -1910,15 +2031,31 @@ export async function syncStudentsWithSupabase(studentsList: Student[]): Promise
     }
 
     if (data && data.length > 0) {
-      // If any deleted students still exist on remote Supabase, purge them
+      // 1. Purge deleted students from remote Supabase table immediately
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
-        staleInRemote.forEach((stale: any) => {
-          Promise.resolve(client.from('students').delete().eq('id', stale.id)).catch(() => {});
-        });
+        const staleIds = staleInRemote.map((item: any) => item.id);
+        await client.from('students').delete().in('id', staleIds).catch(() => {});
+        await client.from('bills').delete().in('student_id', staleIds).catch(() => {});
+        await client.from('alumni').delete().in('id', staleIds).catch(() => {});
       }
 
-      const activeRemoteData = data.filter((item: any) => item && item.id && !deletedIds.has(item.id));
+      // 2. SEPARATE ALUMNI: Move any alumni found in 'students' table to 'alumni' table and delete from 'students'!
+      const alumniInStudentsTable = data.filter((item: any) => item && item.id && !deletedIds.has(item.id) && (item.status === 'Alumni' || item.status === 'Berhenti' || item.status?.toLowerCase().includes('alumni')));
+      if (alumniInStudentsTable.length > 0) {
+        try {
+          const alumniPayloads = alumniInStudentsTable.map(formatAlumniToSupabasePayload);
+          await client.from('alumni').upsert(alumniPayloads, { onConflict: 'id' });
+          await client.from('students').delete().in('id', alumniInStudentsTable.map((a: any) => a.id));
+        } catch (e) {
+          console.error('Error auto-migrating alumni out of students table:', e);
+        }
+      }
+
+      // 3. Keep strictly active students (status !== 'Alumni' && status !== 'Berhenti')
+      const activeRemoteData = data.filter((item: any) => 
+        item && item.id && !deletedIds.has(item.id) && item.status !== 'Alumni' && item.status !== 'Berhenti' && !item.status?.toLowerCase().includes('alumni')
+      );
 
       const localMap = new Map<string, Student>();
       cleanLocalList.forEach(s => { if (s && s.id) localMap.set(s.id, s); });
@@ -1972,12 +2109,12 @@ export async function syncStudentsWithSupabase(studentsList: Student[]): Promise
       // Check if there are newly added local students not yet in cloud
       const missingInRemote = cleanLocalList.filter(l => !data.some((r: any) => r.id === l.id));
       if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('students', 15000)) {
-        pushAllStudentsToSupabase(missingInRemote).catch(() => {});
+        await pushAllStudentsToSupabase(missingInRemote).catch(() => {});
         return [...remoteMapped, ...missingInRemote];
       }
 
       return remoteMapped;
-    } else if (cleanLocalList.length > 0) {
+    } else if (cleanLocalList.length > 0 && isLocalDataRecentlyChanged('students', 15000)) {
       await pushAllStudentsToSupabase(cleanLocalList);
     }
   } catch (err) {
@@ -1989,7 +2126,19 @@ export async function syncStudentsWithSupabase(studentsList: Student[]): Promise
 export async function pushStudentToSupabase(student: Student): Promise<void> {
   markLocalDataChanged('students');
   const client = getSupabaseClient();
-  if (!client) return;
+  if (!client || !student) return;
+
+  // STRICT SEPARATION: ALUMNI MUST BE SAVED TO ALUMNI TABLE, NEVER STUDENTS TABLE!
+  if (student.status === 'Alumni' || student.status === 'Berhenti') {
+    try {
+      await pushAlumniToSupabase(student);
+      await client.from('students').delete().eq('id', student.id);
+    } catch (e) {
+      console.error('Error moving student to alumni table:', e);
+    }
+    return;
+  }
+
   try {
     const payload = formatStudentToSupabasePayload(student);
     const { error } = await client.from('students').upsert(payload, { onConflict: 'id' });
@@ -2033,12 +2182,31 @@ export async function pushStudentToSupabase(student: Student): Promise<void> {
 export async function pushAllStudentsToSupabase(studentsList: Student[]): Promise<void> {
   const client = getSupabaseClient();
   if (!client || studentsList.length === 0) return;
+
+  const deletedIds = getDeletedIdsSet('students');
+  // Separate active students from alumni
+  const alumniStudents = studentsList.filter(s => s && (s.status === 'Alumni' || s.status === 'Berhenti') && !deletedIds.has(s.id));
+  const activeStudents = studentsList.filter(s => s && s.status !== 'Alumni' && s.status !== 'Berhenti' && !deletedIds.has(s.id));
+
+  // Push alumni to 'alumni' table and purge from 'students' table in Supabase
+  if (alumniStudents.length > 0) {
+    try {
+      const almPayloads = alumniStudents.map(formatAlumniToSupabasePayload);
+      await client.from('alumni').upsert(almPayloads, { onConflict: 'id' });
+      await client.from('students').delete().in('id', alumniStudents.map(a => a.id));
+    } catch (e) {
+      console.error('Error separating alumni in Supabase:', e);
+    }
+  }
+
+  if (activeStudents.length === 0) return;
+
   try {
-    const payload = studentsList.map(formatStudentToSupabasePayload);
+    const payload = activeStudents.map(formatStudentToSupabasePayload);
     const { error } = await client.from('students').upsert(payload, { onConflict: 'id' });
     if (error) {
       console.warn('Bulk upsert students failed with full payload, trying safe core payloads:', error);
-      const corePayload = studentsList.map(s => ({
+      const corePayload = activeStudents.map(s => ({
         id: s.id,
         nis: s.nis || 'UNTITLED',
         full_name: s.fullName,
@@ -2064,9 +2232,57 @@ export async function pushAllStudentsToSupabase(studentsList: Student[]): Promis
 
 export async function deleteStudentFromSupabase(id: string): Promise<void> {
   markLocalDataChanged('students');
+  markIdAsDeleted('students', id);
+
+  // Automatically find and mark any associated bills as deleted too
+  try {
+    const rawBills = typeof localStorage !== 'undefined' ? localStorage.getItem('pesantren_bills') : null;
+    if (rawBills) {
+      const parsedBills = JSON.parse(rawBills);
+      if (Array.isArray(parsedBills)) {
+        const studentBills = parsedBills.filter((b: any) => b && (b.studentId === id || b.student_id === id));
+        studentBills.forEach((b: any) => {
+          if (b && b.id) {
+            markIdAsDeleted('bills', b.id);
+            fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' }).catch(() => {});
+          }
+        });
+        const remaining = parsedBills.filter((b: any) => b && b.studentId !== id && b.student_id !== id);
+        localStorage.setItem('pesantren_bills', JSON.stringify(remaining));
+      }
+    }
+  } catch (e) {}
+
+  // Also remove from alumni storage if existed
+  try {
+    const rawAlm = typeof localStorage !== 'undefined' ? localStorage.getItem('pesantren_alumni') : null;
+    if (rawAlm) {
+      const parsedAlm = JSON.parse(rawAlm);
+      if (Array.isArray(parsedAlm)) {
+        const remainingAlm = parsedAlm.filter((a: any) => a && a.id !== id && a.studentId !== id);
+        localStorage.setItem('pesantren_alumni', JSON.stringify(remainingAlm));
+      }
+    }
+  } catch (e) {}
+
+  try {
+    fetch(`/api/students/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    fetch(`/api/alumni/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+  } catch (e) {}
+
   const client = getSupabaseClient();
   if (!client) return;
-  try { await client.from('students').delete().eq('id', id); } catch (e) { console.error('Failed to delete student:', e); }
+  try {
+    // Delete associated bills and payments first to avoid foreign key constraints
+    await client.from('bill_payments').delete().eq('student_id', id).catch(() => {});
+    await client.from('bills').delete().eq('student_id', id).catch(() => {});
+    // Then delete student record from students table
+    await client.from('students').delete().eq('id', id).catch(() => {});
+    // Also delete student record from alumni table if it ever existed there
+    await client.from('alumni').delete().eq('id', id).catch(() => {});
+  } catch (e) {
+    console.error('Failed to delete student from Supabase:', e);
+  }
 }
 
 // ------------------------------------------------------------------------------
@@ -2098,54 +2314,66 @@ export function formatPpdbToSupabasePayload(p: PCSBRegistration) {
 
 export async function syncPpdbWithSupabase(ppdbList: PCSBRegistration[]): Promise<PCSBRegistration[]> {
   const client = getSupabaseClient();
-  if (!client) return ppdbList;
+  const deletedIds = getDeletedIdsSet('ppdb');
+  const cleanLocal = (ppdbList || []).filter(p => p && p.id && !deletedIds.has(p.id));
+  if (!client) return cleanLocal;
+
   if (isLocalDataRecentlyChanged('ppdb')) {
-    pushAllPpdbToSupabase(ppdbList).catch(e => console.error('Auto-push recent ppdb error:', e));
-    return ppdbList;
+    pushAllPpdbToSupabase(cleanLocal).catch(e => console.error('Auto-push recent ppdb error:', e));
+    return cleanLocal;
   }
 
   try {
     const { data, error } = await client.from('ppdb').select('*').order('registration_date', { ascending: false });
     if (error) {
       console.warn('Error fetching PPDB from Supabase:', error);
-      return ppdbList;
+      return cleanLocal;
     }
     if (data && data.length > 0) {
-      const remoteMapped: PCSBRegistration[] = data.map((item: any) => ({
-        id: item.id,
-        fullName: item.full_name,
-        gender: item.gender as any,
-        birthPlace: item.birth_place || '',
-        birthDate: item.birth_date || '',
-        parentName: item.parent_name,
-        parentPhone: item.parent_phone,
-        address: item.address,
-        previousSchool: item.previous_school || '-',
-        registrationDate: item.registration_date,
-        status: item.status as any || 'Pending',
-        notes: item.notes || '',
-        kk: item.kk || '',
-        nik: item.nik || '',
-        fatherName: item.father_name || '',
-        motherName: item.mother_name || '',
-        bloodType: item.blood_type || '',
-        healthHistory: item.health_history || '',
-        paymentType: (item.payment_type as any) || 'Cicilan Bulanan'
-      }));
+      // Purge any deleted PPDB items from remote Supabase table immediately
+      const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
+      if (staleInRemote.length > 0) {
+        const staleIds = staleInRemote.map((item: any) => item.id);
+        client.from('ppdb').delete().in('id', staleIds).then(() => {}, () => {});
+      }
 
-      const missingInRemote = ppdbList.filter(l => !data.some((r: any) => r.id === l.id));
-      if (missingInRemote.length > 0) {
+      const remoteMapped: PCSBRegistration[] = data
+        .filter((item: any) => item && item.id && !deletedIds.has(item.id))
+        .map((item: any) => ({
+          id: item.id,
+          fullName: item.full_name,
+          gender: item.gender as any,
+          birthPlace: item.birth_place || '',
+          birthDate: item.birth_date || '',
+          parentName: item.parent_name,
+          parentPhone: item.parent_phone,
+          address: item.address,
+          previousSchool: item.previous_school || '-',
+          registrationDate: item.registration_date,
+          status: item.status as any || 'Pending',
+          notes: item.notes || '',
+          kk: item.kk || '',
+          nik: item.nik || '',
+          fatherName: item.father_name || '',
+          motherName: item.mother_name || '',
+          bloodType: item.blood_type || '',
+          healthHistory: item.health_history || '',
+          paymentType: (item.payment_type as any) || 'Cicilan Bulanan'
+        }));
+
+      const missingInRemote = cleanLocal.filter(l => !data.some((r: any) => r.id === l.id));
+      if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('ppdb', 15000)) {
         await pushAllPpdbToSupabase(missingInRemote);
         return [...missingInRemote, ...remoteMapped];
       }
       return remoteMapped;
-    } else if (ppdbList.length > 0) {
-      await pushAllPpdbToSupabase(ppdbList);
+    } else if (cleanLocal.length > 0 && isLocalDataRecentlyChanged('ppdb', 15000)) {
+      await pushAllPpdbToSupabase(cleanLocal);
     }
   } catch (err) {
     console.error('Error syncing PPDB with Supabase:', err);
   }
-  return ppdbList;
+  return cleanLocal;
 }
 
 export async function pushPpdbToSupabase(ppdbItem: PCSBRegistration): Promise<{ success: boolean; message?: string }> {
@@ -2179,9 +2407,17 @@ export async function pushAllPpdbToSupabase(ppdbList: PCSBRegistration[]): Promi
 
 export async function deletePpdbFromSupabase(id: string): Promise<void> {
   markLocalDataChanged('ppdb');
+  markIdAsDeleted('ppdb', id);
+  try {
+    fetch(`/api/ppdb/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+  } catch (e) {}
   const client = getSupabaseClient();
   if (!client) return;
-  try { await client.from('ppdb').delete().eq('id', id); } catch (e) { console.error('Failed to delete ppdb:', e); }
+  try { 
+    await client.from('ppdb').delete().eq('id', id); 
+  } catch (e) { 
+    console.error('Failed to delete ppdb:', e); 
+  }
 }
 
 // ------------------------------------------------------------------------------
@@ -2215,25 +2451,41 @@ export async function syncRoomsWithSupabase(roomsList: Room[]): Promise<Room[]> 
       return roomsList;
     }
     if (data && data.length > 0) {
-      const remoteMapped: Room[] = data.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        gender: item.gender as any,
-        formalSchool: item.formal_school || 'SMP Formal',
-        diniyahSchool: item.diniyah_school || 'MTs Diniyah',
-        capacity: item.capacity || 10,
-        ketuaKamarId: item.ketua_kamar_id,
-        ketuaKamarName: item.ketua_kamar_name
-      }));
+      const deletedIds = getDeletedIdsSet('rooms');
 
-      const missingInRemote = roomsList.filter(l => !data.some((r: any) => r.id === l.id));
-      if (missingInRemote.length > 0) {
+      // Purge any deleted rooms from remote Supabase table immediately
+      const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
+      if (staleInRemote.length > 0) {
+        staleInRemote.forEach((stale: any) => {
+          Promise.resolve(client.from('rooms').delete().eq('id', stale.id)).catch(() => {});
+        });
+      }
+
+      const remoteMapped: Room[] = data
+        .filter((item: any) => item && item.id && !deletedIds.has(item.id))
+        .map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          gender: item.gender as any,
+          formalSchool: item.formal_school || 'SMP Formal',
+          diniyahSchool: item.diniyah_school || 'MTs Diniyah',
+          capacity: item.capacity || 10,
+          ketuaKamarId: item.ketua_kamar_id,
+          ketuaKamarName: item.ketua_kamar_name
+        }));
+
+      const missingInRemote = roomsList.filter(l => l && !deletedIds.has(l.id) && !data.some((r: any) => r.id === l.id));
+      if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('rooms', 15000)) {
         await pushAllRoomsToSupabase(missingInRemote);
         return [...remoteMapped, ...missingInRemote];
       }
       return remoteMapped;
     } else if (roomsList.length > 0) {
-      await pushAllRoomsToSupabase(roomsList);
+      const deletedIds = getDeletedIdsSet('rooms');
+      const cleanRooms = roomsList.filter(r => r && !deletedIds.has(r.id));
+      if (cleanRooms.length > 0) {
+        await pushAllRoomsToSupabase(cleanRooms);
+      }
     }
   } catch (err) {
     console.error('Error syncing rooms with Supabase:', err);
@@ -2257,7 +2509,10 @@ export async function pushAllRoomsToSupabase(roomsList: Room[]): Promise<void> {
   const client = getSupabaseClient();
   if (!client || roomsList.length === 0) return;
   try {
-    const payload = roomsList.map(formatRoomToSupabasePayload);
+    const deletedIds = getDeletedIdsSet('rooms');
+    const validRooms = roomsList.filter(r => r && r.id && !deletedIds.has(r.id));
+    if (validRooms.length === 0) return;
+    const payload = validRooms.map(formatRoomToSupabasePayload);
     await client.from('rooms').upsert(payload);
   } catch (err) {
     console.error('Error pushing all rooms to Supabase:', err);
@@ -2266,9 +2521,17 @@ export async function pushAllRoomsToSupabase(roomsList: Room[]): Promise<void> {
 
 export async function deleteRoomFromSupabase(id: string): Promise<void> {
   markLocalDataChanged('rooms');
+  markIdAsDeleted('rooms', id);
+  try {
+    fetch(`/api/rooms/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+  } catch (e) {}
   const client = getSupabaseClient();
   if (!client) return;
-  try { await client.from('rooms').delete().eq('id', id); } catch (e) { console.error('Failed to delete room:', e); }
+  try { 
+    await client.from('rooms').delete().eq('id', id); 
+  } catch (e) { 
+    console.error('Failed to delete room from Supabase:', e); 
+  }
 }
 
 // ------------------------------------------------------------------------------
@@ -2311,40 +2574,50 @@ export async function syncBillsWithSupabase(billsList: Bill[]): Promise<Bill[]> 
       return billsList;
     }
     if (data && data.length > 0) {
-      const remoteMapped: Bill[] = data.map((item: any) => ({
-        id: item.id,
-        studentId: item.student_id,
-        studentName: item.student_name,
-        nis: item.nis,
-        title: item.title,
-        amount: Number(item.amount),
-        dueDate: item.due_date,
-        status: (item.status as any) || 'Belum Lunas',
-        category: item.category,
-        paymentDate: item.payment_date,
-        paymentMethod: item.payment_method,
-        paymentProofUrl: item.payment_proof_url,
-        senderBank: item.sender_bank,
-        senderAccountNumber: item.sender_account_number,
-        verificationStatus: item.verification_status as any,
-        verificationLogs: Array.isArray(item.verification_logs) ? item.verification_logs : []
-      }));
+      const deletedIds = getDeletedIdsSet('bills');
 
-      let deletedIds: string[] = [];
-      try {
-        const rawDel = typeof localStorage !== 'undefined' ? localStorage.getItem('pesantren_deleted_bill_ids') : null;
-        if (rawDel) deletedIds = JSON.parse(rawDel);
-      } catch (e) {}
+      // Purge deleted bills from remote Supabase table immediately
+      const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
+      if (staleInRemote.length > 0) {
+        const staleIds = staleInRemote.map((item: any) => item.id);
+        await client.from('bills').delete().in('id', staleIds).catch(() => {});
+        await client.from('bill_payments').delete().in('bill_id', staleIds).catch(() => {});
+      }
 
-      const cleanRemote = remoteMapped.filter(b => b && !deletedIds.includes(b.id));
-      const missingInRemote = billsList.filter(l => l && !deletedIds.includes(l.id) && !data.some((r: any) => r.id === l.id));
+      const remoteMapped: Bill[] = data
+        .filter((item: any) => item && item.id && !deletedIds.has(item.id))
+        .map((item: any) => ({
+          id: item.id,
+          studentId: item.student_id,
+          studentName: item.student_name,
+          nis: item.nis,
+          title: item.title,
+          amount: Number(item.amount),
+          dueDate: item.due_date,
+          status: (item.status as any) || 'Belum Lunas',
+          category: item.category,
+          paymentDate: item.payment_date,
+          paymentMethod: item.payment_method,
+          paymentProofUrl: item.payment_proof_url,
+          senderBank: item.sender_bank,
+          senderAccountNumber: item.sender_account_number,
+          verificationStatus: item.verification_status as any,
+          verificationLogs: Array.isArray(item.verification_logs) ? item.verification_logs : []
+        }));
+
+      const cleanRemote = remoteMapped;
+      const missingInRemote = billsList.filter(l => l && !deletedIds.has(l.id) && !data.some((r: any) => r.id === l.id));
       if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('bills', 15000)) {
         await pushAllBillsToSupabase(missingInRemote);
         return [...cleanRemote, ...missingInRemote];
       }
       return cleanRemote;
     } else if (billsList.length > 0) {
-      await pushAllBillsToSupabase(billsList);
+      const deletedIds = getDeletedIdsSet('bills');
+      const cleanBills = billsList.filter(b => b && !deletedIds.has(b.id));
+      if (cleanBills.length > 0) {
+        await pushAllBillsToSupabase(cleanBills);
+      }
     }
   } catch (err) {
     console.error('Error syncing bills with Supabase:', err);
@@ -2385,7 +2658,10 @@ export async function pushAllBillsToSupabase(billsList: Bill[]): Promise<void> {
   const client = getSupabaseClient();
   if (!client || billsList.length === 0) return;
   try {
-    const payload = billsList.map(formatBillToSupabasePayload);
+    const deletedIds = getDeletedIdsSet('bills');
+    const validBills = billsList.filter(b => b && b.id && !deletedIds.has(b.id));
+    if (validBills.length === 0) return;
+    const payload = validBills.map(formatBillToSupabasePayload);
     await client.from('bills').upsert(payload, { onConflict: 'id' });
   } catch (err) {
     console.error('Error pushing all bills to Supabase:', err);
@@ -2394,9 +2670,18 @@ export async function pushAllBillsToSupabase(billsList: Bill[]): Promise<void> {
 
 export async function deleteBillFromSupabase(id: string): Promise<void> {
   markLocalDataChanged('bills');
+  markIdAsDeleted('bills', id);
+  try {
+    fetch(`/api/bills/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+  } catch (e) {}
   const client = getSupabaseClient();
   if (!client) return;
-  try { await client.from('bills').delete().eq('id', id); } catch (e) { console.error('Failed to delete bill:', e); }
+  try { 
+    await client.from('bill_payments').delete().eq('bill_id', id);
+    await client.from('bills').delete().eq('id', id); 
+  } catch (e) { 
+    console.error('Failed to delete bill from Supabase:', e); 
+  }
 }
 
 // ------------------------------------------------------------------------------
@@ -3260,57 +3545,77 @@ export function formatExpenseToSupabasePayload(e: FinancialExpense) {
 
 export async function syncExpensesWithSupabase(localExpenses: FinancialExpense[]): Promise<FinancialExpense[]> {
   const client = getSupabaseClient();
-  if (!client) return localExpenses;
+  const deletedIds = getDeletedIdsSet('expenses');
+  const cleanLocal = (localExpenses || []).filter(e => e && e.id && !deletedIds.has(e.id));
+  if (!client) return cleanLocal;
 
   try {
     const { data, error } = await client.from('financial_expenses').select('*');
     if (error) {
       console.warn('Error fetching financial expenses from Supabase:', error);
-      return localExpenses;
+      return cleanLocal;
     }
     if (data && data.length > 0) {
-      const remoteMapped: FinancialExpense[] = data.map((item: any) => ({
-        id: item.id,
-        bendaharaType: item.bendahara_type as 'putra' | 'putri',
-        bendaharaName: item.bendahara_name,
-        date: item.date,
-        category: item.category,
-        amount: Number(item.amount || 0),
-        description: item.description,
-        recipient: item.recipient || undefined,
-        receiptUrl: item.receipt_url || undefined,
-        createdAt: item.created_at
-      }));
+      // Purge any deleted expenses from remote Supabase table immediately
+      const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
+      if (staleInRemote.length > 0) {
+        const staleIds = staleInRemote.map((item: any) => item.id);
+        await client.from('financial_expenses').delete().in('id', staleIds).catch(() => {});
+      }
 
-      // Merge remote with local items
-      const map = new Map<string, FinancialExpense>();
-      localExpenses.forEach(e => { if (e && e.id) map.set(e.id, e); });
-      remoteMapped.forEach(e => { if (e && e.id) map.set(e.id, e); });
-      return Array.from(map.values());
-    } else if (localExpenses.length > 0) {
+      const remoteMapped: FinancialExpense[] = data
+        .filter((item: any) => item && item.id && !deletedIds.has(item.id))
+        .map((item: any) => ({
+          id: item.id,
+          bendaharaType: item.bendahara_type as 'putra' | 'putri',
+          bendaharaName: item.bendahara_name,
+          date: item.date,
+          category: item.category,
+          amount: Number(item.amount || 0),
+          description: item.description,
+          recipient: item.recipient || undefined,
+          receiptUrl: item.receipt_url || undefined,
+          createdAt: item.created_at
+        }));
+
+      // Remote is authoritative; only preserve locally added items if created within last 15 seconds
+      const missingInRemote = cleanLocal.filter(l => !data.some((r: any) => r.id === l.id));
+      if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('expenses', 15000)) {
+        await client.from('financial_expenses').upsert(missingInRemote.map(formatExpenseToSupabasePayload), { onConflict: 'id' }).catch(() => {});
+        return [...remoteMapped, ...missingInRemote];
+      }
+      return remoteMapped;
+    } else if (cleanLocal.length > 0 && isLocalDataRecentlyChanged('expenses', 15000)) {
       // Push local items to Supabase
-      const payloads = localExpenses.map(formatExpenseToSupabasePayload);
-      await client.from('financial_expenses').upsert(payloads);
-      return localExpenses;
+      const payloads = cleanLocal.map(formatExpenseToSupabasePayload);
+      await client.from('financial_expenses').upsert(payloads, { onConflict: 'id' });
+      return cleanLocal;
+    } else if (data && data.length === 0) {
+      return [];
     }
   } catch (err) {
     console.error('Failed to sync expenses with Supabase:', err);
   }
-  return localExpenses;
+  return cleanLocal;
 }
 
 export async function pushExpenseToSupabase(expense: FinancialExpense): Promise<void> {
   const client = getSupabaseClient();
-  if (!client) return;
+  if (!client || !expense || !expense.id) return;
   try {
     const payload = formatExpenseToSupabasePayload(expense);
-    await client.from('financial_expenses').upsert(payload);
+    await client.from('financial_expenses').upsert(payload, { onConflict: 'id' });
   } catch (e) {
     console.error('Failed to push expense to Supabase:', e);
   }
 }
 
 export async function deleteExpenseFromSupabase(id: string): Promise<void> {
+  markLocalDataChanged('expenses');
+  markIdAsDeleted('expenses', id);
+  try {
+    fetch(`/api/financial-expenses/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+  } catch (e) {}
   const client = getSupabaseClient();
   if (!client) return;
   try {
@@ -3350,70 +3655,141 @@ export function formatAlumniToSupabasePayload(a: any) {
 
 export async function syncAlumniWithSupabase(localAlumni: any[]): Promise<any[]> {
   const client = getSupabaseClient();
-  if (!client) return localAlumni;
+  const deletedIds = getDeletedIdsSet('alumni');
+  const cleanLocal = (localAlumni || []).filter(a => a && a.id && !deletedIds.has(a.id));
+  if (!client) return cleanLocal;
 
   try {
     const { data, error } = await client.from('alumni').select('*');
     if (error) {
       console.warn('Error fetching alumni from Supabase:', error);
-      return localAlumni;
+      return cleanLocal;
     }
     if (data && data.length > 0) {
-      const remoteMapped = data.map((item: any) => ({
-        id: item.id,
-        studentId: item.student_id,
-        nis: item.nis,
-        fullName: item.full_name,
-        gender: item.gender,
-        classFormal: item.class_formal,
-        classMadrasah: item.class_madrasah,
-        tahunMasuk: item.tahun_masuk,
-        tahunKeluar: item.tahun_keluar,
-        alumniReason: item.alumni_reason,
-        lastEducation: item.last_education,
-        currentActivity: item.current_activity,
-        campusOrWorkplace: item.campus_or_workplace,
-        phone: item.phone,
-        email: item.email,
-        address: item.address,
-        parentName: item.parent_name,
-        parentPhone: item.parent_phone,
-        currentHafalan: item.current_hafalan,
-        photoUrl: item.photo_url,
-        status: 'Alumni'
-      }));
+      // Purge any deleted alumni from remote Supabase table immediately
+      const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
+      if (staleInRemote.length > 0) {
+        const staleIds = staleInRemote.map((item: any) => item.id);
+        await client.from('alumni').delete().in('id', staleIds).catch(() => {});
+      }
 
-      const map = new Map<string, any>();
-      localAlumni.forEach(a => { if (a && a.id) map.set(a.id, a); });
-      remoteMapped.forEach((a: any) => { if (a && a.id) map.set(a.id, a); });
-      return Array.from(map.values());
-    } else if (localAlumni.length > 0) {
-      const payloads = localAlumni.map(formatAlumniToSupabasePayload);
-      await client.from('alumni').upsert(payloads);
-      return localAlumni;
+      // Also ensure none of these alumni remain in active students table on Supabase!
+      const validAlumniIds = data.map((item: any) => item.id).filter(Boolean);
+      if (validAlumniIds.length > 0) {
+        client.from('students').delete().in('id', validAlumniIds).catch(() => {});
+      }
+
+      const remoteMapped = data
+        .filter((item: any) => item && item.id && !deletedIds.has(item.id))
+        .map((item: any) => ({
+          id: item.id,
+          studentId: item.student_id,
+          nis: item.nis,
+          fullName: item.full_name,
+          gender: item.gender,
+          classFormal: item.class_formal,
+          classMadrasah: item.class_madrasah,
+          tahunMasuk: item.tahun_masuk,
+          tahunKeluar: item.tahun_keluar,
+          alumniReason: item.alumni_reason,
+          lastEducation: item.last_education,
+          currentActivity: item.current_activity,
+          campusOrWorkplace: item.campus_or_workplace,
+          phone: item.phone,
+          email: item.email,
+          address: item.address,
+          parentName: item.parent_name,
+          parentPhone: item.parent_phone,
+          currentHafalan: item.current_hafalan,
+          photoUrl: item.photo_url,
+          status: 'Alumni'
+        }));
+
+      // Check if there are newly added local alumni not yet in cloud
+      const missingInRemote = cleanLocal.filter(l => !data.some((r: any) => r.id === l.id));
+      if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('alumni', 15000)) {
+        await client.from('alumni').upsert(missingInRemote.map(formatAlumniToSupabasePayload), { onConflict: 'id' });
+        return [...remoteMapped, ...missingInRemote];
+      }
+
+      return remoteMapped;
+    } else if (cleanLocal.length > 0 && isLocalDataRecentlyChanged('alumni', 15000)) {
+      const payloads = cleanLocal.map(formatAlumniToSupabasePayload);
+      await client.from('alumni').upsert(payloads, { onConflict: 'id' });
+      return cleanLocal;
+    } else if (data && data.length === 0) {
+      return [];
     }
   } catch (err) {
     console.error('Failed to sync alumni with Supabase:', err);
   }
-  return localAlumni;
+  return cleanLocal;
 }
 
 export async function pushAlumniToSupabase(alumni: any): Promise<void> {
   const client = getSupabaseClient();
-  if (!client) return;
+  if (!client || !alumni || !alumni.id) return;
   try {
     const payload = formatAlumniToSupabasePayload(alumni);
-    await client.from('alumni').upsert(payload);
+    await client.from('alumni').upsert(payload, { onConflict: 'id' });
+    // Strictly ensure this alumni is deleted from active students table on Supabase!
+    await client.from('students').delete().eq('id', alumni.id);
   } catch (e) {
     console.error('Failed to push alumni to Supabase:', e);
   }
 }
 
 export async function deleteAlumniFromSupabase(id: string): Promise<void> {
+  markLocalDataChanged('alumni');
+  markIdAsDeleted('alumni', id);
+  markIdAsDeleted('students', id);
+
+  try {
+    fetch(`/api/alumni/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    fetch(`/api/students/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+  } catch (e) {}
+
+  // Remove from localStorage alumni, students, and bills
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const rawAlm = localStorage.getItem('pesantren_alumni');
+      if (rawAlm) {
+        const parsed = JSON.parse(rawAlm);
+        if (Array.isArray(parsed)) {
+          localStorage.setItem('pesantren_alumni', JSON.stringify(parsed.filter((a: any) => a && a.id !== id && a.studentId !== id)));
+        }
+      }
+      const rawStd = localStorage.getItem('pesantren_students');
+      if (rawStd) {
+        const parsed = JSON.parse(rawStd);
+        if (Array.isArray(parsed)) {
+          localStorage.setItem('pesantren_students', JSON.stringify(parsed.filter((s: any) => s && s.id !== id)));
+        }
+      }
+      const rawBills = localStorage.getItem('pesantren_bills');
+      if (rawBills) {
+        const parsedB = JSON.parse(rawBills);
+        if (Array.isArray(parsedB)) {
+          const studentBills = parsedB.filter((b: any) => b && (b.studentId === id || b.student_id === id));
+          studentBills.forEach((b: any) => {
+            if (b && b.id) {
+              markIdAsDeleted('bills', b.id);
+              fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' }).catch(() => {});
+            }
+          });
+          localStorage.setItem('pesantren_bills', JSON.stringify(parsedB.filter((b: any) => b && b.studentId !== id && b.student_id !== id)));
+        }
+      }
+    }
+  } catch (e) {}
+
   const client = getSupabaseClient();
   if (!client) return;
   try {
-    await client.from('alumni').delete().eq('id', id);
+    await client.from('bill_payments').delete().eq('student_id', id).catch(() => {});
+    await client.from('bills').delete().eq('student_id', id).catch(() => {});
+    await client.from('alumni').delete().eq('id', id).catch(() => {});
+    await client.from('students').delete().eq('id', id).catch(() => {});
   } catch (e) {
     console.error('Failed to delete alumni from Supabase:', e);
   }

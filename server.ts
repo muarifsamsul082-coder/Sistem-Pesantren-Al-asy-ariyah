@@ -71,6 +71,58 @@ async function startServer() {
   const ADMIN_NAME_STORAGE_PATH = path.join(process.cwd(), '.portal_admin_name.json');
   const WA_TOKEN_STORAGE_PATH = path.join(process.cwd(), '.portal_wa_token.json');
   const EXPENSES_STORAGE_PATH = path.join(process.cwd(), '.portal_financial_expenses.json');
+  const ACTIVITY_LOGS_STORAGE_PATH = path.join(process.cwd(), '.portal_activity_logs.json');
+  const ROOMS_STORAGE_PATH = path.join(process.cwd(), '.portal_rooms.json');
+  const NEWS_STORAGE_PATH = path.join(process.cwd(), '.portal_news.json');
+  const ANNOUNCEMENTS_STORAGE_PATH = path.join(process.cwd(), '.portal_announcements.json');
+  const DELETED_IDS_STORAGE_PATH = path.join(process.cwd(), '.portal_deleted_ids.json');
+
+  const getDeletedIdsRecord = (): { students: string[]; bills: string[]; expenses: string[]; alumni: string[]; ppdb: string[]; rooms: string[]; news: string[]; announcements: string[] } => {
+    try {
+      if (fs.existsSync(DELETED_IDS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(DELETED_IDS_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return {
+          students: Array.isArray(parsed.students) ? parsed.students : [],
+          bills: Array.isArray(parsed.bills) ? parsed.bills : [],
+          expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
+          alumni: Array.isArray(parsed.alumni) ? parsed.alumni : [],
+          ppdb: Array.isArray(parsed.ppdb) ? parsed.ppdb : [],
+          rooms: Array.isArray(parsed.rooms) ? parsed.rooms : [],
+          news: Array.isArray(parsed.news) ? parsed.news : [],
+          announcements: Array.isArray(parsed.announcements) ? parsed.announcements : []
+        };
+      }
+    } catch (e) {}
+    return { students: [], bills: [], expenses: [], alumni: [], ppdb: [], rooms: [], news: [], announcements: [] };
+  };
+
+  const normalizeDeletedType = (type: string): string => {
+    const t = String(type || '').toLowerCase().trim();
+    if (t === 'student' || t === 'students') return 'students';
+    if (t === 'bill' || t === 'bills') return 'bills';
+    if (t === 'expense' || t === 'expenses' || t === 'financial_expenses') return 'expenses';
+    if (t === 'alumni') return 'alumni';
+    if (t === 'ppdb') return 'ppdb';
+    if (t === 'room' || t === 'rooms') return 'rooms';
+    if (t === 'news') return 'news';
+    if (t === 'announcement' || t === 'announcements') return 'announcements';
+    return t.endsWith('s') ? t : t + 's';
+  };
+
+  const registerDeletedId = (type: string, id: string) => {
+    if (!id || !type) return;
+    const cleanType = normalizeDeletedType(type);
+    const current: Record<string, string[]> = getDeletedIdsRecord() as any;
+    if (!current[cleanType]) current[cleanType] = [];
+    if (!current[cleanType].includes(id)) {
+      current[cleanType].push(id);
+      if (current[cleanType].length > 1000) current[cleanType] = current[cleanType].slice(-1000);
+      try {
+        fs.writeFileSync(DELETED_IDS_STORAGE_PATH, JSON.stringify(current, null, 2), 'utf-8');
+      } catch (e) {}
+    }
+  };
 
   // Static uploads serving
   const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
@@ -176,6 +228,7 @@ async function startServer() {
   app.delete("/api/ppdb/:id", (req, res) => {
     try {
       const id = req.params.id;
+      registerDeletedId('ppdb', id);
       if (fs.existsSync(PPDB_STORAGE_PATH)) {
         let list: any[] = JSON.parse(fs.readFileSync(PPDB_STORAGE_PATH, 'utf-8') || '[]');
         list = list.filter((p: any) => p && p.id !== id);
@@ -213,13 +266,36 @@ async function startServer() {
     return res.status(400).json({ success: false, error: "Invalid payload" });
   });
 
-  // Students multi-device persistence (e.g. perizinan keluar, poin pelanggaran)
+  // Deleted IDs central synchronization (prevents deleted records from bouncing back / mental)
+  app.get("/api/deleted-ids", (req, res) => {
+    return res.json({ success: true, deletedIds: getDeletedIdsRecord() });
+  });
+
+  app.post("/api/deleted-ids", (req, res) => {
+    try {
+      const { type, id, ids } = req.body || {};
+      if (type && id) {
+        registerDeletedId(type, id);
+      } else if (type && Array.isArray(ids)) {
+        ids.forEach(oneId => registerDeletedId(type, oneId));
+      }
+      return res.json({ success: true, deletedIds: getDeletedIdsRecord() });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
+  // Students multi-device persistence (strictly active students, never alumni)
   app.get("/api/students", (req, res) => {
     try {
       if (fs.existsSync(STUDENTS_STORAGE_PATH)) {
         const raw = fs.readFileSync(STUDENTS_STORAGE_PATH, 'utf-8');
         const parsed = JSON.parse(raw);
-        return res.json({ success: true, students: Array.isArray(parsed) ? parsed : [] });
+        const deletedMap = new Set(getDeletedIdsRecord().students);
+        const activeOnly = (Array.isArray(parsed) ? parsed : []).filter((s: any) => 
+          s && s.id && !deletedMap.has(s.id) && s.status !== 'Alumni'
+        );
+        return res.json({ success: true, students: activeOnly });
       }
     } catch (e) {
       console.error("Error reading students file:", e);
@@ -238,10 +314,49 @@ async function startServer() {
         } catch (e) {}
       }
 
+      const deletedMap = new Set(getDeletedIdsRecord().students);
+
       if (Array.isArray(incoming)) {
-        fs.writeFileSync(STUDENTS_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
-        return res.json({ success: true, count: incoming.length });
+        // Separate alumni from active students!
+        const alumniToSeparate = incoming.filter((s: any) => s && s.status === 'Alumni');
+        const activeOnly = incoming.filter((s: any) => s && s.status !== 'Alumni' && !deletedMap.has(s.id));
+        
+        fs.writeFileSync(STUDENTS_STORAGE_PATH, JSON.stringify(activeOnly, null, 2), 'utf-8');
+
+        // If any alumni were in the incoming student list, automatically move them to alumni database
+        if (alumniToSeparate.length > 0) {
+          let currentAlumni: any[] = [];
+          if (fs.existsSync(ALUMNI_STORAGE_PATH)) {
+            try { currentAlumni = JSON.parse(fs.readFileSync(ALUMNI_STORAGE_PATH, 'utf-8')) || []; } catch (e) {}
+          }
+          const almMap = new Map<string, any>();
+          currentAlumni.forEach(a => { if (a && a.id) almMap.set(a.id, a); });
+          alumniToSeparate.forEach(a => { if (a && a.id) almMap.set(a.id, a); });
+          fs.writeFileSync(ALUMNI_STORAGE_PATH, JSON.stringify(Array.from(almMap.values()), null, 2), 'utf-8');
+        }
+
+        return res.json({ success: true, count: activeOnly.length });
       } else if (incoming && incoming.id) {
+        if (deletedMap.has(incoming.id)) {
+          return res.json({ success: true, count: list.length, ignored: true });
+        }
+        if (incoming.status === 'Alumni') {
+          // Remove from students and place into alumni
+          list = list.filter(s => s.id !== incoming.id);
+          fs.writeFileSync(STUDENTS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+
+          let currentAlumni: any[] = [];
+          if (fs.existsSync(ALUMNI_STORAGE_PATH)) {
+            try { currentAlumni = JSON.parse(fs.readFileSync(ALUMNI_STORAGE_PATH, 'utf-8')) || []; } catch (e) {}
+          }
+          const existingAlmIdx = currentAlumni.findIndex(a => a.id === incoming.id);
+          if (existingAlmIdx >= 0) currentAlumni[existingAlmIdx] = incoming;
+          else currentAlumni.unshift(incoming);
+          fs.writeFileSync(ALUMNI_STORAGE_PATH, JSON.stringify(currentAlumni, null, 2), 'utf-8');
+
+          return res.json({ success: true, movedToAlumni: true });
+        }
+
         const existingIdx = list.findIndex(s => s.id === incoming.id);
         if (existingIdx >= 0) {
           list[existingIdx] = incoming;
@@ -258,13 +373,49 @@ async function startServer() {
     return res.status(400).json({ success: false, error: "Invalid payload" });
   });
 
-  // Alumni dedicated multi-device persistence (separated from active students)
+  app.delete("/api/students/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      registerDeletedId('students', id);
+
+      if (fs.existsSync(STUDENTS_STORAGE_PATH)) {
+        try {
+          const list = JSON.parse(fs.readFileSync(STUDENTS_STORAGE_PATH, 'utf-8'));
+          if (Array.isArray(list)) {
+            const next = list.filter((s: any) => s && s.id !== id);
+            fs.writeFileSync(STUDENTS_STORAGE_PATH, JSON.stringify(next, null, 2), 'utf-8');
+          }
+        } catch (e) {}
+      }
+
+      // Also purge any bills for this deleted student
+      if (fs.existsSync(BILLS_STORAGE_PATH)) {
+        try {
+          const billsList = JSON.parse(fs.readFileSync(BILLS_STORAGE_PATH, 'utf-8'));
+          if (Array.isArray(billsList)) {
+            const deletedBills = billsList.filter((b: any) => b && b.studentId === id);
+            deletedBills.forEach((db: any) => registerDeletedId('bills', db.id));
+            const remainingBills = billsList.filter((b: any) => b && b.studentId !== id);
+            fs.writeFileSync(BILLS_STORAGE_PATH, JSON.stringify(remainingBills, null, 2), 'utf-8');
+          }
+        } catch (e) {}
+      }
+
+      return res.json({ success: true, id });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
+  // Alumni dedicated multi-device persistence (completely separated from active students)
   app.get("/api/alumni", (req, res) => {
     try {
       if (fs.existsSync(ALUMNI_STORAGE_PATH)) {
         const raw = fs.readFileSync(ALUMNI_STORAGE_PATH, 'utf-8');
         const parsed = JSON.parse(raw);
-        return res.json({ success: true, alumni: Array.isArray(parsed) ? parsed : [] });
+        const deletedMap = new Set(getDeletedIdsRecord().alumni);
+        const validAlumni = (Array.isArray(parsed) ? parsed : []).filter((a: any) => a && a.id && !deletedMap.has(a.id));
+        return res.json({ success: true, alumni: validAlumni });
       }
     } catch (e) {
       console.error("Error reading alumni file:", e);
@@ -283,14 +434,20 @@ async function startServer() {
         } catch (e) {}
       }
 
+      const deletedMap = new Set(getDeletedIdsRecord().alumni);
+
       if (incoming && incoming.replace && Array.isArray(incoming.alumni)) {
-        list = incoming.alumni;
+        list = incoming.alumni.filter((a: any) => a && !deletedMap.has(a.id));
         fs.writeFileSync(ALUMNI_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
         return res.json({ success: true, count: list.length });
       } else if (Array.isArray(incoming)) {
-        fs.writeFileSync(ALUMNI_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
-        return res.json({ success: true, count: incoming.length });
+        list = incoming.filter((a: any) => a && !deletedMap.has(a.id));
+        fs.writeFileSync(ALUMNI_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
       } else if (incoming && incoming.id) {
+        if (deletedMap.has(incoming.id)) {
+          return res.json({ success: true, count: list.length, ignored: true });
+        }
         const existingIdx = list.findIndex(s => s.id === incoming.id);
         if (existingIdx >= 0) {
           list[existingIdx] = incoming;
@@ -307,13 +464,33 @@ async function startServer() {
     return res.status(400).json({ success: false, error: "Invalid payload" });
   });
 
+  app.delete("/api/alumni/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      registerDeletedId('alumni', id);
+      if (fs.existsSync(ALUMNI_STORAGE_PATH)) {
+        const raw = fs.readFileSync(ALUMNI_STORAGE_PATH, 'utf-8');
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const next = list.filter((a: any) => a && a.id !== id);
+          fs.writeFileSync(ALUMNI_STORAGE_PATH, JSON.stringify(next, null, 2), 'utf-8');
+        }
+      }
+      return res.json({ success: true, id });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
   // Bills multi-device persistence (ensures payments never revert/bounce)
   app.get("/api/bills", (req, res) => {
     try {
       if (fs.existsSync(BILLS_STORAGE_PATH)) {
         const raw = fs.readFileSync(BILLS_STORAGE_PATH, 'utf-8');
         const parsed = JSON.parse(raw);
-        return res.json({ success: true, bills: Array.isArray(parsed) ? parsed : [] });
+        const deletedMap = new Set(getDeletedIdsRecord().bills);
+        const validBills = (Array.isArray(parsed) ? parsed : []).filter((b: any) => b && b.id && !deletedMap.has(b.id));
+        return res.json({ success: true, bills: validBills });
       }
     } catch (e) {
       console.error("Error reading bills file:", e);
@@ -332,14 +509,20 @@ async function startServer() {
         } catch (e) {}
       }
 
+      const deletedMap = new Set(getDeletedIdsRecord().bills);
+
       if (incoming && incoming.replace && Array.isArray(incoming.bills)) {
-        list = incoming.bills;
+        list = incoming.bills.filter((b: any) => b && !deletedMap.has(b.id));
         fs.writeFileSync(BILLS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
         return res.json({ success: true, count: list.length });
       } else if (Array.isArray(incoming)) {
-        fs.writeFileSync(BILLS_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
-        return res.json({ success: true, count: incoming.length });
+        list = incoming.filter((b: any) => b && !deletedMap.has(b.id));
+        fs.writeFileSync(BILLS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
       } else if (incoming && incoming.id) {
+        if (deletedMap.has(incoming.id)) {
+          return res.json({ success: true, count: list.length, ignored: true });
+        }
         const existingIdx = list.findIndex(b => b.id === incoming.id);
         if (existingIdx >= 0) {
           list[existingIdx] = incoming;
@@ -356,13 +539,33 @@ async function startServer() {
     return res.status(400).json({ success: false, error: "Invalid payload" });
   });
 
+  app.delete("/api/bills/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      registerDeletedId('bills', id);
+      if (fs.existsSync(BILLS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(BILLS_STORAGE_PATH, 'utf-8');
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const next = list.filter((b: any) => b && b.id !== id);
+          fs.writeFileSync(BILLS_STORAGE_PATH, JSON.stringify(next, null, 2), 'utf-8');
+        }
+      }
+      return res.json({ success: true, id });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
   // Financial Expenses multi-device persistence (Bendahara Putra & Putri)
   app.get("/api/financial-expenses", (req, res) => {
     try {
       if (fs.existsSync(EXPENSES_STORAGE_PATH)) {
         const raw = fs.readFileSync(EXPENSES_STORAGE_PATH, 'utf-8');
         const parsed = JSON.parse(raw);
-        return res.json({ success: true, expenses: Array.isArray(parsed) ? parsed : [] });
+        const deletedMap = new Set(getDeletedIdsRecord().expenses);
+        const validExpenses = (Array.isArray(parsed) ? parsed : []).filter((e: any) => e && e.id && !deletedMap.has(e.id));
+        return res.json({ success: true, expenses: validExpenses });
       }
     } catch (e) {
       console.error("Error reading financial expenses file:", e);
@@ -381,14 +584,20 @@ async function startServer() {
         } catch (e) {}
       }
 
+      const deletedMap = new Set(getDeletedIdsRecord().expenses);
+
       if (incoming && incoming.replace && Array.isArray(incoming.expenses)) {
-        list = incoming.expenses;
+        list = incoming.expenses.filter((e: any) => e && !deletedMap.has(e.id));
         fs.writeFileSync(EXPENSES_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
         return res.json({ success: true, count: list.length });
       } else if (Array.isArray(incoming)) {
-        fs.writeFileSync(EXPENSES_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
-        return res.json({ success: true, count: incoming.length });
+        list = incoming.filter((e: any) => e && !deletedMap.has(e.id));
+        fs.writeFileSync(EXPENSES_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
       } else if (incoming && incoming.id) {
+        if (deletedMap.has(incoming.id)) {
+          return res.json({ success: true, count: list.length, ignored: true });
+        }
         const existingIdx = list.findIndex(e => e.id === incoming.id);
         if (existingIdx >= 0) {
           list[existingIdx] = incoming;
@@ -403,6 +612,241 @@ async function startServer() {
       return res.status(500).json({ success: false, error: String(e) });
     }
     return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  app.delete("/api/financial-expenses/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      registerDeletedId('expenses', id);
+      if (fs.existsSync(EXPENSES_STORAGE_PATH)) {
+        const raw = fs.readFileSync(EXPENSES_STORAGE_PATH, 'utf-8');
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const next = list.filter((e: any) => e && e.id !== id);
+          fs.writeFileSync(EXPENSES_STORAGE_PATH, JSON.stringify(next, null, 2), 'utf-8');
+        }
+      }
+      return res.json({ success: true, id });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
+  // Activity Logs multi-device persistence (synchronizes audit trail across all admin & staff accounts)
+  app.get("/api/activity-logs", (req, res) => {
+    try {
+      if (fs.existsSync(ACTIVITY_LOGS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(ACTIVITY_LOGS_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return res.json({ success: true, logs: Array.isArray(parsed) ? parsed : [] });
+      }
+    } catch (e) {
+      console.error("Error reading activity logs file:", e);
+    }
+    return res.json({ success: true, logs: [] });
+  });
+
+  app.post("/api/activity-logs", (req, res) => {
+    try {
+      const incoming = req.body;
+      let list: any[] = [];
+      if (fs.existsSync(ACTIVITY_LOGS_STORAGE_PATH)) {
+        try {
+          list = JSON.parse(fs.readFileSync(ACTIVITY_LOGS_STORAGE_PATH, 'utf-8'));
+          if (!Array.isArray(list)) list = [];
+        } catch (e) {}
+      }
+
+      if (incoming && incoming.replace && Array.isArray(incoming.logs)) {
+        list = incoming.logs.slice(0, 500);
+        fs.writeFileSync(ACTIVITY_LOGS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length, logs: list });
+      } else if (Array.isArray(incoming)) {
+        const map = new Map<string, any>();
+        incoming.forEach(item => { if (item && item.id) map.set(item.id, item); });
+        list.forEach(item => { if (item && item.id && !map.has(item.id)) map.set(item.id, item); });
+        const merged = Array.from(map.values()).slice(0, 500);
+        fs.writeFileSync(ACTIVITY_LOGS_STORAGE_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+        return res.json({ success: true, count: merged.length, logs: merged });
+      } else if (incoming && incoming.id) {
+        const filtered = list.filter(l => l.id !== incoming.id);
+        const updated = [incoming, ...filtered].slice(0, 500);
+        fs.writeFileSync(ACTIVITY_LOGS_STORAGE_PATH, JSON.stringify(updated, null, 2), 'utf-8');
+        return res.json({ success: true, count: updated.length, logs: updated });
+      }
+    } catch (e) {
+      console.error("Error saving activity logs:", e);
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  app.delete("/api/activity-logs", (req, res) => {
+    try {
+      fs.writeFileSync(ACTIVITY_LOGS_STORAGE_PATH, JSON.stringify([], null, 2), 'utf-8');
+      return res.json({ success: true, logs: [] });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
+  // Rooms multi-device persistence
+  app.get("/api/rooms", (req, res) => {
+    try {
+      if (fs.existsSync(ROOMS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(ROOMS_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        const deletedMap = new Set(getDeletedIdsRecord().rooms);
+        const valid = (Array.isArray(parsed) ? parsed : []).filter((r: any) => r && r.id && !deletedMap.has(r.id));
+        return res.json({ success: true, rooms: valid });
+      }
+    } catch (e) {}
+    return res.json({ success: true, rooms: [] });
+  });
+
+  app.post("/api/rooms", (req, res) => {
+    try {
+      const incoming = req.body;
+      const deletedMap = new Set(getDeletedIdsRecord().rooms);
+      if (Array.isArray(incoming)) {
+        const valid = incoming.filter((r: any) => r && r.id && !deletedMap.has(r.id));
+        fs.writeFileSync(ROOMS_STORAGE_PATH, JSON.stringify(valid, null, 2), 'utf-8');
+        return res.json({ success: true, count: valid.length });
+      } else if (incoming && incoming.id) {
+        if (deletedMap.has(incoming.id)) return res.json({ success: true, ignored: true });
+        let list: any[] = [];
+        try { if (fs.existsSync(ROOMS_STORAGE_PATH)) list = JSON.parse(fs.readFileSync(ROOMS_STORAGE_PATH, 'utf-8')) || []; } catch (e) {}
+        const idx = list.findIndex(r => r.id === incoming.id);
+        if (idx >= 0) list[idx] = incoming;
+        else list.push(incoming);
+        fs.writeFileSync(ROOMS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  app.delete("/api/rooms/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      registerDeletedId('rooms', id);
+      if (fs.existsSync(ROOMS_STORAGE_PATH)) {
+        let list: any[] = JSON.parse(fs.readFileSync(ROOMS_STORAGE_PATH, 'utf-8') || '[]');
+        list = list.filter((r: any) => r && r.id !== id);
+        fs.writeFileSync(ROOMS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+      }
+      return res.json({ success: true, id });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
+  // News multi-device persistence
+  app.get("/api/news", (req, res) => {
+    try {
+      if (fs.existsSync(NEWS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(NEWS_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        const deletedMap = new Set(getDeletedIdsRecord().news);
+        const valid = (Array.isArray(parsed) ? parsed : []).filter((n: any) => n && n.id && !deletedMap.has(n.id));
+        return res.json({ success: true, news: valid });
+      }
+    } catch (e) {}
+    return res.json({ success: true, news: [] });
+  });
+
+  app.post("/api/news", (req, res) => {
+    try {
+      const incoming = req.body;
+      const deletedMap = new Set(getDeletedIdsRecord().news);
+      if (Array.isArray(incoming)) {
+        const valid = incoming.filter((n: any) => n && n.id && !deletedMap.has(n.id));
+        fs.writeFileSync(NEWS_STORAGE_PATH, JSON.stringify(valid, null, 2), 'utf-8');
+        return res.json({ success: true, count: valid.length });
+      } else if (incoming && incoming.id) {
+        if (deletedMap.has(incoming.id)) return res.json({ success: true, ignored: true });
+        let list: any[] = [];
+        try { if (fs.existsSync(NEWS_STORAGE_PATH)) list = JSON.parse(fs.readFileSync(NEWS_STORAGE_PATH, 'utf-8')) || []; } catch (e) {}
+        const idx = list.findIndex(n => n.id === incoming.id);
+        if (idx >= 0) list[idx] = incoming;
+        else list.unshift(incoming);
+        fs.writeFileSync(NEWS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  app.delete("/api/news/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      registerDeletedId('news', id);
+      if (fs.existsSync(NEWS_STORAGE_PATH)) {
+        let list: any[] = JSON.parse(fs.readFileSync(NEWS_STORAGE_PATH, 'utf-8') || '[]');
+        list = list.filter((n: any) => n && n.id !== id);
+        fs.writeFileSync(NEWS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+      }
+      return res.json({ success: true, id });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+  });
+
+  // Announcements multi-device persistence
+  app.get("/api/announcements", (req, res) => {
+    try {
+      if (fs.existsSync(ANNOUNCEMENTS_STORAGE_PATH)) {
+        const raw = fs.readFileSync(ANNOUNCEMENTS_STORAGE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        const deletedMap = new Set(getDeletedIdsRecord().announcements);
+        const valid = (Array.isArray(parsed) ? parsed : []).filter((a: any) => a && a.id && !deletedMap.has(a.id));
+        return res.json({ success: true, announcements: valid });
+      }
+    } catch (e) {}
+    return res.json({ success: true, announcements: [] });
+  });
+
+  app.post("/api/announcements", (req, res) => {
+    try {
+      const incoming = req.body;
+      const deletedMap = new Set(getDeletedIdsRecord().announcements);
+      if (Array.isArray(incoming)) {
+        const valid = incoming.filter((a: any) => a && a.id && !deletedMap.has(a.id));
+        fs.writeFileSync(ANNOUNCEMENTS_STORAGE_PATH, JSON.stringify(valid, null, 2), 'utf-8');
+        return res.json({ success: true, count: valid.length });
+      } else if (incoming && incoming.id) {
+        if (deletedMap.has(incoming.id)) return res.json({ success: true, ignored: true });
+        let list: any[] = [];
+        try { if (fs.existsSync(ANNOUNCEMENTS_STORAGE_PATH)) list = JSON.parse(fs.readFileSync(ANNOUNCEMENTS_STORAGE_PATH, 'utf-8')) || []; } catch (e) {}
+        const idx = list.findIndex(a => a.id === incoming.id);
+        if (idx >= 0) list[idx] = incoming;
+        else list.unshift(incoming);
+        fs.writeFileSync(ANNOUNCEMENTS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+        return res.json({ success: true, count: list.length });
+      }
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
+    return res.status(400).json({ success: false, error: "Invalid payload" });
+  });
+
+  app.delete("/api/announcements/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      registerDeletedId('announcements', id);
+      if (fs.existsSync(ANNOUNCEMENTS_STORAGE_PATH)) {
+        let list: any[] = JSON.parse(fs.readFileSync(ANNOUNCEMENTS_STORAGE_PATH, 'utf-8') || '[]');
+        list = list.filter((a: any) => a && a.id !== id);
+        fs.writeFileSync(ANNOUNCEMENTS_STORAGE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+      }
+      return res.json({ success: true, id });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: String(e) });
+    }
   });
 
   // Admin Name multi-device persistence (Ustadz Samsul)

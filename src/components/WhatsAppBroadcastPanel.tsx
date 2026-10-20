@@ -13,6 +13,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Student, Bill, PortalSettings, Room } from '../types';
+import { formatIndonesianDate } from '../lib/dateUtils';
 
 interface WhatsAppBroadcastPanelProps {
   students: Student[];
@@ -33,63 +34,151 @@ export const getLetterTemplates = (settings: PortalSettings) => {
   const pengasuh = settings.namaPengasuh || "KH. Asy'ari Al-Hafidz";
   const bendahara = settings.namaBendaharaPutra || settings.namaBendahara || "Ustadz Ahmad Fauzi, S.E.";
   const akademik = settings.namaAkademik || "Bagian Pendidikan & Madrasah";
+  const keamanan = settings.namaKeamanan || "Bagian Keamanan & Ketertiban";
 
   return [
+    {
+      id: 'surat_tunggakan',
+      label: '⚠️ Peringatan Tunggakan & Batas Akhir (Deadline)',
+      title: 'Peringatan Tunggakan Pembayaran',
+      body: `Assalamu'alaikum Wr. Wb.
+Yth. Bapak/Ibu {nama_wali},
+Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas}, Kamar: {kamar})
+
+Semoga Bapak/Ibu sekeluarga senantiasa berada dalam lindungan dan limpahan rahmat Allah SWT.
+
+Melalui pesan ini, kami dari bagian Keuangan / Bendahara ${school} menginformasikan catatan administrasi ananda yang saat ini masih *melewati batas jatuh tempo (menunggak)* dengan rincian sebagai berikut:
+
+⚠️ *RINCIAN TUNGGAKAN PEMBAYARAN:*
+• Total Kewajiban Menunggak: *{tunggakan}*
+• Batas Akhir Pelunasan (Deadline): *{deadline}*
+
+📋 *Pos Tagihan Tertunggak:*
+{rincian_tunggakan}
+
+Mohon bantuan Bapak/Ibu wali santri untuk dapat segera melunasi kewajiban tersebut sebelum batas deadline: *{deadline}* demi kelancaran kegiatan belajar, pembinaan ibadah, dan operasional santri di pesantren.
+
+Pembayaran dapat ditunaikan secara tunai di kantor bendahara atau melalui transfer rekening resmi:
+{info_rekening}
+
+*Catatan:* Apabila Bapak/Ibu telah melakukan pembayaran sebelumnya, mohon kirimkan foto resi/bukti transfer melalui nomor ini agar kami sinkronkan pembukuannya.
+
+Jazakumullah khairan katsiran atas perhatian, kerja sama, dan pengertian Bapak/Ibu.
+Wassalamu'alaikum Wr. Wb.
+
+-- ${bendahara} (Bendahara ${school}) --`
+    },
     {
       id: 'surat_tagihan',
       label: '💰 Pemberitahuan Pembayaran Syahriyah / SPP',
       title: 'Pemberitahuan Pembayaran Syahriyah',
-      body: `Assalamu'alaikum Wr. Wb. Bapak/Ibu {nama_wali},
+      body: `Assalamu'alaikum Wr. Wb.
+Yth. Bapak/Ibu {nama_wali},
+Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas}, Kamar: {kamar})
 
-Diberitahukan perihal administrasi pembayaran syahriyah/SPP pondok pesantren ${school} untuk ananda *{nama_santri}* (NIS: {nis}, Kelas: {kelas}).
+Diberitahukan perihal administrasi pembayaran syahriyah (SPP) dan kegiatan santri di ${school}:
 
-Rincian kewajiban pembayaran dapat ditunaikan melalui transfer rekening resmi pesantren atau setor tunai di kantor bendahara. Setelah melakukan pembayaran, bukti pembayaran dapat diunggah melalui Portal Santri resmi.
+📋 *RINCIAN TAGIHAN:*
+• Total Tagihan: *{nominal_tagihan}*
+• Batas Pembayaran (Jatuh Tempo): *{deadline}*
+• Status Pembayaran: *{status_tagihan}*
+
+Rincian pos biaya:
+{rincian_tagihan}
+
+Pembayaran dapat ditunaikan secara tunai di kantor bendahara atau ditransfer melalui rekening resmi pesantren:
+{info_rekening}
+
+Setelah melakukan transfer, bukti pembayaran dapat diunggah melalui Portal Santri resmi atau konfirmasikan ke nomor bendahara.
 
 Jazakumullah khairan katsiran atas perhatian, kerja sama, dan dukungannya.
 Wassalamu'alaikum Wr. Wb.
--- ${bendahara} (Bendahara ${school}) --`
-    },
-    {
-      id: 'surat_tunggakan',
-      label: '⚠️ Peringatan Pembayaran Lewat Jatuh Tempo / Menunggak',
-      title: 'Peringatan Tagihan Lewat Jatuh Tempo',
-      body: `Assalamu'alaikum Wr. Wb. Bapak/Ibu {nama_wali},
 
-Mengingatkan kembali dengan hormat, berdasarkan catatan pembukuan bendahara ${school}, tagihan syahriyah/administrasi ananda *{nama_santri}* (NIS: {nis}, Kelas: {kelas}) saat ini telah *melewati batas jatuh tempo (menunggak)*.
-
-Mohon bantuan Bapak/Ibu wali santri untuk dapat segera menyelesaikan kewajiban administrasi tersebut demi kelancaran kegiatan operasional dan pendidikan santri di pesantren.
-
-Apabila pembayaran telah ditunaikan, mohon konfirmasi atau kirimkan bukti pembayaran ke kantor bendahara.
-
-Wassalamu'alaikum Wr. Wb.
 -- ${bendahara} (Bendahara ${school}) --`
     },
     {
       id: 'surat_undangan',
       label: '✉️ Undangan Pertemuan Wali Santri',
       title: 'Undangan Pertemuan Wali Santri',
-      body: `Assalamu'alaikum Wr. Wb. Bapak/Ibu {nama_wali},
+      body: `Assalamu'alaikum Wr. Wb.
+Yth. Bapak/Ibu {nama_wali},
+Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas}, Kamar: {kamar})
 
-Mengharap kehadiran Bapak/Ibu Wali dari ananda *{nama_santri}* (NIS: {nis}, Kelas: {kelas}) dalam agenda *Pertemuan & Silaturahmi Wali Santri* yang insya Allah akan diselenggarakan di aula ${school}.
+Mengharap kehadiran Bapak/Ibu Wali Santri dalam agenda *Pertemuan & Silaturahmi Akbar Wali Santri* ${school} yang insya Allah akan diselenggarakan pada:
 
-Kehadiran serta masukan dari Bapak/Ibu sekalian sangat berharga demi kemajuan pendidikan, akhlak, dan pembinaan ananda di pondok pesantren.
+📅 Hari / Tanggal: {hari_tanggal}
+⏰ Waktu: {waktu_agenda} WIB
+📍 Tempat: Aula Pertemuan Utama ${school}
+📌 Agenda: Evaluasi Perkembangan Santri, Laporan Pendidikan, & Musyawarah Wali
+
+Kehadiran serta masukan dari Bapak/Ibu sekalian sangat berharga demi kemajuan pendidikan, akhlakul karimah, dan pembinaan ananda di pondok pesantren.
 
 Atas perhatian dan kehadirannya, kami haturkan terima kasih.
 Wassalamu'alaikum Wr. Wb.
+
 -- ${pengasuh} (Pengasuh ${school}) --`
     },
     {
       id: 'surat_ujian',
       label: '📝 Pemberitahuan Waktu & Jadwal Ujian Santri',
       title: 'Pemberitahuan Waktu & Jadwal Ujian Santri',
-      body: `Assalamu'alaikum Wr. Wb. Bapak/Ibu {nama_wali},
+      body: `Assalamu'alaikum Wr. Wb.
+Yth. Bapak/Ibu {nama_wali},
+Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas})
 
-Diberitahukan kepada seluruh wali santri, khususnya wali dari ananda *{nama_santri}* (NIS: {nis}, Kelas: {kelas}), bahwa agenda *Ujian Semester (Imtihan Diniyah & Ujian Formal)* di ${school} akan segera dilaksanakan sesuai kalender akademik pesantren.
+Diberitahukan kepada seluruh wali santri, khususnya wali dari ananda *{nama_santri}*, bahwa agenda *Ujian Semester (Imtihan Diniyah & Ujian Formal)* di ${school} akan segera dilaksanakan:
+
+📅 Periode Pelaksanaan: {jadwal_ujian}
+📖 Cakupan Materi: Kitab Kuning, Tahfidz Al-Qur'an, dan Akademik Sekolah
 
 Mohon doa restu dan motivasi dari Bapak/Ibu agar ananda senantiasa diberikan kesehatan, ketenangan, kemudahan dalam belajar, serta memperoleh hasil ujian yang berkah dan memuaskan.
 
 Wassalamu'alaikum Wr. Wb.
+
 -- ${akademik} (${school}) --`
+    },
+    {
+      id: 'surat_libur',
+      label: '🌙 Maklumat Libur & Penjemputan Santri',
+      title: 'Maklumat Libur & Penjemputan Santri',
+      body: `Assalamu'alaikum Wr. Wb.
+Yth. Bapak/Ibu {nama_wali},
+Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas}, Kamar: {kamar})
+
+Sehubungan dengan selesainya agenda pendidikan dan ujian di ${school}, kami menginformasikan jadwal perpulangan/libur semester santri:
+
+📅 Mulai Penjemputan: {tanggal_libur}
+📅 Batas Kembali ke Pesantren: {tanggal_kembali}
+
+Ketentuan Perpulangan:
+1. Menyelesaikan proses perizinan resmi di bagian Keamanan.
+2. Menyelesaikan kewajiban administrasi syahriyah bagi yang masih memiliki tunggakan.
+3. Menjaga sholat 5 waktu, adab, dan nama baik pesantren selama di lingkungan keluarga.
+
+Demikian maklumat ini disampaikan. Terima kasih atas kerja samanya.
+Wassalamu'alaikum Wr. Wb.
+
+-- ${keamanan} (${school}) --`
+    },
+    {
+      id: 'surat_tahfidz',
+      label: '📖 Laporan Perkembangan Tahfidz Al-Qur\'an',
+      title: 'Laporan Hafalan Al-Qur\'an Santri',
+      body: `Assalamu'alaikum Wr. Wb.
+Yth. Bapak/Ibu {nama_wali},
+Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas})
+
+Alhamdulillah, berikut kami sampaikan laporan mutaba'ah tahfidz Al-Qur'an ananda di ${school}:
+
+📖 Capaian Hafalan: *{hafalan_santri}*
+⭐ Predikat Setoran Terakhir: *{predikat_hafalan}*
+📅 Tanggal Pembaruan: {tanggal_setoran}
+
+Semoga ananda senantiasa istiqomah dalam murojaah, mengamalkan akhlak Qur'ani, dan membawa keberkahan bagi keluarga tercinta.
+
+Wassalamu'alaikum Wr. Wb.
+
+-- Pembina Tahfidz ${school} --`
     }
   ];
 };
@@ -193,18 +282,112 @@ export default function WhatsAppBroadcastPanel({
     setSelectedStudentIds(next);
   };
 
-  // Murni pesan admin tanpa penambahan kata-kata otomatis
+  // Murni pesan admin dengan kalkulasi tunggakan, deadline, dan rincian resmi
   const buildMessage = (std: Student): string => {
     if (!messageBody) return '';
     const waliName = std.parentName || std.fatherName || std.guardianName || 'Bapak/Ibu Wali Santri';
+    
+    // Resolve bills strictly belonging to this student
+    const studentBills = (bills || []).filter(b => 
+      b && (
+        b.studentId === std.id ||
+        (b.nis && std.nis && b.nis === std.nis) ||
+        (b.studentName && std.fullName && b.studentName.trim().toLowerCase() === std.fullName.trim().toLowerCase())
+      )
+    );
+
+    const totalAmount = studentBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+    const unpaidBills = studentBills.filter(b => b.status === 'Belum Lunas');
+    const unpaidAmount = unpaidBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+
+    // Format tunggakan
+    const tunggakanText = unpaidAmount > 0 
+      ? `Rp ${unpaidAmount.toLocaleString('id-ID')}` 
+      : 'Rp 0 (Nihil / Bebas Tunggakan)';
+
+    // Format deadline: ambil dari jatuh tempo tagihan tertunggak terdekat, atau default tanggal 10 bulan berjalan
+    let deadlineText = '';
+    if (unpaidBills.length > 0) {
+      const dates = unpaidBills.map(b => b.dueDate).filter(Boolean);
+      if (dates.length > 0) {
+        deadlineText = formatIndonesianDate(dates[0]);
+      }
+    }
+    if (!deadlineText && studentBills.length > 0) {
+      const dates = studentBills.map(b => b.dueDate).filter(Boolean);
+      if (dates.length > 0) deadlineText = formatIndonesianDate(dates[0]);
+    }
+    if (!deadlineText) {
+      const now = new Date();
+      deadlineText = `10 ${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
+    }
+
+    // Format rincian tagihan tertunggak
+    const rincianTunggakanText = unpaidBills.length > 0
+      ? unpaidBills.map((b, i) => `${i + 1}. *${b.title}* - Rp ${Number(b.amount || 0).toLocaleString('id-ID')} (Jatuh Tempo: ${formatIndonesianDate(b.dueDate) || b.dueDate || '-'})`).join('\n')
+      : '• Tidak ada tagihan tertunggak (Nihil / Lunas)';
+
+    // Format rincian semua tagihan
+    const rincianTagihanText = studentBills.length > 0
+      ? studentBills.map((b, i) => `${i + 1}. *${b.title}* - Rp ${Number(b.amount || 0).toLocaleString('id-ID')} [${b.status}]`).join('\n')
+      : '• Tidak ada catatan tagihan terdaftar';
+
+    // Status tagihan
+    const statusTagihanText = studentBills.length === 0
+      ? 'Bebas Tanggungan (Nihil Tagihan)'
+      : unpaidAmount === 0
+      ? 'LUNAS 100%'
+      : `Belum Lunas (Sisa: Rp ${unpaidAmount.toLocaleString('id-ID')})`;
+
+    // Bank accounts info
+    const bankName = settings.pesantrenBankName || (settings.rekeningList?.[0]?.bankName) || 'Bank Syariah Indonesia (BSI)';
+    const accNum = settings.pesantrenBankAccountNumber || (settings.rekeningList?.[0]?.accountNumber) || '7182930412';
+    const accName = settings.pesantrenBankAccountName || (settings.rekeningList?.[0]?.accountName) || settings.schoolName || "PP. Al-Asy'ariyah";
+    const infoRekeningText = `• Bank: *${bankName}*\n• No. Rekening: *${accNum}*\n• Atas Nama: *${accName}*`;
+
+    // Tahfidz & Akademik info
+    const hafalanText = std.currentHafalan || (std.tahfidzLogs && std.tahfidzLogs.length > 0 ? `${std.tahfidzLogs[0].juz} Juz (${std.tahfidzLogs[0].surah || ''})` : 'Target Kurikulum Tahfidz Aktif');
+    const predikatHafalan = std.tahfidzLogs?.[0]?.grade || 'A (Istimewa)';
+    const tglSetoran = std.tahfidzLogs?.[0]?.date 
+      ? formatIndonesianDate(std.tahfidzLogs[0].date) 
+      : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    // Bendahara name based on gender
+    const isPutra = std.gender === 'Laki-laki';
+    const bendaharaName = isPutra
+      ? (settings.namaBendaharaPutra || settings.namaBendahara || 'Ustadz Ahmad Fauzi, S.E.')
+      : (settings.namaBendaharaPutri || settings.namaBendahara || 'Ustadzah Siti Aminah, S.E.');
+
     return messageBody
       .replace(/\{nama_santri\}/g, std.fullName || '')
       .replace(/\{nama_wali\}/g, waliName)
       .replace(/\{nis\}/g, std.nis || '-')
       .replace(/\{kelas\}/g, std.classFormal || std.classMadrasah || std.class || '-')
-      .replace(/\{kamar\}/g, std.kamar || '-')
+      .replace(/\{kamar\}/g, std.kamar ? `Kamar ${std.kamar}` : 'Non-Asrama')
       .replace(/\{pesantren\}/g, settings.schoolName || "Pondok Pesantren Al-Asy'ariyah")
-      .replace(/\{pengasuh\}/g, settings.namaPengasuh || "Pengasuh Pondok Pesantren");
+      .replace(/\{pengasuh\}/g, settings.namaPengasuh || "KH. Asy'ari Al-Hafidz")
+      .replace(/\{bendahara\}/g, bendaharaName)
+      .replace(/\{akademik\}/g, settings.namaAkademik || "Bagian Pendidikan & Madrasah")
+      .replace(/\{keamanan\}/g, settings.namaKeamanan || "Bagian Keamanan & Ketertiban")
+      .replace(/\{tunggakan\}/g, tunggakanText)
+      .replace(/\{nominal_tunggakan\}/g, tunggakanText)
+      .replace(/\{total_tunggakan\}/g, tunggakanText)
+      .replace(/\{deadline\}/g, deadlineText)
+      .replace(/\{jatuh_tempo\}/g, deadlineText)
+      .replace(/\{rincian_tunggakan\}/g, rincianTunggakanText)
+      .replace(/\{nominal_tagihan\}/g, `Rp ${totalAmount.toLocaleString('id-ID')}`)
+      .replace(/\{total_tagihan\}/g, `Rp ${totalAmount.toLocaleString('id-ID')}`)
+      .replace(/\{rincian_tagihan\}/g, rincianTagihanText)
+      .replace(/\{status_tagihan\}/g, statusTagihanText)
+      .replace(/\{info_rekening\}/g, infoRekeningText)
+      .replace(/\{hafalan_santri\}/g, hafalanText)
+      .replace(/\{predikat_hafalan\}/g, predikatHafalan)
+      .replace(/\{tanggal_setoran\}/g, tglSetoran)
+      .replace(/\{hari_tanggal\}/g, 'Ahad, 25 Oktober 2026')
+      .replace(/\{waktu_agenda\}/g, '08.30 - 11.30')
+      .replace(/\{jadwal_ujian\}/g, '15 s/d 22 November 2026')
+      .replace(/\{tanggal_libur\}/g, '25 Desember 2026')
+      .replace(/\{tanggal_kembali\}/g, '05 Januari 2027');
   };
 
   const selectedStudentsList = useMemo(() => {
@@ -503,6 +686,46 @@ export default function WhatsAppBroadcastPanel({
                   title="Sisipkan nama pesantren"
                 >
                   +{'{pesantren}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessageBody(prev => prev + ' {tunggakan}')}
+                  className="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
+                  title="Sisipkan total nominal tunggakan"
+                >
+                  +{'{tunggakan}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessageBody(prev => prev + ' {deadline}')}
+                  className="text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
+                  title="Sisipkan tanggal deadline / batas bayar"
+                >
+                  +{'{deadline}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessageBody(prev => prev + ' {rincian_tunggakan}')}
+                  className="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
+                  title="Sisipkan daftar pos tagihan yang tertunggak"
+                >
+                  +{'{rincian_tunggakan}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessageBody(prev => prev + ' {nominal_tagihan}')}
+                  className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
+                  title="Sisipkan total nominal tagihan"
+                >
+                  +{'{nominal_tagihan}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessageBody(prev => prev + ' {info_rekening}')}
+                  className="text-[10px] bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 px-1.5 py-0.5 rounded cursor-pointer transition font-mono font-bold"
+                  title="Sisipkan data rekening resmi pesantren"
+                >
+                  +{'{info_rekening}'}
                 </button>
               </div>
             </div>

@@ -103,7 +103,11 @@ import {
   pushSettingsToSupabase,
   pushPpdbToSupabase,
   subscribeToSupabaseRealtime,
-  isLocalDataRecentlyChanged
+  isLocalDataRecentlyChanged,
+  loadServerDeletedIds,
+  getDeletedIdsSet,
+  syncAlumniWithSupabase,
+  syncExpensesWithSupabase
 } from './lib/supabase';
 
 export default function App() {
@@ -346,25 +350,22 @@ export default function App() {
       }
     };
 
-    setNews(getOrSet('pesantren_news', []));
+    const deletedNewsIds = getDeletedIdsSet('news');
+    const loadedNews = getOrSet('pesantren_news', []).filter((n: any) => n && n.id && !deletedNewsIds.has(n.id));
+    setNews(loadedNews);
     
     // Pastikan maklumat yang dihapus admin tidak dimuat kembali
-    let loadedAnn = getOrSet('pesantren_announcements', []);
-    try {
-      const rawDel = localStorage.getItem('pesantren_deleted_announcement_ids');
-      if (rawDel) {
-        const delSet = new Set(JSON.parse(rawDel));
-        loadedAnn = (Array.isArray(loadedAnn) ? loadedAnn : []).filter((a: any) => a && a.id && !delSet.has(a.id));
-      }
-    } catch (e) {}
+    const deletedAnnIds = getDeletedIdsSet('announcements');
+    let loadedAnn = getOrSet('pesantren_announcements', []).filter((a: any) => a && a.id && !deletedAnnIds.has(a.id));
     setAnnouncements(loadedAnn);
     
     // Ensure uppercase names in PPDB
+    const deletedPpdbIds = getDeletedIdsSet('ppdb');
     let loadedPpdb = getOrSet('pesantren_ppdb', []);
     if (!Array.isArray(loadedPpdb)) {
       loadedPpdb = [];
     }
-    const mappedPpdb = loadedPpdb.map((p: any) => {
+    const mappedPpdb = loadedPpdb.filter((p: any) => p && p.id && !deletedPpdbIds.has(p.id)).map((p: any) => {
       if (!p) return null;
       return {
         ...p,
@@ -377,7 +378,8 @@ export default function App() {
     setPpdbList(mappedPpdb);
 
     // Load & Normalize Rooms FIRST so student room assignments can be validated against valid room names
-    let loadedRooms = getOrSet('pesantren_rooms', []);
+    const deletedRoomIds = getDeletedIdsSet('rooms');
+    let loadedRooms = getOrSet('pesantren_rooms', []).filter((r: any) => r && r.id && !deletedRoomIds.has(r.id));
     if (!Array.isArray(loadedRooms)) {
       loadedRooms = [];
     }
@@ -404,11 +406,13 @@ export default function App() {
     }
     setRooms(loadedRooms);
 
-    // Students
-    let loadedStudents = getOrSet('pesantren_students', []);
-    if (!Array.isArray(loadedStudents)) {
-      loadedStudents = [];
+    // Students (Strictly active students, exclude alumni & deleted)
+    const deletedStudentIds = getDeletedIdsSet('students');
+    let rawLoadedStudents = getOrSet('pesantren_students', []);
+    if (!Array.isArray(rawLoadedStudents)) {
+      rawLoadedStudents = [];
     }
+    let loadedStudents = rawLoadedStudents.filter((s: any) => s && s.id && !deletedStudentIds.has(s.id) && s.status !== 'Alumni');
 
     if (isLocalDataRecentlyChanged('students')) {
       setStudents(loadedStudents);
@@ -533,7 +537,8 @@ export default function App() {
       setStudents(processedStudents);
     }
 
-    setBills(getOrSet('pesantren_bills', []));
+    const deletedBillIds = getDeletedIdsSet('bills');
+    setBills(getOrSet('pesantren_bills', []).filter((b: any) => b && b.id && !deletedBillIds.has(b.id)));
     
     // Synchronize rekening list: Only use real accounts saved by admin, never inject fake dummy accounts
     const loadedSettings = getOrSet('pesantren_settings', DEFAULT_SETTINGS);
@@ -573,6 +578,47 @@ export default function App() {
     // Dedicated server-level sync for settings, PPDB, and students across all devices
     const syncServerSettings = async () => {
       try {
+        await loadServerDeletedIds();
+
+        // Immediately purge any deleted items from memory state and storage
+        const delStd = getDeletedIdsSet('students');
+        const delBill = getDeletedIdsSet('bills');
+        const delNews = getDeletedIdsSet('news');
+        const delAnn = getDeletedIdsSet('announcements');
+        const delPpdb = getDeletedIdsSet('ppdb');
+        const delRooms = getDeletedIdsSet('rooms');
+
+        setStudents(prev => {
+          const filtered = prev.filter(s => s && s.id && !delStd.has(s.id) && s.status !== 'Alumni' && s.status !== 'Berhenti');
+          try { localStorage.setItem('pesantren_students', JSON.stringify(filtered)); } catch (e) {}
+          return filtered;
+        });
+        setBills(prev => {
+          const filtered = prev.filter(b => b && b.id && !delBill.has(b.id));
+          try { localStorage.setItem('pesantren_bills', JSON.stringify(filtered)); } catch (e) {}
+          return filtered;
+        });
+        setNews(prev => {
+          const filtered = prev.filter(n => n && n.id && !delNews.has(n.id));
+          try { localStorage.setItem('pesantren_news', JSON.stringify(filtered)); } catch (e) {}
+          return filtered;
+        });
+        setAnnouncements(prev => {
+          const filtered = prev.filter(a => a && a.id && !delAnn.has(a.id));
+          try { localStorage.setItem('pesantren_announcements', JSON.stringify(filtered)); } catch (e) {}
+          return filtered;
+        });
+        setPpdbList(prev => {
+          const filtered = prev.filter(p => p && p.id && !delPpdb.has(p.id));
+          try { localStorage.setItem('pesantren_ppdb', JSON.stringify(filtered)); } catch (e) {}
+          return filtered;
+        });
+        setRooms(prev => {
+          const filtered = prev.filter(r => r && r.id && !delRooms.has(r.id));
+          try { localStorage.setItem('pesantren_rooms', JSON.stringify(filtered)); } catch (e) {}
+          return filtered;
+        });
+
         const currentLocal = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
         const lastModStr = localStorage.getItem('pesantren_settings_last_modified');
         const lastModTime = lastModStr ? parseInt(lastModStr, 10) : 0;
@@ -719,18 +765,20 @@ export default function App() {
           if (stdRes.ok) {
             const stdJson = await stdRes.json();
             if (stdJson && stdJson.success && Array.isArray(stdJson.students)) {
-              const serverStd = stdJson.students.filter((s: any) => s && s.id && !deletedStdIds.has(s.id));
+              const serverStd = stdJson.students.filter((s: any) => s && s.id && !deletedStdIds.has(s.id) && s.status !== 'Alumni' && s.status !== 'Berhenti');
 
               if (serverStd.length > 0) {
-                // If not recently edited locally, accept server students so other devices see updates immediately!
                 setStudents(serverStd);
                 localStorage.setItem('pesantren_students', JSON.stringify(serverStd));
-              } else if (localStd.length > 0) {
-                fetch('/api/students', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(localStd)
-                }).catch(() => {});
+              } else if (localStd.length > 0 && isLocalDataRecentlyChanged('students', 15000)) {
+                const cleanLocal = localStd.filter(s => s && s.id && !deletedStdIds.has(s.id) && s.status !== 'Alumni' && s.status !== 'Berhenti');
+                if (cleanLocal.length > 0) {
+                  fetch('/api/students', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cleanLocal)
+                  }).catch(() => {});
+                }
               }
             }
           }
@@ -740,13 +788,7 @@ export default function App() {
       // Sync Bills from server across devices
       try {
         const localBills = getLocal<Bill[]>('pesantren_bills', []);
-        let deletedBillIds: Set<string>;
-        try {
-          const rawDel = JSON.parse(localStorage.getItem('pesantren_deleted_bill_ids') || '[]');
-          deletedBillIds = new Set(Array.isArray(rawDel) ? rawDel : []);
-        } catch {
-          deletedBillIds = new Set();
-        }
+        const deletedBillIds = getDeletedIdsSet('bills');
 
         if (isLocalDataRecentlyChanged('bills')) {
           const cleanLocalBills = localBills.filter(b => b && b.id && !deletedBillIds.has(b.id));
@@ -764,12 +806,15 @@ export default function App() {
               if (serverBills.length > 0) {
                 setBills(serverBills);
                 localStorage.setItem('pesantren_bills', JSON.stringify(serverBills));
-              } else if (localBills.length > 0) {
-                fetch('/api/bills', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(localBills)
-                }).catch(() => {});
+              } else if (localBills.length > 0 && isLocalDataRecentlyChanged('bills', 15000)) {
+                const cleanLocal = localBills.filter(b => b && b.id && !deletedBillIds.has(b.id));
+                if (cleanLocal.length > 0) {
+                  fetch('/api/bills', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cleanLocal)
+                  }).catch(() => {});
+                }
               }
             }
           }
@@ -779,13 +824,7 @@ export default function App() {
       // Sync Alumni from server across devices (separated database)
       try {
         const localAlumni = getLocal<Student[]>('pesantren_alumni', []);
-        let deletedAlumniIds: Set<string>;
-        try {
-          const rawDel = JSON.parse(localStorage.getItem('pesantren_deleted_student_ids') || '[]');
-          deletedAlumniIds = new Set(Array.isArray(rawDel) ? rawDel : []);
-        } catch {
-          deletedAlumniIds = new Set();
-        }
+        const deletedAlumniIds = getDeletedIdsSet('alumni');
 
         const almRes = await fetch('/api/alumni');
         if (almRes.ok) {
@@ -973,6 +1012,20 @@ export default function App() {
             setAvailableMadrasahClasses(remoteClasses.madrasah);
             localStorage.setItem('pesantren_available_madrasah_classes', JSON.stringify(remoteClasses.madrasah));
           }
+        }
+
+        // Sinkronisasi Alumni ke tabel 'alumni' di Supabase (Terpisah dari santri aktif)
+        const currentLocalAlumni = getLocal<any[]>('pesantren_alumni', []);
+        const remoteAlumni = await syncAlumniWithSupabase(currentLocalAlumni);
+        if (Array.isArray(remoteAlumni) && remoteAlumni.length > 0) {
+          localStorage.setItem('pesantren_alumni', JSON.stringify(remoteAlumni));
+        }
+
+        // Sinkronisasi Catatan Pengeluaran Kas (financial_expenses)
+        const currentLocalExpenses = getLocal<any[]>('pesantren_financial_expenses', []);
+        const remoteExpenses = await syncExpensesWithSupabase(currentLocalExpenses);
+        if (Array.isArray(remoteExpenses) && remoteExpenses.length > 0) {
+          localStorage.setItem('pesantren_financial_expenses', JSON.stringify(remoteExpenses));
         }
       } catch (err) {
         console.error("Supabase cloud sync error:", err);

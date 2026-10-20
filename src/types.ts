@@ -461,5 +461,12 @@ export interface AlumniRecord {
   photoUrl?: string;
   createdAt?: string;
 }
-
-
+export interface SystemActivityLog {
+  id: string;
+  timestamp: string;
+  adminName: string;
+  actionType: string;
+  description: string;
+  targetId?: string;
+  targetName?: string;
+}

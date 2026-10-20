@@ -50,6 +50,10 @@ import {
   syncMasterClassesWithSupabase,
   pushMasterClassesToSupabase,
   pushAlumniToSupabase,
+  syncAlumniWithSupabase,
+  deleteAlumniFromSupabase,
+  markIdAsDeleted,
+  getDeletedIdsSet,
   checkMissingSupabaseTables,
   type TableSyncStatus
 } from '../lib/supabase';
@@ -557,33 +561,6 @@ export default function AdminDashboard({
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [activeTab]);
 
-  const [activityLogs, setActivityLogs] = React.useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem('pesantren_admin_activity_logs');
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      console.error(e);
-      return [];
-    }
-  });
-
-  const logAdminActivity = React.useCallback((actionType: string, description: string, targetId?: string, targetName?: string) => {
-    const newLog = {
-      id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      timestamp: new Date().toLocaleString('id-ID'),
-      adminName: session?.email || 'Administrator',
-      actionType,
-      description,
-      targetId,
-      targetName
-    };
-    setActivityLogs(prev => {
-      const updated = [newLog, ...prev].slice(0, 500);
-      localStorage.setItem('pesantren_admin_activity_logs', JSON.stringify(updated));
-      return updated;
-    });
-  }, [session]);
-
   // Dynamic admin name based on current user account profile
   const [adminNameVersion, setAdminNameVersion] = React.useState(0);
   React.useEffect(() => {
@@ -613,6 +590,109 @@ export default function AdminDashboard({
     }
     return session?.roleName || 'Admin Utama';
   }, [session, adminNameVersion]);
+
+  // Synchronized Activity Logs across all accounts & devices
+  const [activityLogs, setActivityLogs] = React.useState<any[]>(() => {
+    try {
+      const stored = localStorage.getItem('pesantren_admin_activity_logs');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  });
+
+  React.useEffect(() => {
+    // 1. Fetch persistent logs from server so every account sees the identical audit log
+    const fetchRemoteLogs = async () => {
+      try {
+        const res = await fetch('/api/activity-logs');
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.success && Array.isArray(json.logs)) {
+            if (json.logs.length > 0) {
+              setActivityLogs(json.logs);
+              localStorage.setItem('pesantren_admin_activity_logs', JSON.stringify(json.logs));
+            } else {
+              const local = localStorage.getItem('pesantren_admin_activity_logs');
+              if (local) {
+                const parsed = JSON.parse(local);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  fetch('/api/activity-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(parsed)
+                  }).catch(() => {});
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching activity logs:", e);
+      }
+    };
+    fetchRemoteLogs();
+    const pollInterval = setInterval(fetchRemoteLogs, 15000);
+
+    // 2. Storage event listener across tabs
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === 'pesantren_admin_activity_logs' && e.newValue) {
+        try {
+          setActivityLogs(JSON.parse(e.newValue));
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageEvent);
+
+    // 3. BroadcastChannel listener across tabs and windows
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('pesantren_multi_device_sync');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'ACTIVITY_LOGS_UPDATED' && Array.isArray(event.data.logs)) {
+          setActivityLogs(event.data.logs);
+          localStorage.setItem('pesantren_admin_activity_logs', JSON.stringify(event.data.logs));
+        }
+      };
+    } catch (e) {}
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('storage', handleStorageEvent);
+      if (bc) bc.close();
+    };
+  }, []);
+
+  const logAdminActivity = React.useCallback((actionType: string, description: string, targetId?: string, targetName?: string) => {
+    const actorName = currentAdminName || session?.fullName || session?.email || 'Administrator';
+    const newLog = {
+      id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toLocaleString('id-ID'),
+      adminName: actorName,
+      actionType,
+      description,
+      targetId,
+      targetName
+    };
+    setActivityLogs(prev => {
+      const updated = [newLog, ...prev.filter(l => l.id !== newLog.id)].slice(0, 500);
+      try {
+        localStorage.setItem('pesantren_admin_activity_logs', JSON.stringify(updated));
+        const bc = new BroadcastChannel('pesantren_multi_device_sync');
+        bc.postMessage({ type: 'ACTIVITY_LOGS_UPDATED', logs: updated });
+        bc.close();
+      } catch (e) {}
+      return updated;
+    });
+
+    // Save to server so all other accounts immediately receive this log
+    fetch('/api/activity-logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newLog)
+    }).catch(console.error);
+  }, [currentAdminName, session]);
 
   const handleApprovePermit = (studentId: string, logId: string) => {
     const signer = currentAdminName || settings.namaPengurus || 'Administrator Pesantren';
@@ -1281,6 +1361,297 @@ export default function AdminDashboard({
       kamar: s.kamar || '',
       status: s.status || 'Aktif',
     });
+  };
+
+  // Dedicated Alumni Database States (completely separated from active students)
+  const [alumniList, setAlumniList] = React.useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem('pesantren_alumni');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return (students || []).filter(s => s && (s.status === 'Alumni' || s.status === 'Berhenti'));
+  });
+  const [isAddAlumniModalOpen, setIsAddAlumniModalOpen] = React.useState(false);
+  const [editingAlumni, setEditingAlumni] = React.useState<any | null>(null);
+  const [alumniToDelete, setAlumniToDelete] = React.useState<any | null>(null);
+
+  // Form states for new/edit alumni
+  const [alumniFormName, setAlumniFormName] = React.useState('');
+  const [alumniFormNis, setAlumniFormNis] = React.useState('');
+  const [alumniFormNia, setAlumniFormNia] = React.useState('');
+  const [alumniFormGender, setAlumniFormGender] = React.useState<'Laki-laki' | 'Perempuan'>('Laki-laki');
+  const [alumniFormTahunMasuk, setAlumniFormTahunMasuk] = React.useState('');
+  const [alumniFormTahunKeluar, setAlumniFormTahunKeluar] = React.useState(String(new Date().getFullYear()));
+  const [alumniFormReason, setAlumniFormReason] = React.useState('Tamat Belajar');
+  const [alumniFormClassFormal, setAlumniFormClassFormal] = React.useState('');
+  const [alumniFormClassMadrasah, setAlumniFormClassMadrasah] = React.useState('');
+  const [alumniFormActivity, setAlumniFormActivity] = React.useState('');
+  const [alumniFormCampusOrWork, setAlumniFormCampusOrWork] = React.useState('');
+  const [alumniFormPhone, setAlumniFormPhone] = React.useState('');
+  const [alumniFormAddress, setAlumniFormAddress] = React.useState('');
+  const [alumniFormHafalan, setAlumniFormHafalan] = React.useState('30 Juz');
+  const [alumniFormPhotoUrl, setAlumniFormPhotoUrl] = React.useState('');
+
+  // Fetch alumni from remote /api/alumni & Supabase table 'alumni'
+  React.useEffect(() => {
+    const fetchRemoteAlumni = async () => {
+      try {
+        const res = await fetch('/api/alumni');
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.success && Array.isArray(json.alumni)) {
+            const deletedIds = getDeletedIdsSet('alumni');
+            const clean = json.alumni.filter((a: any) => a && a.id && !deletedIds.has(a.id));
+            if (clean.length > 0) {
+              setAlumniList(clean);
+              localStorage.setItem('pesantren_alumni', JSON.stringify(clean));
+            }
+          }
+        }
+      } catch (e) {}
+
+      if (isSupabaseConfigured()) {
+        try {
+          const localAlumni = JSON.parse(localStorage.getItem('pesantren_alumni') || '[]');
+          const remote = await syncAlumniWithSupabase(localAlumni);
+          if (Array.isArray(remote) && remote.length > 0) {
+            setAlumniList(remote);
+            localStorage.setItem('pesantren_alumni', JSON.stringify(remote));
+          }
+        } catch (e) {}
+      }
+    };
+    fetchRemoteAlumni();
+
+    const handleAlumniStorage = (e: StorageEvent) => {
+      if (e.key === 'pesantren_alumni' && e.newValue) {
+        try { setAlumniList(JSON.parse(e.newValue)); } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleAlumniStorage);
+    return () => window.removeEventListener('storage', handleAlumniStorage);
+  }, []);
+
+  // Strict Separation: Auto-migrate any alumni found in active students list to dedicated alumni database
+  React.useEffect(() => {
+    const trappedAlumni = students.filter(s => s && (s.status === 'Alumni' || s.status === 'Berhenti'));
+    if (trappedAlumni.length > 0) {
+      const activeOnly = students.filter(s => s && s.status !== 'Alumni' && s.status !== 'Berhenti');
+      setStudents(activeOnly);
+      localStorage.setItem('pesantren_students', JSON.stringify(activeOnly));
+
+      setAlumniList(prev => {
+        const map = new Map<string, any>();
+        prev.forEach(a => { if (a && a.id) map.set(a.id, a); });
+        trappedAlumni.forEach(a => { if (a && a.id) map.set(a.id, { ...a, status: 'Alumni' }); });
+        const merged = Array.from(map.values());
+        localStorage.setItem('pesantren_alumni', JSON.stringify(merged));
+        return merged;
+      });
+
+      // Synchronize separation with server API
+      fetch('/api/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(activeOnly)
+      }).catch(() => {});
+
+      fetch('/api/alumni', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(trappedAlumni)
+      }).catch(() => {});
+
+      if (isSupabaseConfigured()) {
+        trappedAlumni.forEach(a => {
+          pushAlumniToSupabase(a).catch(() => {});
+        });
+        pushAllStudentsToSupabase(activeOnly).catch(() => {});
+      }
+    }
+  }, [students.length]);
+
+  const openAddAlumni = () => {
+    setAlumniFormName('');
+    setAlumniFormNis('');
+    setAlumniFormNia(`NIA.${new Date().getFullYear()}.L.${Math.floor(1000 + Math.random() * 9000)}`);
+    setAlumniFormGender('Laki-laki');
+    setAlumniFormTahunMasuk('');
+    setAlumniFormTahunKeluar(String(new Date().getFullYear()));
+    setAlumniFormReason('Tamat Belajar');
+    setAlumniFormClassFormal(availableFormalClasses[0] || 'XII MA Formal');
+    setAlumniFormClassMadrasah(availableMadrasahClasses[0] || '3A MA Diniyah');
+    setAlumniFormActivity('Kuliah di Perguruan Tinggi');
+    setAlumniFormCampusOrWork('');
+    setAlumniFormPhone('');
+    setAlumniFormAddress('');
+    setAlumniFormHafalan('30 Juz');
+    setAlumniFormPhotoUrl('');
+    setIsAddAlumniModalOpen(true);
+  };
+
+  const openEditAlumni = (alumni: any) => {
+    setEditingAlumni(alumni);
+    setAlumniFormName(alumni.fullName || '');
+    setAlumniFormNis(alumni.nis || '');
+    setAlumniFormNia(alumni.alumniId || `NIA.${alumni.tahunKeluar || '2026'}.${alumni.gender === 'Perempuan' ? 'P' : 'L'}.${alumni.nis || '0001'}`);
+    setAlumniFormGender(alumni.gender || 'Laki-laki');
+    setAlumniFormTahunMasuk(alumni.tahunMasuk || '');
+    setAlumniFormTahunKeluar(alumni.tahunKeluar || String(new Date().getFullYear()));
+    setAlumniFormReason(alumni.alumniReason || 'Tamat Belajar');
+    setAlumniFormClassFormal(alumni.classFormal || alumni.classSore || '');
+    setAlumniFormClassMadrasah(alumni.classMadrasah || alumni.classPagi || '');
+    setAlumniFormActivity(alumni.currentActivity || '');
+    setAlumniFormCampusOrWork(alumni.campusOrWorkplace || '');
+    setAlumniFormPhone(alumni.phone || alumni.parentPhone || '');
+    setAlumniFormAddress(alumni.address || '');
+    setAlumniFormHafalan(alumni.currentHafalan || '30 Juz');
+    setAlumniFormPhotoUrl(alumni.photoUrl || '');
+  };
+
+  const handleSaveAlumni = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!alumniFormName.trim()) {
+      showAlert('danger', 'Nama lengkap alumni wajib diisi.');
+      return;
+    }
+
+    if (editingAlumni) {
+      const updated: any = {
+        ...editingAlumni,
+        fullName: alumniFormName.trim(),
+        nis: alumniFormNis.trim() || editingAlumni.nis || '-',
+        alumniId: alumniFormNia.trim() || editingAlumni.alumniId,
+        gender: alumniFormGender,
+        tahunMasuk: alumniFormTahunMasuk.trim() || editingAlumni.tahunMasuk,
+        tahunKeluar: alumniFormTahunKeluar.trim() || editingAlumni.tahunKeluar,
+        alumniReason: alumniFormReason,
+        classFormal: alumniFormClassFormal,
+        classMadrasah: alumniFormClassMadrasah,
+        class: `${alumniFormClassFormal} • ${alumniFormClassMadrasah}`,
+        currentActivity: alumniFormActivity.trim(),
+        campusOrWorkplace: alumniFormCampusOrWork.trim(),
+        phone: alumniFormPhone.trim(),
+        parentPhone: alumniFormPhone.trim(),
+        address: alumniFormAddress.trim(),
+        currentHafalan: alumniFormHafalan.trim(),
+        photoUrl: alumniFormPhotoUrl || editingAlumni.photoUrl,
+        status: 'Alumni'
+      };
+
+      setAlumniList(prev => {
+        const next = prev.map(a => a.id === editingAlumni.id ? updated : a);
+        localStorage.setItem('pesantren_alumni', JSON.stringify(next));
+        return next;
+      });
+
+      fetch('/api/alumni', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      }).catch(console.error);
+
+      if (isSupabaseConfigured()) {
+        pushAlumniToSupabase(updated).catch(console.error);
+      }
+
+      logAdminActivity('EDIT_ALUMNI', `Memperbarui data alumni: ${updated.fullName} (${updated.alumniId})`);
+      showAlert('success', `Data alumni "${updated.fullName}" berhasil diperbarui!`);
+      setEditingAlumni(null);
+      return;
+    }
+
+    // New Alumni
+    const newAlumniId = `alm-${Date.now()}`;
+    const newAlumniObj: any = {
+      id: newAlumniId,
+      studentId: newAlumniId,
+      fullName: alumniFormName.trim(),
+      nis: alumniFormNis.trim() || 'ALM-' + String(Date.now()).slice(-4),
+      alumniId: alumniFormNia.trim() || `NIA.${alumniFormTahunKeluar}.${alumniFormGender === 'Perempuan' ? 'P' : 'L'}.${String(Date.now()).slice(-4)}`,
+      gender: alumniFormGender,
+      tahunMasuk: alumniFormTahunMasuk.trim() || undefined,
+      tahunKeluar: alumniFormTahunKeluar.trim() || String(new Date().getFullYear()),
+      alumniReason: alumniFormReason,
+      classFormal: alumniFormClassFormal,
+      classMadrasah: alumniFormClassMadrasah,
+      class: `${alumniFormClassFormal} • ${alumniFormClassMadrasah}`,
+      currentActivity: alumniFormActivity.trim() || undefined,
+      campusOrWorkplace: alumniFormCampusOrWork.trim() || undefined,
+      phone: alumniFormPhone.trim() || undefined,
+      parentPhone: alumniFormPhone.trim() || undefined,
+      address: alumniFormAddress.trim() || undefined,
+      currentHafalan: alumniFormHafalan.trim() || '30 Juz',
+      photoUrl: alumniFormPhotoUrl || undefined,
+      status: 'Alumni'
+    };
+
+    setAlumniList(prev => {
+      const next = [newAlumniObj, ...prev];
+      localStorage.setItem('pesantren_alumni', JSON.stringify(next));
+      return next;
+    });
+
+    fetch('/api/alumni', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newAlumniObj)
+    }).catch(console.error);
+
+    if (isSupabaseConfigured()) {
+      pushAlumniToSupabase(newAlumniObj).catch(console.error);
+    }
+
+    logAdminActivity('TAMBAH_ALUMNI', `Menambahkan alumni baru: ${newAlumniObj.fullName} (Angkatan ${newAlumniObj.tahunKeluar})`);
+    showAlert('success', `Alumni "${newAlumniObj.fullName}" berhasil ditambahkan ke database alumni!`);
+    setIsAddAlumniModalOpen(false);
+  };
+
+  const confirmDeleteAlumni = () => {
+    if (!alumniToDelete) return;
+    const target = alumniToDelete;
+    setAlumniList(prev => {
+      const next = prev.filter(a => a.id !== target.id);
+      localStorage.setItem('pesantren_alumni', JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/alumni/${encodeURIComponent(target.id)}`, { method: 'DELETE' }).catch(console.error);
+    deleteAlumniFromSupabase(target.id).catch(console.error);
+    markIdAsDeleted('alumni', target.id);
+
+    logAdminActivity('HAPUS_ALUMNI', `Menghapus data alumni: ${target.fullName} (${target.alumniId || target.nis || '-'})`);
+    showAlert('success', `Data alumni "${target.fullName}" berhasil dihapus secara permanen dari server & Supabase.`);
+    setAlumniToDelete(null);
+  };
+
+  const handleWaiveAlumniBills = (alumni: any) => {
+    const updatedBills = bills.map(b => {
+      if (b.studentId === alumni.id || (b.nis && alumni.nis && b.nis === alumni.nis)) {
+        return {
+          ...b,
+          status: 'Lunas' as const,
+          paymentDate: b.paymentDate || new Date().toISOString().split('T')[0],
+          paymentMethod: b.paymentMethod || 'Pembebasan Bebas Tanggungan Alumni'
+        };
+      }
+      return b;
+    });
+    setBills(updatedBills);
+    localStorage.setItem('pesantren_bills', JSON.stringify(updatedBills));
+    fetch('/api/bills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedBills)
+    }).catch(() => {});
+    if (isSupabaseConfigured()) {
+      pushAllBillsToSupabase(updatedBills).catch(() => {});
+    }
+    logAdminActivity('PEMBEBASAN_ALUMNI', `Membebaskan seluruh tagihan tanggungan alumni: ${alumni.fullName}`);
+    showAlert('success', `Seluruh tagihan alumni ${alumni.fullName} telah diselesaikan & dibebaskan dari tanggungan!`);
   };
 
   React.useEffect(() => {
@@ -2899,8 +3270,10 @@ export default function AdminDashboard({
     const address = settings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur";
     const tagline = settings.tagline || "Mencetak Generasi Qur'ani, Berakhlakul Karimah";
 
-    // Strictly filter alumni only
-    const alumniList = students.filter(s => s && (s.status === 'Alumni' || s.status === 'Berhenti'));
+    // Use dedicated alumni database completely separate from active students
+    const effectiveAlumniExport = (alumniList && alumniList.length > 0)
+      ? alumniList
+      : students.filter(s => s && (s.status === 'Alumni' || s.status === 'Berhenti'));
 
     let html = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -2940,7 +3313,7 @@ export default function AdminDashboard({
               <div class="kop-subtitle">${address}</div>
               <div class="kop-subtitle" style="font-style: italic; font-weight: bold; color: #b45309;">${tagline}</div>
               <div style="font-size: 13px; font-weight: bold; margin-top: 10px; border-bottom: 2px solid #78350f; padding-bottom: 5px; color: #78350f;">
-                BUKU INDUK ALUMNI PONDOK PESANTREN - TAHUN ${new Date().getFullYear()} (TOTAL: ${alumniList.length} ALUMNI)
+                BUKU INDUK ALUMNI PONDOK PESANTREN - TAHUN ${new Date().getFullYear()} (TOTAL: ${effectiveAlumniExport.length} ALUMNI)
               </div>
             </td>
           </tr>
@@ -2971,7 +3344,7 @@ export default function AdminDashboard({
           <tbody>
     `;
 
-    alumniList.forEach((a, idx) => {
+    effectiveAlumniExport.forEach((a, idx) => {
       html += `
         <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fefce8'};">
           <td class="text-center">${idx + 1}</td>
@@ -3006,7 +3379,7 @@ export default function AdminDashboard({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showAlert('success', `Data alumni (${alumniList.length} alumni terpisah dari santri aktif) berhasil diekspor ke Excel!`);
+    showAlert('success', `Data alumni (${effectiveAlumniExport.length} alumni terpisah dari santri aktif) berhasil diekspor ke Excel!`);
   };
 
   // Add News
@@ -3046,22 +3419,13 @@ export default function AdminDashboard({
       'Hapus Berita',
       'Yakin ingin menghapus berita ini secara permanen?',
       () => {
-        try {
-          let delNews: string[] = [];
-          const raw = localStorage.getItem('pesantren_deleted_news_ids');
-          if (raw) delNews = JSON.parse(raw);
-          if (!delNews.includes(id)) {
-            delNews.push(id);
-            localStorage.setItem('pesantren_deleted_news_ids', JSON.stringify(delNews));
-          }
-        } catch (e) {}
+        markIdAsDeleted('news', id);
+        markLocalDataChanged('news');
         const updatedNews = news.filter(n => n.id !== id);
         setNews(updatedNews);
         localStorage.setItem('pesantren_news', JSON.stringify(updatedNews));
-        markLocalDataChanged('news');
-        if (isSupabaseConfigured()) {
-          deleteNewsFromSupabase(id).catch(err => console.error('Cloud delete news error:', err));
-        }
+        fetch(`/api/news/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+        deleteNewsFromSupabase(id).catch(err => console.error('Cloud delete news error:', err));
         window.dispatchEvent(new Event('pesantren_db_sync'));
         showAlert('success', 'Berita berhasil dihapus.');
       }
@@ -3102,22 +3466,13 @@ export default function AdminDashboard({
       'Hapus Pengumuman',
       'Yakin ingin menghapus pengumuman ini secara permanen?',
       () => {
-        try {
-          let delAnn: string[] = [];
-          const raw = localStorage.getItem('pesantren_deleted_announcement_ids');
-          if (raw) delAnn = JSON.parse(raw);
-          if (!delAnn.includes(id)) {
-            delAnn.push(id);
-            localStorage.setItem('pesantren_deleted_announcement_ids', JSON.stringify(delAnn));
-          }
-        } catch (e) {}
+        markIdAsDeleted('announcements', id);
+        markLocalDataChanged('announcements');
         const updatedAnn = announcements.filter(a => a.id !== id);
         setAnnouncements(updatedAnn);
         localStorage.setItem('pesantren_announcements', JSON.stringify(updatedAnn));
-        markLocalDataChanged('announcements');
-        if (isSupabaseConfigured()) {
-          deleteAnnouncementFromSupabase(id).catch(err => console.error('Cloud delete ann error:', err));
-        }
+        fetch(`/api/announcements/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+        deleteAnnouncementFromSupabase(id).catch(err => console.error('Cloud delete ann error:', err));
         window.dispatchEvent(new Event('pesantren_db_sync'));
         showAlert('success', 'Pengumuman / Maklumat telah dihapus permanen.');
       }
@@ -3729,16 +4084,28 @@ export default function AdminDashboard({
     setBills(updatedBills);
     localStorage.setItem('pesantren_bills', JSON.stringify(updatedBills));
     markLocalDataChanged('bills');
-    if (updatedBillObj && isSupabaseConfigured()) {
+
+    // Push updated bills to backend API immediately
+    fetch('/api/bills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedBills)
+    }).catch(err => console.error('Server bills status sync error:', err));
+
+    if (updatedBillObj) {
       pushBillToSupabase(updatedBillObj).catch(err => console.error('Cloud push bill status error:', err));
     }
     window.dispatchEvent(new Event('pesantren_db_sync'));
 
     if (targetBill && newStatus === 'Lunas') {
       const student = students.find(s => String(s.id) === String(targetBill.studentId));
+      let recipientPhone = '081234567890';
+      let recipientName = 'Wali Santri';
       
-      // Update student's payment history for instant synchrony
+      // Update payment history for instant synchrony
       if (student) {
+        recipientPhone = student.parentPhone || '081234567890';
+        recipientName = student.parentName || 'Wali Santri';
         const todayStr = new Date().toISOString().split('T')[0];
         const newHist = {
           id: 'pay-manual-' + Date.now(),
@@ -3746,7 +4113,7 @@ export default function AdminDashboard({
           amount: finalAmount,
           description: `Pembayaran ${targetBill.title}`,
           paymentMethod: targetBill.paymentMethod || 'Transfer Bank (Diverifikasi Admin)',
-          verifiedBy: 'Bendahara Pesantren'
+          verifiedBy: currentAdminName || 'Bendahara Pesantren'
         };
         const updatedStudents = students.map(s => {
           if (String(s.id) === String(student.id)) {
@@ -3764,13 +4131,48 @@ export default function AdminDashboard({
         } catch (e) {}
 
         const updatedStudentObj = updatedStudents.find(s => String(s.id) === String(student.id));
-        if (updatedStudentObj && isSupabaseConfigured()) {
+        if (updatedStudentObj) {
           pushStudentToSupabase(updatedStudentObj).catch(e => console.error("Cloud push student payment error:", e));
+        }
+      } else {
+        // Check if student belongs to dedicated Alumni database
+        const rawAlm = localStorage.getItem('pesantren_alumni');
+        let almList: any[] = [];
+        try { almList = rawAlm ? JSON.parse(rawAlm) : []; } catch (e) {}
+        const alumnus = almList.find(a => String(a.id) === String(targetBill.studentId) || String(a.studentId) === String(targetBill.studentId));
+        if (alumnus) {
+          recipientPhone = alumnus.parentPhone || alumnus.phone || '081234567890';
+          recipientName = alumnus.parentName || 'Wali Alumni';
+          const todayStr = new Date().toISOString().split('T')[0];
+          const newHist = {
+            id: 'pay-manual-' + Date.now(),
+            date: todayStr,
+            amount: finalAmount,
+            description: `Pembayaran ${targetBill.title}`,
+            paymentMethod: targetBill.paymentMethod || 'Transfer Bank (Diverifikasi Admin)',
+            verifiedBy: currentAdminName || 'Bendahara Pesantren'
+          };
+          const updatedAlumni = almList.map(a => {
+            if (String(a.id) === String(alumnus.id)) {
+              const hist = a.paymentHistory || [];
+              return {
+                ...a,
+                paymentHistory: [newHist, ...hist.filter((h: any) => h.description !== `Pembayaran ${targetBill.title}`)]
+              };
+            }
+            return a;
+          });
+          setAlumniList(updatedAlumni);
+          try {
+            localStorage.setItem('pesantren_alumni', JSON.stringify(updatedAlumni));
+          } catch (e) {}
+          const updatedAlmObj = updatedAlumni.find(a => String(a.id) === String(alumnus.id));
+          if (updatedAlmObj) {
+            pushAlumniToSupabase(updatedAlmObj).catch(console.error);
+          }
         }
       }
 
-      const recipientPhone = student?.parentPhone || '081234567890';
-      const recipientName = student?.parentName || 'Wali Santri';
       const waMsg = `Assalamu'alaikum Wr. Wb. Bapak/Ibu ${recipientName},\n\nAlhamdulillah, pembayaran tagihan *${targetBill.title}* atas nama santri *${targetBill.studentName}* senilai *Rp ${finalAmount.toLocaleString('id-ID')}* telah DISETUJUI dan diverifikasi LUNAS oleh Bendahara Al-Asy'ariyah.\n\nKuitansi digital resmi telah terbit dan dapat diunduh kapan saja melalui Portal Santri.\n\nTerima kasih banyak atas partisipasi dan kontribusi bapak/ibu wali santri.\n\nWassalamu'alaikum Wr. Wb.\n-- Bendahara Pondok Pesantren Al-Asy'ariyah --`;
       
       sendWhatsAppUniversal(
@@ -3810,28 +4212,19 @@ export default function AdminDashboard({
           setBills(updated);
           localStorage.setItem('pesantren_bills', JSON.stringify(updated));
           
-          // Track deleted bill IDs so Supabase / polling sync never resurrects them
-          try {
-            const rawDeleted = localStorage.getItem('pesantren_deleted_bill_ids');
-            const deletedIds: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
-            if (!deletedIds.includes(billId)) {
-              deletedIds.push(billId);
-              localStorage.setItem('pesantren_deleted_bill_ids', JSON.stringify(deletedIds.slice(-200)));
-            }
-          } catch (e) {}
-
+          markIdAsDeleted('bills', billId);
           markLocalDataChanged('bills');
 
           // Sync deletion with server backend
+          fetch(`/api/bills/${encodeURIComponent(billId)}`, { method: 'DELETE' }).catch(() => {});
           fetch('/api/bills', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updated)
           }).catch(err => console.error('Server bills delete sync error:', err));
 
-          if (isSupabaseConfigured()) {
-            await deleteBillFromSupabase(billId).catch(err => console.error('Cloud delete bill error:', err));
-          }
+          await deleteBillFromSupabase(billId).catch(err => console.error('Cloud delete bill error:', err));
+          
           window.dispatchEvent(new Event('pesantren_db_sync'));
           logAdminActivity('HAPUS_TAGIHAN', `Menghapus tagihan santri ${studentName || '-'}`);
           showAlert('success', 'Tagihan berhasil dihapus permanen.');
@@ -4669,10 +5062,16 @@ export default function AdminDashboard({
                   onClick={() => {
                     triggerConfirm(
                       'Hapus Log Aktivitas',
-                      'Apakah Anda yakin ingin menghapus semua riwayat log aktivitas?',
+                      'Apakah Anda yakin ingin menghapus semua riwayat log aktivitas untuk seluruh akun?',
                       () => {
                         setActivityLogs([]);
                         localStorage.removeItem('pesantren_admin_activity_logs');
+                        fetch('/api/activity-logs', { method: 'DELETE' }).catch(console.error);
+                        try {
+                          const bc = new BroadcastChannel('pesantren_multi_device_sync');
+                          bc.postMessage({ type: 'ACTIVITY_LOGS_UPDATED', logs: [] });
+                          bc.close();
+                        } catch (e) {}
                       }
                     );
                   }}
@@ -5430,18 +5829,11 @@ export default function AdminDashboard({
                         'Hapus Calon Santri',
                         `Apakah Anda yakin ingin menghapus data pendaftaran calon santri ${reg.fullName} secara permanen? Tindakan ini tidak dapat dibatalkan.`,
                         () => {
+                          markIdAsDeleted('ppdb', reg.id);
+                          markLocalDataChanged('ppdb');
                           const updatedList = ppdbList.filter(p => p.id !== reg.id);
                           setPpdbList(updatedList);
                           localStorage.setItem('pesantren_ppdb', JSON.stringify(updatedList));
-
-                          // Blacklist deleted ID so local and cloud sync never resurrects it
-                          try {
-                            const deletedIds = JSON.parse(localStorage.getItem('pesantren_deleted_ppdb_ids') || '[]');
-                            if (!deletedIds.includes(reg.id)) {
-                              deletedIds.push(reg.id);
-                              localStorage.setItem('pesantren_deleted_ppdb_ids', JSON.stringify(deletedIds));
-                            }
-                          } catch (e) {}
 
                           fetch(`/api/ppdb/${reg.id}`, { method: 'DELETE' }).catch(() => {});
                           fetch('/api/ppdb', {
@@ -5450,10 +5842,8 @@ export default function AdminDashboard({
                             body: JSON.stringify({ action: 'replace', ppdb: updatedList })
                           }).catch(() => {});
 
-                          if (isSupabaseConfigured()) {
-                            deletePpdbFromSupabase(reg.id).catch(e => console.error('Cloud delete PPDB error:', e));
-                            pushAllPpdbToSupabase(updatedList).catch(e => console.error('Cloud push PPDB error:', e));
-                          }
+                          deletePpdbFromSupabase(reg.id).catch(e => console.error('Cloud delete PPDB error:', e));
+                          pushAllPpdbToSupabase(updatedList).catch(e => console.error('Cloud push PPDB error:', e));
                           window.dispatchEvent(new Event('pesantren_db_sync'));
                           showAlert('danger', `Data pendaftaran ${reg.fullName} berhasil dihapus.`);
                         }
@@ -5771,13 +6161,15 @@ export default function AdminDashboard({
 
       {/* Tab: Alumni Management */}
       {activeTab === 'alumni' && (() => {
-        const alumniList = students.filter(s => s.status === 'Alumni' || s.status === 'Berhenti');
+        const effectiveAlumni = (alumniList && alumniList.length > 0)
+          ? alumniList
+          : students.filter(s => s && (s.status === 'Alumni' || s.status === 'Berhenti'));
         
         // Get unique graduation years
-        const uniqueYears = Array.from(new Set(alumniList.map(a => a.tahunKeluar).filter(Boolean))).sort((a, b) => b!.localeCompare(a!));
+        const uniqueYears = Array.from(new Set(effectiveAlumni.map(a => a.tahunKeluar).filter(Boolean))).sort((a, b) => b!.localeCompare(a!));
 
         // Filtered alumni
-        const filteredAlumni = alumniList.filter(a => {
+        const filteredAlumni = effectiveAlumni.filter(a => {
           if (!a) return false;
           const aName = (a.fullName || '').toLowerCase();
           const q = (alumniSearch || '').toLowerCase();
@@ -5981,6 +6373,59 @@ export default function AdminDashboard({
                               >
                                 <Edit className="h-3.5 w-3.5" />
                               </button>
+                              <button
+                                onClick={() => {
+                                  triggerConfirm(
+                                    'Hapus Data Alumni',
+                                    `Apakah Anda yakin ingin menghapus data alumni ${alumni.fullName} secara permanen? Data akan dihapus dari server dan database alumni Supabase.`,
+                                    () => {
+                                      const almId = alumni.id;
+                                      setAlumniList(prev => {
+                                        const next = prev.filter(a => a.id !== almId && a.studentId !== almId);
+                                        try { localStorage.setItem('pesantren_alumni', JSON.stringify(next)); } catch (e) {}
+                                        return next;
+                                      });
+                                      setStudents(prev => {
+                                        const next = prev.filter(s => s.id !== almId);
+                                        try { localStorage.setItem('pesantren_students', JSON.stringify(next)); } catch (e) {}
+                                        return next;
+                                      });
+                                      markIdAsDeleted('alumni', almId);
+                                      markIdAsDeleted('students', almId);
+                                      markLocalDataChanged('alumni');
+                                      markLocalDataChanged('students');
+
+                                      fetch(`/api/alumni/${encodeURIComponent(almId)}`, { method: 'DELETE' }).catch(() => {});
+                                      fetch(`/api/students/${encodeURIComponent(almId)}`, { method: 'DELETE' }).catch(() => {});
+                                      deleteAlumniFromSupabase(almId).catch(console.error);
+
+                                      // Purge any bills
+                                      const studentBills = bills.filter(b => b.studentId === almId);
+                                      studentBills.forEach(b => {
+                                        markIdAsDeleted('bills', b.id);
+                                        fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' }).catch(() => {});
+                                        deleteBillFromSupabase(b.id).catch(() => {});
+                                      });
+                                      const updatedBills = bills.filter(b => b.studentId !== almId);
+                                      setBills(updatedBills);
+                                      try { localStorage.setItem('pesantren_bills', JSON.stringify(updatedBills)); } catch (e) {}
+                                      markLocalDataChanged('bills');
+                                      fetch('/api/bills', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(updatedBills)
+                                      }).catch(() => {});
+
+                                      window.dispatchEvent(new Event('pesantren_db_sync'));
+                                      showAlert('success', `Data alumni ${alumni.fullName} berhasil dihapus permanen dari Supabase.`);
+                                    }
+                                  );
+                                }}
+                                className="p-1 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition cursor-pointer"
+                                title="Hapus Alumni Permanen"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -6102,12 +6547,56 @@ export default function AdminDashboard({
                           type="button"
                           onClick={() => {
                             const target = selectedAlumniForDetails;
-                            setSelectedAlumniForDetails(null);
-                            setTightDeleteStudent(target);
+                            if (!target) return;
+                            triggerConfirm(
+                              'Hapus Data Alumni',
+                              `Apakah Anda yakin ingin menghapus data alumni ${target.fullName} secara permanen? Tindakan ini akan menghapus data dari server dan database alumni Supabase.`,
+                              () => {
+                                const almId = target.id;
+                                setSelectedAlumniForDetails(null);
+                                setAlumniList(prev => {
+                                  const next = prev.filter(a => a.id !== almId && a.studentId !== almId);
+                                  try { localStorage.setItem('pesantren_alumni', JSON.stringify(next)); } catch (e) {}
+                                  return next;
+                                });
+                                setStudents(prev => {
+                                  const next = prev.filter(s => s.id !== almId);
+                                  try { localStorage.setItem('pesantren_students', JSON.stringify(next)); } catch (e) {}
+                                  return next;
+                                });
+                                markIdAsDeleted('alumni', almId);
+                                markIdAsDeleted('students', almId);
+                                markLocalDataChanged('alumni');
+                                markLocalDataChanged('students');
+
+                                fetch(`/api/alumni/${encodeURIComponent(almId)}`, { method: 'DELETE' }).catch(() => {});
+                                fetch(`/api/students/${encodeURIComponent(almId)}`, { method: 'DELETE' }).catch(() => {});
+                                deleteAlumniFromSupabase(almId).catch(console.error);
+
+                                const studentBills = bills.filter(b => b.studentId === almId);
+                                studentBills.forEach(b => {
+                                  markIdAsDeleted('bills', b.id);
+                                  fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' }).catch(() => {});
+                                  deleteBillFromSupabase(b.id).catch(() => {});
+                                });
+                                const updatedBills = bills.filter(b => b.studentId !== almId);
+                                setBills(updatedBills);
+                                try { localStorage.setItem('pesantren_bills', JSON.stringify(updatedBills)); } catch (e) {}
+                                markLocalDataChanged('bills');
+                                fetch('/api/bills', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify(updatedBills)
+                                }).catch(() => {});
+
+                                window.dispatchEvent(new Event('pesantren_db_sync'));
+                                showAlert('success', `Data alumni ${target.fullName} berhasil dihapus permanen dari Supabase.`);
+                              }
+                            );
                           }}
                           className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl cursor-pointer text-xs transition text-center border border-red-200"
                         >
-                          Hapus
+                          Hapus Alumni
                         </button>
                         <button
                           type="button"
@@ -6226,13 +6715,13 @@ export default function AdminDashboard({
             `Apakah Anda yakin ingin menghapus Kamar ${room.name} dari database?`,
             () => {
               try {
+                markIdAsDeleted('rooms', room.id);
+                markLocalDataChanged('rooms');
                 const updated = rooms.filter(r => r.id !== room.id);
                 setRooms(updated);
                 localStorage.setItem('pesantren_rooms', JSON.stringify(updated));
-                markLocalDataChanged('rooms');
-                if (isSupabaseConfigured()) {
-                  deleteRoomFromSupabase(room.id).catch(console.error);
-                }
+                fetch(`/api/rooms/${encodeURIComponent(room.id)}`, { method: 'DELETE' }).catch(() => {});
+                deleteRoomFromSupabase(room.id).catch(console.error);
                 window.dispatchEvent(new Event('pesantren_db_sync'));
                 showAlert('success', `Kamar ${room.name} berhasil dihapus.`);
               } catch (err) {
@@ -7769,6 +8258,8 @@ export default function AdminDashboard({
           currentAdminName={currentAdminName}
           showAlert={showAlert as any}
           logAdminActivity={logAdminActivity}
+          onEditBill={(b) => setEditingBill(b)}
+          onDeleteBill={(billId, name, amt) => handleDeleteBill(billId, name, amt)}
         />
       )}
 
@@ -12612,7 +13103,39 @@ export default function AdminDashboard({
                 updatedStudent.id,
                 updatedStudent.fullName
               );
-              const updatedStudentsList = students.map(s => s.id === editingStudent.id ? updatedStudent : s);
+              const isMovingToAlumni = updatedStudent.status === 'Alumni' || updatedStudent.status === 'Berhenti';
+
+              let updatedStudentsList: Student[];
+              if (isMovingToAlumni) {
+                // Remove from active students
+                updatedStudentsList = students.filter(s => s.id !== editingStudent.id);
+                
+                // Add to dedicated alumni database
+                const alumniObj = {
+                  ...updatedStudent,
+                  studentId: updatedStudent.id,
+                  tahunKeluar: updatedStudent.tahunKeluar || new Date().getFullYear().toString(),
+                  status: 'Alumni',
+                  kamar: '' // Room is released
+                };
+                setAlumniList(prev => {
+                  const next = [alumniObj, ...prev.filter(a => a.id !== alumniObj.id)];
+                  localStorage.setItem('pesantren_alumni', JSON.stringify(next));
+                  return next;
+                });
+                markLocalDataChanged('alumni');
+                fetch('/api/alumni', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(alumniObj)
+                }).catch(console.error);
+
+                pushAlumniToSupabase(alumniObj).catch(err => console.error('Cloud update alumni error:', err));
+              } else {
+                updatedStudentsList = students.map(s => s.id === editingStudent.id ? updatedStudent : s);
+                pushStudentToSupabase(updatedStudent).catch(err => console.error('Cloud update student error:', err));
+              }
+
               const updatedBillsList = bills.map(b => b.studentId === editingStudent.id ? { ...b, studentName: updatedStudent.fullName } : b);
               setStudents(updatedStudentsList);
               setBills(updatedBillsList);
@@ -12633,13 +13156,7 @@ export default function AdminDashboard({
                 body: JSON.stringify(updatedBillsList)
               }).catch(err => console.warn('Server update bills error:', err));
 
-              if (isSupabaseConfigured()) {
-                pushStudentToSupabase(updatedStudent).catch(err => console.error('Cloud update student error:', err));
-                pushAllStudentsToSupabase(updatedStudentsList).catch(err => console.error('Cloud update all students error:', err));
-                if (updatedStudent.status === 'Alumni') {
-                  pushAlumniToSupabase(updatedStudent).catch(err => console.error('Cloud update alumni error:', err));
-                }
-              }
+              pushAllStudentsToSupabase(updatedStudentsList).catch(err => console.error('Cloud update all students error:', err));
               setTimeout(() => {
                 window.dispatchEvent(new Event('pesantren_db_sync'));
                 window.dispatchEvent(new Event('storage'));
@@ -13104,37 +13621,64 @@ export default function AdminDashboard({
                 onClick={() => {
                   try {
                     const stdId = tightDeleteStudent.id;
+                    const isAlumni = tightDeleteStudent.status === 'Alumni' || tightDeleteStudent.status === 'Berhenti' || (alumniList || []).some(a => a.id === stdId);
+
                     const updatedStudents = students.filter(std => std.id !== stdId);
+                    
+                    // Mark and purge all bills of this student/alumni
+                    const studentBills = bills.filter(b => b.studentId === stdId);
+                    studentBills.forEach(b => {
+                      markIdAsDeleted('bills', b.id);
+                      fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' }).catch(() => {});
+                      deleteBillFromSupabase(b.id).catch(() => {});
+                    });
                     const updatedBills = bills.filter(b => b.studentId !== stdId);
+
                     setStudents(updatedStudents);
                     setBills(updatedBills);
                     localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
                     localStorage.setItem('pesantren_bills', JSON.stringify(updatedBills));
-                    try {
-                      const rawDel = JSON.parse(localStorage.getItem('pesantren_deleted_student_ids') || '[]');
-                      if (!rawDel.includes(stdId)) {
-                        rawDel.push(stdId);
-                        localStorage.setItem('pesantren_deleted_student_ids', JSON.stringify(rawDel));
-                      }
-                    } catch (e) {}
+
+                    // If alumni or in alumni list, also clean alumni list
+                    if (isAlumni || (alumniList || []).some(a => a.id === stdId)) {
+                      setAlumniList(prev => {
+                        const next = prev.filter(a => a.id !== stdId && a.studentId !== stdId);
+                        try { localStorage.setItem('pesantren_alumni', JSON.stringify(next)); } catch (e) {}
+                        return next;
+                      });
+                      markIdAsDeleted('alumni', stdId);
+                      markLocalDataChanged('alumni');
+                      fetch(`/api/alumni/${encodeURIComponent(stdId)}`, { method: 'DELETE' }).catch(() => {});
+                      deleteAlumniFromSupabase(stdId).catch(console.error);
+                    }
+                    
+                    markIdAsDeleted('students', stdId);
                     markLocalDataChanged('students');
                     markLocalDataChanged('bills');
+
+                    fetch(`/api/students/${encodeURIComponent(stdId)}`, { method: 'DELETE' }).catch(() => {});
                     fetch('/api/students', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(updatedStudents)
                     }).catch(err => console.warn('Server delete students error:', err));
-                    if (isSupabaseConfigured()) {
-                      deleteStudentFromSupabase(stdId).catch(console.error);
-                    }
+
+                    fetch('/api/bills', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updatedBills)
+                    }).catch(err => console.warn('Server update bills error:', err));
+
+                    deleteStudentFromSupabase(stdId).catch(console.error);
+
                     setTimeout(() => {
                       window.dispatchEvent(new Event('pesantren_db_sync'));
                     }, 0);
                     setTightDeleteStudent(null);
-                    showAlert('success', 'Data santri berhasil dihapus selamanya melalui prosedur ketat.');
+                    showAlert('success', 'Data dan seluruh tagihan terkait berhasil dihapus selamanya dari server & Supabase.');
                   } catch (err) {
                     console.error('Error deleting student:', err);
-                    showAlert('danger', 'Gagal memproses penghapusan santri.');
+                    showAlert('danger', 'Gagal memproses penghapusan data.');
                   }
                 }}
                 className={`px-5 py-2 font-black rounded-xl text-white transition ${
@@ -16129,11 +16673,23 @@ export default function AdminDashboard({
                   uniqueCode: breakdown.uniqueCode,
                   finalAmount: breakdown.finalAmount
                 };
-                setBills(prev => prev.map(b => b.id === editingBill.id ? updatedBill : b));
-                localStorage.setItem('pesantren_bills', JSON.stringify(bills.map(b => b.id === editingBill.id ? updatedBill : b)));
+                setBills(prev => {
+                  const next = prev.map(b => b.id === editingBill.id ? updatedBill : b);
+                  try {
+                    localStorage.setItem('pesantren_bills', JSON.stringify(next));
+                  } catch (err) {}
+                  return next;
+                });
+                markLocalDataChanged('bills');
+                fetch('/api/bills', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(updatedBill)
+                }).catch(err => console.error('Server sync edited bill error:', err));
                 if (isSupabaseConfigured()) {
                   pushBillToSupabase(updatedBill).catch(err => console.error('Cloud push edited bill error:', err));
                 }
+                window.dispatchEvent(new Event('pesantren_db_sync'));
                 showAlert('success', `Data tagihan "${updatedBill.title}" berhasil diperbarui (Total Masuk: Rp ${breakdown.finalAmount.toLocaleString('id-ID')})!`);
                 setEditingBill(null);
               }}

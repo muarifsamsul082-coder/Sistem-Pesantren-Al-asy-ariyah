@@ -71,8 +71,15 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
   const unpaidAmount = unpaidBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
   const pendingAmount = pendingVerifyBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
 
-  const paymentPercentage = totalAmount > 0 ? Math.round((paidAmount / totalAmount) * 100) : 0;
-  const isFullyPaid = totalAmount > 0 && unpaidAmount === 0 && pendingAmount === 0;
+  // Status evaluasi akurat: jika tidak memiliki tagihan atau total tagihan 0, berarti BEBAS TANGGUNGAN (LUNAS)
+  const hasNoObligations = studentBills.length === 0 || totalAmount === 0;
+  const isFullyPaid = !hasNoObligations && unpaidAmount === 0 && pendingAmount === 0;
+  const isPendingVerification = !hasNoObligations && unpaidAmount === 0 && pendingAmount > 0;
+  const isUnpaid = !hasNoObligations && unpaidAmount > 0;
+
+  const paymentPercentage = totalAmount > 0 
+    ? Math.round((paidAmount / totalAmount) * 100) 
+    : (hasNoObligations ? 100 : 0);
 
   // Resolve bendahara based on student's gender
   const isPutra = activeStudent.gender === 'Laki-laki' || (activeStudent.gender as any) === 'Putra';
@@ -136,6 +143,14 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
       itemsList = 'Tidak ada catatan tagihan terdaftar.';
     }
 
+    const statusLabel = hasNoObligations
+      ? 'BEBAS TANGGUNGAN (LUNAS / NIHIL)'
+      : isFullyPaid
+      ? 'LUNAS 100% (BEBAS TUNGGAKAN)'
+      : isPendingVerification
+      ? 'MENUNGGU VERIFIKASI RESI'
+      : 'BELUM LUNAS';
+
     const waMsg = `*LEMBAR REKAPITULASI TAGIHAN & PEMBAYARAN*\n*${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}*\n\n` +
       `Yth. Bapak/Ibu Wali dari:\n` +
       `• *Nama:* ${activeStudent.fullName}\n` +
@@ -147,7 +162,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
       `• Total Lunas: Rp ${paidAmount.toLocaleString('id-ID')} (${paymentPercentage}%)\n` +
       `• Sisa Belum Lunas: *Rp ${unpaidAmount.toLocaleString('id-ID')}*\n` +
       (pendingAmount > 0 ? `• Menunggu Verifikasi: Rp ${pendingAmount.toLocaleString('id-ID')}\n` : '') +
-      `• Status: *${isFullyPaid ? 'LUNAS (BEBAS TUNGGAKAN)' : 'BELUM LUNAS'}*\n\n` +
+      `• Status: *${statusLabel}*\n\n` +
       `*RINCIAN TAGIHAN:*\n${itemsList}\n\n` +
       `_Pemberitahuan resmi dari Bendahara Pondok Pesantren._\n` +
       `Terima kasih atas kerja sama dan kepedulian Bapak/Ibu Wali.`;
@@ -229,7 +244,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
               >
                 {allStudents.map(s => (
                   <option key={s.id} value={s.id}>
-                    {s.fullName} ({s.nis}) - {s.class || s.gender}
+                    {s.status === 'Alumni' ? '🎓 [ALUMNI] ' : ''}{s.fullName} ({s.nis}) - {s.status === 'Alumni' ? `Lulus ${(s as any).tahunKeluar || ''}` : (s.class || s.gender)}
                   </option>
                 ))}
               </select>
@@ -289,7 +304,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
 
                 <div className="text-right shrink-0 border-l border-emerald-200 pl-4 space-y-1">
                   <span className="inline-block bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1 rounded text-[10px] font-mono font-black uppercase tracking-widest leading-none">
-                    LEMBAR KEUANGAN
+                    {activeStudent.status === 'Alumni' ? 'BEBAS TANGGUNGAN' : 'LEMBAR KEUANGAN'}
                   </span>
                   <div className="text-[10px] font-mono font-bold text-gray-600 mt-1">
                     No: {invoiceNumber}
@@ -304,11 +319,42 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
             {/* 2. JUDUL DOKUMEN */}
             <div className="text-center mb-6">
               <h3 className="text-base sm:text-lg font-black text-emerald-950 uppercase tracking-wide underline underline-offset-4">
-                REKAPITULASI TAGIHAN & PEMBAYARAN SANTRI
+                {activeStudent.status === 'Alumni'
+                  ? (unpaidAmount === 0 ? 'SURAT KETERANGAN BEBAS TANGGUNGAN ALUMNI' : 'REKAPITULASI TUNGGAKAN MASA PENDIDIKAN ALUMNI')
+                  : 'REKAPITULASI TAGIHAN & PEMBAYARAN SANTRI'}
               </h3>
-              <p className="text-[11px] text-gray-500 mt-1">
-                Tahun Akademik {(settings as any).academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`} • Status Kesiswaan: {activeStudent.status}
-              </p>
+              <div className="flex items-center justify-center gap-2 mt-1.5 flex-wrap">
+                <span className="text-[11px] text-gray-500">
+                  Tahun Akademik {(settings as any).academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`}
+                </span>
+                <span className="text-gray-300">•</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  activeStudent.status === 'Alumni'
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                    : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                }`}>
+                  {activeStudent.status === 'Alumni' 
+                    ? `🎓 ALUMNI (${(activeStudent as any).tahunKeluar ? `Angkatan ${(activeStudent as any).tahunKeluar}` : 'Telah Lulus'})` 
+                    : '🟢 Santri Aktif'}
+                </span>
+              </div>
+              {activeStudent.status === 'Alumni' && (
+                <div className={`mt-3 p-2.5 rounded-xl text-left border text-xs ${
+                  unpaidAmount === 0 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                    : 'bg-amber-50 border-amber-200 text-amber-900'
+                }`}>
+                  {unpaidAmount === 0 ? (
+                    <p className="font-semibold text-center text-emerald-800">
+                      ✓ <strong>SURAT KETERANGAN LUNAS:</strong> Menerangkan bahwa alumni atas nama <strong>{activeStudent.fullName}</strong> telah melunasi seluruh tanggungan keuangan selama masa pendidikan di pesantren dan dinyatakan <strong>BEBAS TANGGUNGAN</strong>.
+                    </p>
+                  ) : (
+                    <p className="font-semibold text-center text-amber-900">
+                      ⚠️ <strong>CATATAN TUNGGAKAN ALUMNI:</strong> Terdapat sisa kewajiban pembayaran dari masa pendidikan yang belum terselesaikan sebesar <strong>Rp {unpaidAmount.toLocaleString('id-ID')}</strong>. Alumni tidak lagi dikenakan tagihan syahriyah bulanan baru.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 3. BIODATA SANTRI (GRID INFORMASI) */}
@@ -391,34 +437,48 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                 </div>
 
                 {/* Total Tunggakan (Unpaid) */}
-                <div className={`p-3 rounded-xl text-left border ${unpaidAmount > 0 ? 'bg-rose-50 border-rose-200' : 'bg-gray-50 border-gray-200'}`}>
-                  <span className={`text-[10px] uppercase font-bold block ${unpaidAmount > 0 ? 'text-rose-700' : 'text-gray-500'}`}>
+                <div className={`p-3 rounded-xl text-left border ${unpaidAmount > 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50/60 border-emerald-200'}`}>
+                  <span className={`text-[10px] uppercase font-bold block ${unpaidAmount > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
                     Sisa Belum Dibayar
                   </span>
-                  <strong className={`text-sm sm:text-base font-black block mt-0.5 font-mono ${unpaidAmount > 0 ? 'text-rose-700' : 'text-gray-600'}`}>
+                  <strong className={`text-sm sm:text-base font-black block mt-0.5 font-mono ${unpaidAmount > 0 ? 'text-rose-700' : 'text-emerald-800'}`}>
                     Rp {unpaidAmount.toLocaleString('id-ID')}
                   </strong>
-                  <span className={`text-[9px] font-bold mt-0.5 block ${unpaidAmount > 0 ? 'text-rose-600' : 'text-gray-500'}`}>
-                    {unpaidBills.length > 0 ? `⚠ ${unpaidBills.length} Tagihan Tertunggak` : 'Nihil Tunggakan'}
+                  <span className={`text-[9px] font-bold mt-0.5 block ${unpaidAmount > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                    {unpaidAmount > 0 ? `⚠ ${unpaidBills.length} Tagihan Tertunggak` : '✓ Nihil Tunggakan (Bebas Biaya)'}
                   </span>
                 </div>
 
                 {/* Status Keuangan Keseluruhan */}
-                <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-left">
-                  <span className="text-[10px] uppercase font-bold text-teal-700 block">Status Pelunasan</span>
+                <div className={`p-3 rounded-xl text-left border ${unpaidAmount > 0 ? 'bg-amber-50/70 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <span className={`text-[10px] uppercase font-bold block ${unpaidAmount > 0 ? 'text-amber-800' : 'text-emerald-750'}`}>Status Pelunasan</span>
                   <div className="mt-1 flex items-center gap-1.5">
-                    {isFullyPaid ? (
-                      <span className="px-2 py-0.5 bg-emerald-600 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
+                    {hasNoObligations ? (
+                      <span className="px-2.5 py-0.5 bg-emerald-700 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
+                        BEBAS TANGGUNGAN
+                      </span>
+                    ) : isFullyPaid ? (
+                      <span className="px-2.5 py-0.5 bg-emerald-600 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
                         LUNAS 100%
                       </span>
+                    ) : isPendingVerification ? (
+                      <span className="px-2.5 py-0.5 bg-amber-600 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
+                        VERIFIKASI DIAJUKAN
+                      </span>
                     ) : (
-                      <span className="px-2 py-0.5 bg-amber-600 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
+                      <span className="px-2.5 py-0.5 bg-rose-600 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
                         BELUM LUNAS
                       </span>
                     )}
                   </div>
-                  <span className="text-[9px] text-teal-800 font-medium mt-1 block">
-                    {isFullyPaid ? 'Bebas dari semua beban biaya' : `Tersisa Rp ${unpaidAmount.toLocaleString('id-ID')}`}
+                  <span className="text-[9px] text-gray-600 font-medium mt-1 block">
+                    {hasNoObligations
+                      ? 'Santri tidak memiliki beban biaya atau tanggungan aktif.'
+                      : isFullyPaid
+                      ? 'Bebas dari semua beban biaya (Semua tagihan lunas).'
+                      : isPendingVerification
+                      ? 'Bukti pembayaran sedang diverifikasi bendahara.'
+                      : `Tersisa kewajiban Rp ${unpaidAmount.toLocaleString('id-ID')}`}
                   </span>
                 </div>
               </div>
@@ -500,8 +560,10 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                       })
                     ) : (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-gray-400 text-xs italic">
-                          Belum ada catatan tagihan atau pembayaran yang terdaftar untuk santri ini.
+                        <td colSpan={7} className="py-8 text-center bg-emerald-50/40 text-emerald-900 text-xs">
+                          <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto mb-1.5" />
+                          <strong className="block text-emerald-950 font-bold">Tidak Memiliki Beban Tanggungan</strong>
+                          <span className="text-[11px] text-emerald-700">Alhamdulillah, santri ini tidak memiliki catatan tanggungan tagihan (Bebas Biaya / Nihil).</span>
                         </td>
                       </tr>
                     )}
@@ -515,7 +577,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                         Rp {totalAmount.toLocaleString('id-ID')}
                       </td>
                       <td colSpan={3} className="py-2.5 px-3 text-right text-[10px] text-gray-600">
-                        Total Terbayar: <strong className="text-emerald-800 font-mono">Rp {paidAmount.toLocaleString('id-ID')}</strong> | Sisa: <strong className="text-rose-700 font-mono">Rp {unpaidAmount.toLocaleString('id-ID')}</strong>
+                        Total Terbayar: <strong className="text-emerald-800 font-mono">Rp {paidAmount.toLocaleString('id-ID')}</strong> | Sisa: <strong className={unpaidAmount > 0 ? "text-rose-700 font-mono" : "text-emerald-700 font-mono"}>Rp {unpaidAmount.toLocaleString('id-ID')} {unpaidAmount === 0 ? '(Nihil / Lunas)' : ''}</strong>
                       </td>
                     </tr>
                   </tfoot>
