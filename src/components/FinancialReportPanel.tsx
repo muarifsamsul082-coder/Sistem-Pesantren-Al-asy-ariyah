@@ -41,6 +41,7 @@ import {
 interface FinancialReportPanelProps {
   bills: Bill[];
   students: Student[];
+  alumniList?: any[];
   settings: PortalSettings;
   currentAdminName?: string;
   showAlert: (type: 'success' | 'danger', message: string) => void;
@@ -52,6 +53,7 @@ interface FinancialReportPanelProps {
 export default function FinancialReportPanel({
   bills,
   students,
+  alumniList = [],
   settings,
   currentAdminName = 'Admin Bendahara',
   showAlert,
@@ -295,7 +297,7 @@ export default function FinancialReportPanel({
     }
   };
 
-  // Student Map for easy lookup of gender and metadata
+  // Student Map for easy lookup of gender and metadata (including alumni)
   const studentMap = useMemo(() => {
     const map = new Map<string, Student>();
     (students || []).forEach(s => {
@@ -304,8 +306,14 @@ export default function FinancialReportPanel({
         if (s.nis) map.set(String(s.nis), s);
       }
     });
+    (alumniList || []).forEach((a: any) => {
+      if (a && a.id) {
+        map.set(String(a.id), a);
+        if (a.nis) map.set(String(a.nis), a);
+      }
+    });
     return map;
-  }, [students]);
+  }, [students, alumniList]);
 
   // Helper date checker within selected period
   const isDateInPeriod = (dateStr?: string) => {
@@ -1249,12 +1257,13 @@ export default function FinancialReportPanel({
                   <th className="py-2.5 px-3">Metode Bayar</th>
                   <th className="py-2.5 px-3 text-right">Nominal (Rp)</th>
                   <th className="py-2.5 px-3 text-center">Status</th>
+                  <th className="py-2.5 px-3 text-center">Bukti / Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paidBillsWithGender.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-400 italic">
+                    <td colSpan={10} className="py-8 text-center text-slate-400 italic">
                       Tidak ada data pemasukan SPP/tagihan yang cocok dengan filter.
                     </td>
                   </tr>
@@ -1299,6 +1308,40 @@ export default function FinancialReportPanel({
                         <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800">
                           LUNAS
                         </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {b.paymentProofUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setViewReceiptModalUrl(b.paymentProofUrl!)}
+                              className="p-1.5 text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50 rounded-lg transition cursor-pointer border border-transparent hover:border-emerald-200"
+                              title="Lihat Bukti Transfer / Kwitansi"
+                            >
+                              <Eye className="h-3.5 w-3.5 inline" />
+                            </button>
+                          )}
+                          {onEditBill && (
+                            <button
+                              type="button"
+                              onClick={() => onEditBill(b)}
+                              className="p-1.5 hover:bg-blue-50 text-blue-600 hover:text-blue-800 rounded-lg transition cursor-pointer border border-transparent hover:border-blue-200"
+                              title="Edit Data & Nominal Tagihan Masuk"
+                            >
+                              <Pencil className="h-3.5 w-3.5 inline" />
+                            </button>
+                          )}
+                          {onDeleteBill && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteBill(b.id, b.studentName, b.amount)}
+                              className="p-1.5 hover:bg-rose-50 text-rose-600 hover:text-rose-800 rounded-lg transition cursor-pointer border border-transparent hover:border-rose-200"
+                              title="Hapus / Batalkan Pemasukan Ini"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 inline" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

@@ -1575,12 +1575,14 @@ export function subscribeToSupabaseRealtime(onUpdate: (table?: string) => void) 
 // ------------------------------------------------------------------------------
 const localMutationTimestamps: Record<string, number> = {};
 
-export function markLocalDataChanged(key: 'settings' | 'students' | 'bills' | 'rooms' | 'news' | 'announcements' | 'ppdb' | 'events'): void {
+export type TrackedDataType = 'settings' | 'students' | 'bills' | 'rooms' | 'news' | 'announcements' | 'ppdb' | 'events' | 'alumni' | 'expenses';
+
+export function markLocalDataChanged(key: TrackedDataType): void {
   localMutationTimestamps[key] = Date.now();
 }
 
 export function isLocalDataRecentlyChanged(
-  key: 'settings' | 'students' | 'bills' | 'rooms' | 'news' | 'announcements' | 'ppdb' | 'events',
+  key: TrackedDataType,
   thresholdMs = 12000
 ): boolean {
   const t = localMutationTimestamps[key];
@@ -2035,9 +2037,9 @@ export async function syncStudentsWithSupabase(studentsList: Student[]): Promise
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        await client.from('students').delete().in('id', staleIds).catch(() => {});
-        await client.from('bills').delete().in('student_id', staleIds).catch(() => {});
-        await client.from('alumni').delete().in('id', staleIds).catch(() => {});
+        await Promise.resolve(client.from('students').delete().in('id', staleIds)).catch(() => {});
+        await Promise.resolve(client.from('bills').delete().in('student_id', staleIds)).catch(() => {});
+        await Promise.resolve(client.from('alumni').delete().in('id', staleIds)).catch(() => {});
       }
 
       // 2. SEPARATE ALUMNI: Move any alumni found in 'students' table to 'alumni' table and delete from 'students'!
@@ -2274,12 +2276,10 @@ export async function deleteStudentFromSupabase(id: string): Promise<void> {
   if (!client) return;
   try {
     // Delete associated bills and payments first to avoid foreign key constraints
-    await client.from('bill_payments').delete().eq('student_id', id).catch(() => {});
-    await client.from('bills').delete().eq('student_id', id).catch(() => {});
-    // Then delete student record from students table
-    await client.from('students').delete().eq('id', id).catch(() => {});
-    // Also delete student record from alumni table if it ever existed there
-    await client.from('alumni').delete().eq('id', id).catch(() => {});
+    await Promise.resolve(client.from('bill_payments').delete().eq('student_id', id)).catch(() => {});
+    await Promise.resolve(client.from('bills').delete().eq('student_id', id)).catch(() => {});
+    await Promise.resolve(client.from('students').delete().eq('id', id)).catch(() => {});
+    await Promise.resolve(client.from('alumni').delete().eq('id', id)).catch(() => {});
   } catch (e) {
     console.error('Failed to delete student from Supabase:', e);
   }
@@ -2580,8 +2580,8 @@ export async function syncBillsWithSupabase(billsList: Bill[]): Promise<Bill[]> 
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        await client.from('bills').delete().in('id', staleIds).catch(() => {});
-        await client.from('bill_payments').delete().in('bill_id', staleIds).catch(() => {});
+        await Promise.resolve(client.from('bills').delete().in('id', staleIds)).catch(() => {});
+        await Promise.resolve(client.from('bill_payments').delete().in('bill_id', staleIds)).catch(() => {});
       }
 
       const remoteMapped: Bill[] = data
@@ -2611,13 +2611,15 @@ export async function syncBillsWithSupabase(billsList: Bill[]): Promise<Bill[]> 
         await pushAllBillsToSupabase(missingInRemote);
         return [...cleanRemote, ...missingInRemote];
       }
-      return cleanRemote;
-    } else if (billsList.length > 0) {
+    } else if (billsList.length > 0 && isLocalDataRecentlyChanged('bills', 15000)) {
       const deletedIds = getDeletedIdsSet('bills');
       const cleanBills = billsList.filter(b => b && !deletedIds.has(b.id));
       if (cleanBills.length > 0) {
         await pushAllBillsToSupabase(cleanBills);
+        return cleanBills;
       }
+    } else if (data && data.length === 0) {
+      return [];
     }
   } catch (err) {
     console.error('Error syncing bills with Supabase:', err);
@@ -3560,7 +3562,7 @@ export async function syncExpensesWithSupabase(localExpenses: FinancialExpense[]
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        await client.from('financial_expenses').delete().in('id', staleIds).catch(() => {});
+        await Promise.resolve(client.from('financial_expenses').delete().in('id', staleIds)).catch(() => {});
       }
 
       const remoteMapped: FinancialExpense[] = data
@@ -3581,7 +3583,7 @@ export async function syncExpensesWithSupabase(localExpenses: FinancialExpense[]
       // Remote is authoritative; only preserve locally added items if created within last 15 seconds
       const missingInRemote = cleanLocal.filter(l => !data.some((r: any) => r.id === l.id));
       if (missingInRemote.length > 0 && isLocalDataRecentlyChanged('expenses', 15000)) {
-        await client.from('financial_expenses').upsert(missingInRemote.map(formatExpenseToSupabasePayload), { onConflict: 'id' }).catch(() => {});
+        await Promise.resolve(client.from('financial_expenses').upsert(missingInRemote.map(formatExpenseToSupabasePayload), { onConflict: 'id' })).catch(() => {});
         return [...remoteMapped, ...missingInRemote];
       }
       return remoteMapped;
@@ -3670,13 +3672,13 @@ export async function syncAlumniWithSupabase(localAlumni: any[]): Promise<any[]>
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        await client.from('alumni').delete().in('id', staleIds).catch(() => {});
+        await Promise.resolve(client.from('alumni').delete().in('id', staleIds)).catch(() => {});
       }
 
       // Also ensure none of these alumni remain in active students table on Supabase!
       const validAlumniIds = data.map((item: any) => item.id).filter(Boolean);
       if (validAlumniIds.length > 0) {
-        client.from('students').delete().in('id', validAlumniIds).catch(() => {});
+        Promise.resolve(client.from('students').delete().in('id', validAlumniIds)).catch(() => {});
       }
 
       const remoteMapped = data
@@ -3786,10 +3788,10 @@ export async function deleteAlumniFromSupabase(id: string): Promise<void> {
   const client = getSupabaseClient();
   if (!client) return;
   try {
-    await client.from('bill_payments').delete().eq('student_id', id).catch(() => {});
-    await client.from('bills').delete().eq('student_id', id).catch(() => {});
-    await client.from('alumni').delete().eq('id', id).catch(() => {});
-    await client.from('students').delete().eq('id', id).catch(() => {});
+    await Promise.resolve(client.from('bill_payments').delete().eq('student_id', id)).catch(() => {});
+    await Promise.resolve(client.from('bills').delete().eq('student_id', id)).catch(() => {});
+    await Promise.resolve(client.from('alumni').delete().eq('id', id)).catch(() => {});
+    await Promise.resolve(client.from('students').delete().eq('id', id)).catch(() => {});
   } catch (e) {
     console.error('Failed to delete alumni from Supabase:', e);
   }

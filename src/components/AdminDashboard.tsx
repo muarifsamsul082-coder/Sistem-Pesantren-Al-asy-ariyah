@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart as RechartsBarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
-  BarChart, Users, FileText, Newspaper, Settings, Check, X, Plus, Trash, Edit, 
+  BarChart, Users, FileText, Newspaper, Settings, Check, X, Plus, Trash, Trash2, Edit, 
   Search, CheckSquare, Bell, DollarSign, Wallet, GraduationCap, ArrowUpRight, Send, AlertCircle, Printer, Download, Upload, MessageSquare, LogOut, UploadCloud, Loader2, Sparkles,
   CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, XCircle, RefreshCw, Code, Save, Clock, Landmark, Info, QrCode
 } from 'lucide-react';
@@ -1369,10 +1369,13 @@ export default function AdminDashboard({
       const raw = localStorage.getItem('pesantren_alumni');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const deletedIds = getDeletedIdsSet('alumni');
+          return parsed.filter((a: any) => a && a.id && !deletedIds.has(a.id));
+        }
       }
     } catch (e) {}
-    return (students || []).filter(s => s && (s.status === 'Alumni' || s.status === 'Berhenti'));
+    return [];
   });
   const [isAddAlumniModalOpen, setIsAddAlumniModalOpen] = React.useState(false);
   const [editingAlumni, setEditingAlumni] = React.useState<any | null>(null);
@@ -1405,10 +1408,8 @@ export default function AdminDashboard({
           if (json && json.success && Array.isArray(json.alumni)) {
             const deletedIds = getDeletedIdsSet('alumni');
             const clean = json.alumni.filter((a: any) => a && a.id && !deletedIds.has(a.id));
-            if (clean.length > 0) {
-              setAlumniList(clean);
-              localStorage.setItem('pesantren_alumni', JSON.stringify(clean));
-            }
+            setAlumniList(clean);
+            localStorage.setItem('pesantren_alumni', JSON.stringify(clean));
           }
         }
       } catch (e) {}
@@ -1417,7 +1418,7 @@ export default function AdminDashboard({
         try {
           const localAlumni = JSON.parse(localStorage.getItem('pesantren_alumni') || '[]');
           const remote = await syncAlumniWithSupabase(localAlumni);
-          if (Array.isArray(remote) && remote.length > 0) {
+          if (Array.isArray(remote)) {
             setAlumniList(remote);
             localStorage.setItem('pesantren_alumni', JSON.stringify(remote));
           }
@@ -6361,6 +6362,14 @@ export default function AdminDashboard({
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
+                                type="button"
+                                onClick={() => openStudentBillingReceipt(alumni as any)}
+                                className="p-1 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition cursor-pointer"
+                                title="Cetak Surat Bebas Tanggungan / Rekap Tagihan (A4 PDF)"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                              </button>
+                              <button
                                 onClick={() => setSelectedAlumniForDetails(alumni)}
                                 className="px-2 py-1 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] font-bold transition cursor-pointer"
                               >
@@ -6524,13 +6533,26 @@ export default function AdminDashboard({
                     </div>
 
                     <div className="pt-2 flex flex-col gap-2 shrink-0 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={() => openAlumniCardInNewTab(selectedAlumniForDetails)}
-                        className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl cursor-pointer flex items-center justify-center gap-1.5 text-xs transition shadow-xs"
-                      >
-                        <Printer className="h-3.5 w-3.5" /> Cetak Kartu Alumni
-                      </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openAlumniCardInNewTab(selectedAlumniForDetails)}
+                          className="py-2 px-3 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl cursor-pointer flex items-center justify-center gap-1.5 text-xs transition shadow-xs"
+                        >
+                          <Printer className="h-3.5 w-3.5" /> Cetak Kartu Alumni
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const target = selectedAlumniForDetails;
+                            setSelectedAlumniForDetails(null);
+                            if (target) openStudentBillingReceipt(target as any);
+                          }}
+                          className="py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl cursor-pointer flex items-center justify-center gap-1.5 text-xs transition shadow-xs"
+                        >
+                          <FileText className="h-3.5 w-3.5" /> Cetak Bebas Tanggungan (A4)
+                        </button>
+                      </div>
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -8128,7 +8150,14 @@ export default function AdminDashboard({
                         #{idx + 1}
                       </span>
                       <div className="min-w-0">
-                        <strong className="block text-gray-900 leading-tight text-sm font-extrabold truncate">{b.studentName}</strong>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <strong className="block text-gray-900 leading-tight text-sm font-extrabold truncate">{b.studentName}</strong>
+                          {alumniList.some(a => a.id === b.studentId || (a.nis && b.nis && a.nis === b.nis) || (a.fullName && b.studentName && a.fullName.toLowerCase() === b.studentName.toLowerCase())) && (
+                            <span className="px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded text-[9px] font-black uppercase tracking-wider border border-purple-200">
+                              🎓 Alumni
+                            </span>
+                          )}
+                        </div>
                         <span className="text-gray-500 text-[10px] block mt-0.5 truncate">{b.title} ({b.category || 'Lain-lain'})</span>
                         {(() => {
                           const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
@@ -8202,8 +8231,9 @@ export default function AdminDashboard({
                       <button
                         type="button"
                         onClick={() => {
-                          const target = students.find(s => s.id === b.studentId || (s.nis && b.nis && s.nis === b.nis) || (s.fullName && b.studentName && s.fullName.toLowerCase() === b.studentName.toLowerCase())) || null;
-                          openStudentBillingReceipt(target);
+                          const allCombined = [...students, ...(alumniList || [])];
+                          const target = allCombined.find(s => s.id === b.studentId || (s.nis && b.nis && s.nis === b.nis) || (s.fullName && b.studentName && s.fullName.toLowerCase() === b.studentName.toLowerCase())) || null;
+                          openStudentBillingReceipt(target || ({ id: b.studentId || 'temp', fullName: b.studentName, nis: b.nis || '-' } as any));
                         }}
                         className="text-amber-800 hover:text-amber-950 font-bold text-[9px] flex items-center justify-center gap-1 mt-1 w-full cursor-pointer bg-amber-50 hover:bg-amber-100 py-0.5 px-1 rounded border border-amber-200"
                         title="Cetak lembar rekapitulasi semua tagihan santri ini (A4 PDF)"
@@ -8249,11 +8279,12 @@ export default function AdminDashboard({
       </div>
       )}
 
-      {/* Tab: Rekening Pesantren */}
+      {/* Tab: Laporan Keuangan */}
       {activeTab === 'laporan_keuangan' && (
         <FinancialReportPanel
           bills={bills}
           students={students}
+          alumniList={alumniList}
           settings={settings}
           currentAdminName={currentAdminName}
           showAlert={showAlert as any}
@@ -13698,10 +13729,36 @@ export default function AdminDashboard({
         isOpen={isStudentBillingReceiptModalOpen}
         onClose={() => setIsStudentBillingReceiptModalOpen(false)}
         student={selectedStudentForBillingReceipt}
-        allStudents={students}
+        allStudents={[...students, ...(alumniList || [])]}
         onSelectStudent={(std) => setSelectedStudentForBillingReceipt(std)}
         bills={bills}
         settings={settings}
+        onClearObligations={(studentId, studentName) => {
+          const updatedBills = bills.map(b => {
+            const isMatch = b.studentId === studentId ||
+              (selectedStudentForBillingReceipt?.nis && b.nis && selectedStudentForBillingReceipt.nis === b.nis) ||
+              (selectedStudentForBillingReceipt?.fullName && b.studentName && selectedStudentForBillingReceipt.fullName.toLowerCase() === b.studentName.toLowerCase());
+            if (isMatch && b.status !== 'Lunas') {
+              return {
+                ...b,
+                status: 'Lunas' as const,
+                paymentDate: new Date().toISOString().split('T')[0],
+                paymentMethod: 'Pembebasan Tanggungan Alumni (Bebas Biaya)',
+                verifiedBy: currentAdminName
+              };
+            }
+            return b;
+          });
+          setBills(updatedBills);
+          try { localStorage.setItem('pesantren_bills', JSON.stringify(updatedBills)); } catch (e) {}
+          markLocalDataChanged('bills');
+          fetch('/api/bills', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedBills)
+          }).catch(() => {});
+          showAlert('success', `Seluruh tanggungan untuk ${studentName} telah berhasil dilunaskan/dibebaskan.`);
+        }}
       />
 
       {/* MODAL: CETAK KWITANSI RESMI (ADMIN PERSPECTIVE APPROVED) */}

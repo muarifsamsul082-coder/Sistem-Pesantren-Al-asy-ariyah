@@ -11,6 +11,7 @@ interface StudentBillingReceiptModalProps {
   onSelectStudent?: (student: Student) => void;
   bills: Bill[];
   settings: PortalSettings;
+  onClearObligations?: (studentId: string, studentName: string) => void;
 }
 
 export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProps> = ({
@@ -21,6 +22,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
   onSelectStudent,
   bills,
   settings,
+  onClearObligations,
 }) => {
   const [selectedStudentId, setSelectedStudentId] = React.useState<string>(student?.id || '');
   const [studentSearch, setStudentSearch] = React.useState<string>('');
@@ -71,6 +73,10 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
   const unpaidAmount = unpaidBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
   const pendingAmount = pendingVerifyBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
 
+  const isAlumni = activeStudent.status === 'Alumni' || 
+    (activeStudent as any).alumniReason !== undefined || 
+    (activeStudent as any).tahunKeluar !== undefined;
+
   // Status evaluasi akurat: jika tidak memiliki tagihan atau total tagihan 0, berarti BEBAS TANGGUNGAN (LUNAS)
   const hasNoObligations = studentBills.length === 0 || totalAmount === 0;
   const isFullyPaid = !hasNoObligations && unpaidAmount === 0 && pendingAmount === 0;
@@ -80,6 +86,9 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
   const paymentPercentage = totalAmount > 0 
     ? Math.round((paidAmount / totalAmount) * 100) 
     : (hasNoObligations ? 100 : 0);
+
+  // For alumni, if there are no unpaid bills or no obligations, they are 100% BEBAS TANGGUNGAN
+  const isAlumniBebasTanggungan = isAlumni && (unpaidAmount === 0);
 
   // Resolve bendahara based on student's gender
   const isPutra = activeStudent.gender === 'Laki-laki' || (activeStudent.gender as any) === 'Putra';
@@ -112,9 +121,15 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
     year: 'numeric'
   });
 
-  const invoiceNumber = `INV-${activeStudent.nis || 'STD'}-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  const invoiceNumber = isAlumni
+    ? (isAlumniBebasTanggungan 
+        ? `SK-BT/${activeStudent.nis || 'ALM'}/${new Date().getFullYear()}`
+        : `SK-TG/${activeStudent.nis || 'ALM'}/${new Date().getFullYear()}`)
+    : `INV-${activeStudent.nis || 'STD'}-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-  const documentTitle = `Rekap_Tagihan_${activeStudent.fullName.replace(/\s+/g, '_')}_NIS_${activeStudent.nis}`;
+  const documentTitle = isAlumni
+    ? (isAlumniBebasTanggungan ? `Surat_Bebas_Tanggungan_${activeStudent.fullName.replace(/\s+/g, '_')}_NIS_${activeStudent.nis}` : `Surat_Tunggakan_Alumni_${activeStudent.fullName.replace(/\s+/g, '_')}_NIS_${activeStudent.nis}`)
+    : `Rekap_Tagihan_${activeStudent.fullName.replace(/\s+/g, '_')}_NIS_${activeStudent.nis}`;
 
   // Filter student dropdown list
   const filteredStudents = allStudents.filter(s =>
@@ -192,6 +207,18 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
           </div>
 
           <div className="flex items-center gap-2">
+            {isAlumni && unpaidAmount > 0 && onClearObligations && (
+              <button
+                type="button"
+                onClick={() => onClearObligations(activeStudent.id, activeStudent.fullName)}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer border border-emerald-400"
+                title="Tandai lunas seluruh tagihan alumni ini dan terbitkan Surat Keterangan Bebas Tanggungan"
+              >
+                <CheckCircle2 className="h-4 w-4 text-emerald-200" />
+                <span>Bebaskan Tanggungan (Lunaskan)</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handlePrint}
@@ -303,8 +330,12 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                 </div>
 
                 <div className="text-right shrink-0 border-l border-emerald-200 pl-4 space-y-1">
-                  <span className="inline-block bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1 rounded text-[10px] font-mono font-black uppercase tracking-widest leading-none">
-                    {activeStudent.status === 'Alumni' ? 'BEBAS TANGGUNGAN' : 'LEMBAR KEUANGAN'}
+                  <span className={`inline-block px-3 py-1 rounded text-[10px] font-mono font-black uppercase tracking-widest leading-none border ${
+                    isAlumni
+                      ? (isAlumniBebasTanggungan ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-amber-100 text-amber-900 border-amber-300')
+                      : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  }`}>
+                    {isAlumni ? (isAlumniBebasTanggungan ? 'BEBAS TANGGUNGAN' : 'SISA TUNGGAKAN') : 'LEMBAR KEUANGAN'}
                   </span>
                   <div className="text-[10px] font-mono font-bold text-gray-600 mt-1">
                     No: {invoiceNumber}
@@ -319,8 +350,8 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
             {/* 2. JUDUL DOKUMEN */}
             <div className="text-center mb-6">
               <h3 className="text-base sm:text-lg font-black text-emerald-950 uppercase tracking-wide underline underline-offset-4">
-                {activeStudent.status === 'Alumni'
-                  ? (unpaidAmount === 0 ? 'SURAT KETERANGAN BEBAS TANGGUNGAN ALUMNI' : 'REKAPITULASI TUNGGAKAN MASA PENDIDIKAN ALUMNI')
+                {isAlumni
+                  ? (isAlumniBebasTanggungan ? 'SURAT KETERANGAN BEBAS TANGGUNGAN PENDIDIKAN' : 'REKAPITULASI SISA TUNGGAKAN MASA PENDIDIKAN ALUMNI')
                   : 'REKAPITULASI TAGIHAN & PEMBAYARAN SANTRI'}
               </h3>
               <div className="flex items-center justify-center gap-2 mt-1.5 flex-wrap">
@@ -329,29 +360,40 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                 </span>
                 <span className="text-gray-300">•</span>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                  activeStudent.status === 'Alumni'
+                  isAlumni
                     ? 'bg-amber-100 text-amber-900 border border-amber-300'
                     : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
                 }`}>
-                  {activeStudent.status === 'Alumni' 
+                  {isAlumni 
                     ? `🎓 ALUMNI (${(activeStudent as any).tahunKeluar ? `Angkatan ${(activeStudent as any).tahunKeluar}` : 'Telah Lulus'})` 
                     : '🟢 Santri Aktif'}
                 </span>
               </div>
-              {activeStudent.status === 'Alumni' && (
-                <div className={`mt-3 p-2.5 rounded-xl text-left border text-xs ${
-                  unpaidAmount === 0 
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
-                    : 'bg-amber-50 border-amber-200 text-amber-900'
+              {isAlumni && (
+                <div className={`mt-3 p-3 rounded-xl text-left border text-xs ${
+                  isAlumniBebasTanggungan 
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-xs' 
+                    : 'bg-amber-50 border-amber-300 text-amber-950 shadow-xs'
                 }`}>
-                  {unpaidAmount === 0 ? (
-                    <p className="font-semibold text-center text-emerald-800">
-                      ✓ <strong>SURAT KETERANGAN LUNAS:</strong> Menerangkan bahwa alumni atas nama <strong>{activeStudent.fullName}</strong> telah melunasi seluruh tanggungan keuangan selama masa pendidikan di pesantren dan dinyatakan <strong>BEBAS TANGGUNGAN</strong>.
-                    </p>
+                  {isAlumniBebasTanggungan ? (
+                    <div className="space-y-1 text-center">
+                      <p className="font-black text-emerald-900 text-sm">
+                        ✓ SURAT RESMI: BEBAS DARI SELURUH TANGGUNGAN (LUNAS 100%)
+                      </p>
+                      <p className="text-xs text-emerald-850 leading-relaxed max-w-xl mx-auto">
+                        Menerangkan dengan sebenarnya bahwa Alumni atas nama <strong>{activeStudent.fullName}</strong> (NIS: {activeStudent.nis}) telah menyelesaikan seluruh kewajiban administrasi keuangan selama masa pendidikan di Pondok Pesantren dan dinyatakan <strong>BEBAS TANGGUNGAN</strong> untuk keperluan kelulusan, pengambilan ijazah/syahadah, maupun keperluan administrasi lainnya.
+                      </p>
+                    </div>
                   ) : (
-                    <p className="font-semibold text-center text-amber-900">
-                      ⚠️ <strong>CATATAN TUNGGAKAN ALUMNI:</strong> Terdapat sisa kewajiban pembayaran dari masa pendidikan yang belum terselesaikan sebesar <strong>Rp {unpaidAmount.toLocaleString('id-ID')}</strong>. Alumni tidak lagi dikenakan tagihan syahriyah bulanan baru.
-                    </p>
+                    <div className="space-y-1">
+                      <p className="font-extrabold text-amber-950 text-xs flex items-center justify-between flex-wrap gap-1">
+                        <span>⚠️ CATATAN KEBIJAKAN ADMINISTRASI ALUMNI:</span>
+                        <span className="font-mono text-rose-800 font-black">Sisa: Rp {unpaidAmount.toLocaleString('id-ID')}</span>
+                      </p>
+                      <p className="text-[11px] text-amber-900 leading-relaxed">
+                        Siswa ini berstatus <strong>ALUMNI</strong> dan tidak lagi dibebankan tagihan syahriyah bulanan berjalan. Rincian tagihan di bawah ini merupakan sisa kewajiban dari masa aktif pendidikan yang belum terselesaikan.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
