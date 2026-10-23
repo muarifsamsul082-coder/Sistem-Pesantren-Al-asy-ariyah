@@ -607,6 +607,14 @@ CREATE TABLE IF NOT EXISTS public.staff_configs (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 19. TABEL CATATAN PENGHAPUSAN PERMANEN (TOMBSTONES SINKRONISASI REALTIME)
+CREATE TABLE IF NOT EXISTS public.deleted_records (
+  id TEXT NOT NULL,
+  table_name TEXT NOT NULL,
+  deleted_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (id, table_name)
+);
+
 -- ==============================================================================
 -- PEMBARUAN KOLOM OTOMATIS JIKA TABEL SUDAH ADA (NON-DESTRUKTIF)
 -- ==============================================================================
@@ -891,6 +899,7 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.staff_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.staff_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deleted_records ENABLE ROW LEVEL SECURITY;
 
 DO $$
 DECLARE
@@ -899,7 +908,7 @@ DECLARE
     'settings', 'officials', 'rooms', 'students', 'alumni', 'ppdb',
     'bills', 'bill_payments', 'financial_expenses', 'security_permits',
     'outbox_logs', 'wa_logs', 'news', 'announcements', 'events',
-    'master_classes', 'staff_users', 'staff_configs'
+    'master_classes', 'staff_users', 'staff_configs', 'deleted_records'
   ];
 BEGIN
   FOREACH t IN ARRAY tbls LOOP
@@ -950,7 +959,7 @@ DECLARE
     'settings', 'officials', 'rooms', 'students', 'alumni', 'ppdb',
     'bills', 'bill_payments', 'financial_expenses', 'security_permits',
     'outbox_logs', 'wa_logs', 'news', 'announcements', 'events',
-    'master_classes', 'staff_users', 'staff_configs'
+    'master_classes', 'staff_users', 'staff_configs', 'deleted_records'
   ];
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
@@ -1575,7 +1584,22 @@ export function subscribeToSupabaseRealtime(onUpdate: (table?: string) => void) 
 // ------------------------------------------------------------------------------
 const localMutationTimestamps: Record<string, number> = {};
 
-export type TrackedDataType = 'settings' | 'students' | 'bills' | 'rooms' | 'news' | 'announcements' | 'ppdb' | 'events' | 'alumni' | 'expenses';
+export type TrackedDataType = 
+  | 'settings' 
+  | 'students' 
+  | 'bills' 
+  | 'rooms' 
+  | 'news' 
+  | 'announcements' 
+  | 'ppdb' 
+  | 'pcsb'
+  | 'events' 
+  | 'alumni' 
+  | 'expenses'
+  | 'financial_expenses'
+  | 'staff_users'
+  | 'officials'
+  | (string & {});
 
 export function markLocalDataChanged(key: TrackedDataType): void {
   localMutationTimestamps[key] = Date.now();
@@ -1613,9 +1637,8 @@ export async function syncNewsWithSupabase(newsList: News[]): Promise<News[]> {
       // Purge any deleted news from remote Supabase table immediately
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
-        staleInRemote.forEach((stale: any) => {
-          Promise.resolve(client.from('news').delete().eq('id', stale.id)).catch(() => {});
-        });
+        const staleIds = staleInRemote.map((item: any) => item.id);
+        await hardDeleteFromSupabase('news', staleIds, { skipLocalTrack: true });
       }
 
       const remoteMapped: News[] = data
@@ -1695,19 +1718,8 @@ export async function pushAllNewsToSupabase(newsList: News[]): Promise<void> {
   }
 }
 
-export async function deleteNewsFromSupabase(id: string): Promise<void> {
-  markLocalDataChanged('news');
-  markIdAsDeleted('news', id);
-  try {
-    fetch(`/api/news/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-  } catch (e) {}
-  const client = getSupabaseClient();
-  if (!client) return;
-  try { 
-    await client.from('news').delete().eq('id', id); 
-  } catch (e) { 
-    console.error('Failed to delete news from Supabase:', e); 
-  }
+export async function deleteNewsFromSupabase(id: string): Promise<HardDeleteResult> {
+  return await hardDeleteFromSupabase('news', id);
 }
 
 // ------------------------------------------------------------------------------
@@ -1744,7 +1756,7 @@ export async function syncAnnouncementsWithSupabase(list: Announcement[]): Promi
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        client.from('announcements').delete().in('id', staleIds).then(() => {}, () => {});
+        await hardDeleteFromSupabase('announcements', staleIds, { skipLocalTrack: true });
       }
 
       const remoteMapped: Announcement[] = data
@@ -1835,23 +1847,8 @@ export async function pushAllAnnouncementsToSupabase(list: Announcement[]): Prom
   }
 }
 
-export async function deleteAnnouncementFromSupabase(id: string): Promise<void> {
-  markLocalDataChanged('announcements');
-  markIdAsDeleted('announcements', id);
-  try {
-    fetch(`/api/announcements/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-  } catch (e) {}
-
-  const client = getSupabaseClient();
-  if (!client) return;
-  try {
-    const { error } = await client.from('announcements').delete().eq('id', id);
-    if (error) {
-      console.warn('Supabase delete announcement warning:', error.message);
-    }
-  } catch (e) {
-    console.error('Failed to delete announcement from Supabase:', e);
-  }
+export async function deleteAnnouncementFromSupabase(id: string): Promise<HardDeleteResult> {
+  return await hardDeleteFromSupabase('announcements', id);
 }
 
 // ------------------------------------------------------------------------------
@@ -1901,16 +1898,37 @@ export function formatStudentToSupabasePayload(s: Student) {
   };
 }
 
+// ------------------------------------------------------------------------------
+// ENTITY NORMALIZATION & CENTRALIZED HARD DELETE OPERATION
+// ------------------------------------------------------------------------------
+export function normalizeEntityName(type: string): string {
+  const t = String(type || '').toLowerCase().trim();
+  if (t === 'student' || t === 'students') return 'students';
+  if (t === 'bill' || t === 'bills') return 'bills';
+  if (t === 'expense' || t === 'expenses' || t === 'financial_expenses') return 'financial_expenses';
+  if (t === 'alumni' || t === 'alumnis') return 'alumni';
+  if (t === 'ppdb' || t === 'pcsb' || t === 'ppdbs') return 'ppdb';
+  if (t === 'room' || t === 'rooms') return 'rooms';
+  if (t === 'news' || t === 'newss') return 'news';
+  if (t === 'announcement' || t === 'announcements') return 'announcements';
+  if (t === 'event' || t === 'events') return 'events';
+  if (t === 'staff' || t === 'staffs' || t === 'staff_user' || t === 'staff_users') return 'staff_users';
+  return t;
+}
+
 // In-memory cache of deleted IDs to ensure synchronous cross-component protection within session
 const inMemoryDeletedIds: Record<string, Set<string>> = {
   students: new Set(),
   bills: new Set(),
+  financial_expenses: new Set(),
   expenses: new Set(),
   alumni: new Set(),
   ppdb: new Set(),
   rooms: new Set(),
   news: new Set(),
   announcements: new Set(),
+  events: new Set(),
+  staff_users: new Set()
 };
 
 export async function loadServerDeletedIds(): Promise<Record<string, string[]>> {
@@ -1923,11 +1941,14 @@ export async function loadServerDeletedIds(): Promise<Record<string, string[]>> 
         Object.keys(record).forEach(k => {
           const list = record[k];
           if (Array.isArray(list)) {
-            const singular = k.replace(/s$/, '');
+            const norm = normalizeEntityName(k);
+            const singular = norm.replace(/s$/, '');
             const plural = singular + 's';
+            if (!inMemoryDeletedIds[norm]) inMemoryDeletedIds[norm] = new Set();
             if (!inMemoryDeletedIds[plural]) inMemoryDeletedIds[plural] = new Set();
             list.forEach(id => {
               if (typeof id === 'string') {
+                inMemoryDeletedIds[norm].add(id);
                 inMemoryDeletedIds[plural].add(id);
               }
             });
@@ -1937,6 +1958,7 @@ export async function loadServerDeletedIds(): Promise<Record<string, string[]>> 
                 const combined = Array.from(new Set([...existing, ...list]));
                 localStorage.setItem(`pesantren_deleted_${plural}_ids`, JSON.stringify(combined.slice(-1000)));
                 localStorage.setItem(`pesantren_deleted_${singular}_ids`, JSON.stringify(combined.slice(-1000)));
+                localStorage.setItem(`pesantren_deleted_${norm}_ids`, JSON.stringify(combined.slice(-1000)));
               }
             } catch (e) {}
           }
@@ -1949,15 +1971,41 @@ export async function loadServerDeletedIds(): Promise<Record<string, string[]>> 
 }
 
 export const getDeletedIdsSet = (type: string): Set<string> => {
-  const singular = type.replace(/s$/, '');
+  const norm = normalizeEntityName(type);
+  const singular = norm.replace(/s$/, '');
   const plural = singular + 's';
-  const ids = new Set<string>(inMemoryDeletedIds[plural] || []);
+  const ids = new Set<string>();
+
+  // Check in-memory sets
+  [norm, singular, plural, type].forEach(k => {
+    if (inMemoryDeletedIds[k]) {
+      inMemoryDeletedIds[k].forEach(id => ids.add(id));
+    }
+  });
+
   if (typeof localStorage === 'undefined') return ids;
-  const keys = [
+
+  const candidateKeys = [
+    `pesantren_deleted_${norm}_ids`,
     `pesantren_deleted_${singular}_ids`,
-    `pesantren_deleted_${plural}_ids`
+    `pesantren_deleted_${plural}_ids`,
+    `pesantren_deleted_${type}_ids`
   ];
-  keys.forEach(k => {
+
+  if (norm === 'financial_expenses' || norm === 'expenses') {
+    candidateKeys.push('pesantren_deleted_expenses_ids', 'pesantren_deleted_financial_expenses_ids');
+  }
+  if (norm === 'ppdb') {
+    candidateKeys.push('pesantren_deleted_ppdb_ids', 'pesantren_deleted_pcsb_ids', 'pesantren_deleted_ppdbs_ids');
+  }
+  if (norm === 'alumni') {
+    candidateKeys.push('pesantren_deleted_alumni_ids', 'pesantren_deleted_alumnis_ids');
+  }
+  if (norm === 'news') {
+    candidateKeys.push('pesantren_deleted_news_ids', 'pesantren_deleted_newss_ids');
+  }
+
+  candidateKeys.forEach(k => {
     try {
       const raw = localStorage.getItem(k);
       if (raw) {
@@ -1966,28 +2014,48 @@ export const getDeletedIdsSet = (type: string): Set<string> => {
           arr.forEach(id => {
             if (typeof id === 'string') {
               ids.add(id);
-              if (!inMemoryDeletedIds[plural]) inMemoryDeletedIds[plural] = new Set();
-              inMemoryDeletedIds[plural].add(id);
+              if (!inMemoryDeletedIds[norm]) inMemoryDeletedIds[norm] = new Set();
+              inMemoryDeletedIds[norm].add(id);
             }
           });
         }
       }
     } catch (e) {}
   });
+
   return ids;
 };
 
 export const markIdAsDeleted = (type: string, id: string) => {
   if (!id || !type) return;
-  const singular = type.replace(/s$/, '');
+  const norm = normalizeEntityName(type);
+  const singular = norm.replace(/s$/, '');
   const plural = singular + 's';
-  if (!inMemoryDeletedIds[plural]) inMemoryDeletedIds[plural] = new Set();
-  inMemoryDeletedIds[plural].add(id);
-  const keys = [
+
+  [norm, singular, plural, type].forEach(k => {
+    if (!inMemoryDeletedIds[k]) inMemoryDeletedIds[k] = new Set();
+    inMemoryDeletedIds[k].add(id);
+  });
+
+  const candidateKeys = [
+    `pesantren_deleted_${norm}_ids`,
     `pesantren_deleted_${singular}_ids`,
     `pesantren_deleted_${plural}_ids`
   ];
-  keys.forEach(key => {
+  if (norm === 'financial_expenses' || norm === 'expenses') {
+    candidateKeys.push('pesantren_deleted_expenses_ids', 'pesantren_deleted_financial_expenses_ids');
+  }
+  if (norm === 'ppdb') {
+    candidateKeys.push('pesantren_deleted_pcsb_ids', 'pesantren_deleted_ppdb_ids');
+  }
+  if (norm === 'alumni') {
+    candidateKeys.push('pesantren_deleted_alumni_ids', 'pesantren_deleted_alumnis_ids');
+  }
+  if (norm === 'news') {
+    candidateKeys.push('pesantren_deleted_news_ids', 'pesantren_deleted_newss_ids');
+  }
+
+  candidateKeys.forEach(key => {
     try {
       const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
       const current: string[] = raw ? JSON.parse(raw) : [];
@@ -2003,10 +2071,170 @@ export const markIdAsDeleted = (type: string, id: string) => {
     fetch('/api/deleted-ids', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: plural, id })
+      body: JSON.stringify({ type: norm, id })
     }).catch(() => {});
   } catch (e) {}
 };
+
+export interface HardDeleteOptions {
+  cascadeTables?: { table: string; foreignKey: string }[];
+  matchColumn?: string;
+  skipLocalTrack?: boolean;
+}
+
+export interface HardDeleteResult {
+  success: boolean;
+  count?: number;
+  error?: string;
+}
+
+/**
+ * Operasi HARD DELETE permanen ke database Supabase Cloud.
+ * Memastikan bahwa setelah sebuah data dihapus di aplikasi, item tersebut
+ * langsung dieksekusi dengan DELETE sql query di Supabase dan tidak akan mental lagi.
+ */
+export async function hardDeleteFromSupabase(
+  entityOrTable: string,
+  idOrIds: string | string[],
+  options?: HardDeleteOptions
+): Promise<HardDeleteResult> {
+  const normEntity = normalizeEntityName(entityOrTable);
+  const rawIds = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+  const ids = rawIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+
+  if (ids.length === 0) {
+    return { success: true, count: 0 };
+  }
+
+  // 1. Mark mutation timestamp to suppress immediate pull conflicts
+  const trackedMap: Record<string, TrackedDataType> = {
+    students: 'students',
+    bills: 'bills',
+    financial_expenses: 'expenses',
+    expenses: 'expenses',
+    alumni: 'alumni',
+    ppdb: 'ppdb',
+    rooms: 'rooms',
+    news: 'news',
+    announcements: 'announcements',
+    events: 'events',
+    settings: 'settings'
+  };
+  const trackedKey = trackedMap[normEntity];
+  if (trackedKey) {
+    markLocalDataChanged(trackedKey);
+  }
+
+  // 2. Mark in local and memory tombstones
+  if (!options?.skipLocalTrack) {
+    ids.forEach(id => markIdAsDeleted(normEntity, id));
+  }
+
+  // 3. Dispatch deletion to backend server endpoints
+  const apiRouteMap: Record<string, string> = {
+    students: 'students',
+    bills: 'bills',
+    financial_expenses: 'financial-expenses',
+    expenses: 'financial-expenses',
+    alumni: 'alumni',
+    ppdb: 'ppdb',
+    rooms: 'rooms',
+    news: 'news',
+    announcements: 'announcements',
+    events: 'events',
+    staff_users: 'staff-users'
+  };
+  const apiRoute = apiRouteMap[normEntity];
+  if (apiRoute) {
+    ids.forEach(id => {
+      try {
+        fetch(`/api/${apiRoute}/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+      } catch (e) {}
+    });
+  }
+
+  // 4. Supabase direct DELETE operation
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: true, count: ids.length };
+  }
+
+  const matchCol = options?.matchColumn || 'id';
+
+  try {
+    // A. Perform cascade deletions if specified or defaulted
+    const cascadeList: { table: string; foreignKey: string }[] = options?.cascadeTables ? [...options.cascadeTables] : [];
+    if (normEntity === 'bills' && !options?.cascadeTables) {
+      cascadeList.push({ table: 'bill_payments', foreignKey: 'bill_id' });
+    } else if (normEntity === 'students' && !options?.cascadeTables) {
+      cascadeList.push(
+        { table: 'bill_payments', foreignKey: 'student_id' },
+        { table: 'bills', foreignKey: 'student_id' },
+        { table: 'alumni', foreignKey: 'id' }
+      );
+    } else if (normEntity === 'alumni' && !options?.cascadeTables) {
+      cascadeList.push(
+        { table: 'bill_payments', foreignKey: 'student_id' },
+        { table: 'bills', foreignKey: 'student_id' },
+        { table: 'students', foreignKey: 'id' }
+      );
+    }
+
+    for (const cascade of cascadeList) {
+      try {
+        if (ids.length === 1) {
+          await client.from(cascade.table).delete().eq(cascade.foreignKey, ids[0]);
+        } else {
+          await client.from(cascade.table).delete().in(cascade.foreignKey, ids);
+        }
+      } catch (cascErr) {
+        console.warn(`[hardDelete] Non-fatal cascade delete warning on ${cascade.table}:`, cascErr);
+      }
+    }
+
+    // B. Save to deleted_records tombstone table in Supabase so other clients immediately know
+    try {
+      const tombstones = ids.map(id => ({
+        id,
+        table_name: normEntity,
+        deleted_at: new Date().toISOString()
+      }));
+      await client.from('deleted_records').upsert(tombstones, { onConflict: 'id,table_name' });
+    } catch (tombErr) {
+      // Non-fatal if table not created yet
+    }
+
+    // C. Execute the primary hard DELETE
+    let deleteError: any = null;
+    if (ids.length === 1) {
+      const { error } = await client.from(normEntity).delete().eq(matchCol, ids[0]);
+      deleteError = error;
+    } else {
+      const { error } = await client.from(normEntity).delete().in(matchCol, ids);
+      deleteError = error;
+    }
+
+    if (deleteError) {
+      console.warn(`[hardDelete] Initial delete failed on ${normEntity}, retrying with match:`, deleteError);
+      if (ids.length === 1) {
+        const { error: retryError } = await client.from(normEntity).delete().match({ [matchCol]: ids[0] });
+        if (retryError) {
+          console.error(`[hardDelete] Retry delete failed on ${normEntity}:`, retryError);
+          return { success: false, error: retryError.message };
+        }
+      } else {
+        return { success: false, error: deleteError.message };
+      }
+    }
+
+    return { success: true, count: ids.length };
+  } catch (err: any) {
+    console.error(`[hardDelete] Exception during hard delete on ${normEntity}:`, err);
+    return { success: false, error: err?.message || 'Gagal menghapus dari Supabase' };
+  }
+}
+
+export const hardDelete = hardDeleteFromSupabase;
 
 export async function syncStudentsWithSupabase(studentsList: Student[]): Promise<Student[]> {
   const client = getSupabaseClient();
@@ -2037,9 +2265,7 @@ export async function syncStudentsWithSupabase(studentsList: Student[]): Promise
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        await Promise.resolve(client.from('students').delete().in('id', staleIds)).catch(() => {});
-        await Promise.resolve(client.from('bills').delete().in('student_id', staleIds)).catch(() => {});
-        await Promise.resolve(client.from('alumni').delete().in('id', staleIds)).catch(() => {});
+        await hardDeleteFromSupabase('students', staleIds, { skipLocalTrack: true });
       }
 
       // 2. SEPARATE ALUMNI: Move any alumni found in 'students' table to 'alumni' table and delete from 'students'!
@@ -2232,10 +2458,7 @@ export async function pushAllStudentsToSupabase(studentsList: Student[]): Promis
   }
 }
 
-export async function deleteStudentFromSupabase(id: string): Promise<void> {
-  markLocalDataChanged('students');
-  markIdAsDeleted('students', id);
-
+export async function deleteStudentFromSupabase(id: string): Promise<HardDeleteResult> {
   // Automatically find and mark any associated bills as deleted too
   try {
     const rawBills = typeof localStorage !== 'undefined' ? localStorage.getItem('pesantren_bills') : null;
@@ -2267,22 +2490,13 @@ export async function deleteStudentFromSupabase(id: string): Promise<void> {
     }
   } catch (e) {}
 
-  try {
-    fetch(`/api/students/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-    fetch(`/api/alumni/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-  } catch (e) {}
-
-  const client = getSupabaseClient();
-  if (!client) return;
-  try {
-    // Delete associated bills and payments first to avoid foreign key constraints
-    await Promise.resolve(client.from('bill_payments').delete().eq('student_id', id)).catch(() => {});
-    await Promise.resolve(client.from('bills').delete().eq('student_id', id)).catch(() => {});
-    await Promise.resolve(client.from('students').delete().eq('id', id)).catch(() => {});
-    await Promise.resolve(client.from('alumni').delete().eq('id', id)).catch(() => {});
-  } catch (e) {
-    console.error('Failed to delete student from Supabase:', e);
-  }
+  return await hardDeleteFromSupabase('students', id, {
+    cascadeTables: [
+      { table: 'bill_payments', foreignKey: 'student_id' },
+      { table: 'bills', foreignKey: 'student_id' },
+      { table: 'alumni', foreignKey: 'id' }
+    ]
+  });
 }
 
 // ------------------------------------------------------------------------------
@@ -2334,7 +2548,7 @@ export async function syncPpdbWithSupabase(ppdbList: PCSBRegistration[]): Promis
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        client.from('ppdb').delete().in('id', staleIds).then(() => {}, () => {});
+        await hardDeleteFromSupabase('ppdb', staleIds, { skipLocalTrack: true });
       }
 
       const remoteMapped: PCSBRegistration[] = data
@@ -2405,19 +2619,8 @@ export async function pushAllPpdbToSupabase(ppdbList: PCSBRegistration[]): Promi
   }
 }
 
-export async function deletePpdbFromSupabase(id: string): Promise<void> {
-  markLocalDataChanged('ppdb');
-  markIdAsDeleted('ppdb', id);
-  try {
-    fetch(`/api/ppdb/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-  } catch (e) {}
-  const client = getSupabaseClient();
-  if (!client) return;
-  try { 
-    await client.from('ppdb').delete().eq('id', id); 
-  } catch (e) { 
-    console.error('Failed to delete ppdb:', e); 
-  }
+export async function deletePpdbFromSupabase(id: string): Promise<HardDeleteResult> {
+  return await hardDeleteFromSupabase('ppdb', id);
 }
 
 // ------------------------------------------------------------------------------
@@ -2456,9 +2659,8 @@ export async function syncRoomsWithSupabase(roomsList: Room[]): Promise<Room[]> 
       // Purge any deleted rooms from remote Supabase table immediately
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
-        staleInRemote.forEach((stale: any) => {
-          Promise.resolve(client.from('rooms').delete().eq('id', stale.id)).catch(() => {});
-        });
+        const staleIds = staleInRemote.map((item: any) => item.id);
+        await hardDeleteFromSupabase('rooms', staleIds, { skipLocalTrack: true });
       }
 
       const remoteMapped: Room[] = data
@@ -2519,19 +2721,8 @@ export async function pushAllRoomsToSupabase(roomsList: Room[]): Promise<void> {
   }
 }
 
-export async function deleteRoomFromSupabase(id: string): Promise<void> {
-  markLocalDataChanged('rooms');
-  markIdAsDeleted('rooms', id);
-  try {
-    fetch(`/api/rooms/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-  } catch (e) {}
-  const client = getSupabaseClient();
-  if (!client) return;
-  try { 
-    await client.from('rooms').delete().eq('id', id); 
-  } catch (e) { 
-    console.error('Failed to delete room from Supabase:', e); 
-  }
+export async function deleteRoomFromSupabase(id: string): Promise<HardDeleteResult> {
+  return await hardDeleteFromSupabase('rooms', id);
 }
 
 // ------------------------------------------------------------------------------
@@ -2580,8 +2771,10 @@ export async function syncBillsWithSupabase(billsList: Bill[]): Promise<Bill[]> 
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        await Promise.resolve(client.from('bills').delete().in('id', staleIds)).catch(() => {});
-        await Promise.resolve(client.from('bill_payments').delete().in('bill_id', staleIds)).catch(() => {});
+        await hardDeleteFromSupabase('bills', staleIds, {
+          cascadeTables: [{ table: 'bill_payments', foreignKey: 'bill_id' }],
+          skipLocalTrack: true
+        });
       }
 
       const remoteMapped: Bill[] = data
@@ -2611,6 +2804,7 @@ export async function syncBillsWithSupabase(billsList: Bill[]): Promise<Bill[]> 
         await pushAllBillsToSupabase(missingInRemote);
         return [...cleanRemote, ...missingInRemote];
       }
+      return cleanRemote;
     } else if (billsList.length > 0 && isLocalDataRecentlyChanged('bills', 15000)) {
       const deletedIds = getDeletedIdsSet('bills');
       const cleanBills = billsList.filter(b => b && !deletedIds.has(b.id));
@@ -2670,20 +2864,10 @@ export async function pushAllBillsToSupabase(billsList: Bill[]): Promise<void> {
   }
 }
 
-export async function deleteBillFromSupabase(id: string): Promise<void> {
-  markLocalDataChanged('bills');
-  markIdAsDeleted('bills', id);
-  try {
-    fetch(`/api/bills/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-  } catch (e) {}
-  const client = getSupabaseClient();
-  if (!client) return;
-  try { 
-    await client.from('bill_payments').delete().eq('bill_id', id);
-    await client.from('bills').delete().eq('id', id); 
-  } catch (e) { 
-    console.error('Failed to delete bill from Supabase:', e); 
-  }
+export async function deleteBillFromSupabase(id: string): Promise<HardDeleteResult> {
+  return await hardDeleteFromSupabase('bills', id, {
+    cascadeTables: [{ table: 'bill_payments', foreignKey: 'bill_id' }]
+  });
 }
 
 // ------------------------------------------------------------------------------
@@ -3164,11 +3348,8 @@ export async function pushAllEventsToSupabase(eventsList: AcademicEvent[]): Prom
   }
 }
 
-export async function deleteEventFromSupabase(id: string): Promise<void> {
-  markLocalDataChanged('events');
-  const client = getSupabaseClient();
-  if (!client) return;
-  try { await client.from('events').delete().eq('id', id); } catch (e) { console.error('Failed to delete event:', e); }
+export async function deleteEventFromSupabase(id: string): Promise<HardDeleteResult> {
+  return await hardDeleteFromSupabase('events', id);
 }
 
 // ------------------------------------------------------------------------------
@@ -3310,14 +3491,8 @@ export async function pushAllStaffUsersToSupabase(users: StaffUserItem[]): Promi
   }
 }
 
-export async function deleteStaffUserFromSupabase(id: string): Promise<void> {
-  const client = getSupabaseClient();
-  if (!client) return;
-  try {
-    await client.from('staff_users').delete().eq('id', id);
-  } catch (err) {
-    console.error('Failed to delete staff user from Supabase:', err);
-  }
+export async function deleteStaffUserFromSupabase(id: string): Promise<HardDeleteResult> {
+  return await hardDeleteFromSupabase('staff_users', id);
 }
 
 // ------------------------------------------------------------------------------
@@ -3562,7 +3737,7 @@ export async function syncExpensesWithSupabase(localExpenses: FinancialExpense[]
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        await Promise.resolve(client.from('financial_expenses').delete().in('id', staleIds)).catch(() => {});
+        await hardDeleteFromSupabase('financial_expenses', staleIds, { skipLocalTrack: true });
       }
 
       const remoteMapped: FinancialExpense[] = data
@@ -3612,19 +3787,8 @@ export async function pushExpenseToSupabase(expense: FinancialExpense): Promise<
   }
 }
 
-export async function deleteExpenseFromSupabase(id: string): Promise<void> {
-  markLocalDataChanged('expenses');
-  markIdAsDeleted('expenses', id);
-  try {
-    fetch(`/api/financial-expenses/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-  } catch (e) {}
-  const client = getSupabaseClient();
-  if (!client) return;
-  try {
-    await client.from('financial_expenses').delete().eq('id', id);
-  } catch (e) {
-    console.error('Failed to delete expense from Supabase:', e);
-  }
+export async function deleteExpenseFromSupabase(id: string): Promise<HardDeleteResult> {
+  return await hardDeleteFromSupabase('financial_expenses', id);
 }
 
 // ------------------------------------------------------------------------------
@@ -3672,7 +3836,7 @@ export async function syncAlumniWithSupabase(localAlumni: any[]): Promise<any[]>
       const staleInRemote = data.filter((item: any) => item && item.id && deletedIds.has(item.id));
       if (staleInRemote.length > 0) {
         const staleIds = staleInRemote.map((item: any) => item.id);
-        await Promise.resolve(client.from('alumni').delete().in('id', staleIds)).catch(() => {});
+        await hardDeleteFromSupabase('alumni', staleIds, { skipLocalTrack: true });
       }
 
       // Also ensure none of these alumni remain in active students table on Supabase!
@@ -3741,15 +3905,8 @@ export async function pushAlumniToSupabase(alumni: any): Promise<void> {
   }
 }
 
-export async function deleteAlumniFromSupabase(id: string): Promise<void> {
-  markLocalDataChanged('alumni');
-  markIdAsDeleted('alumni', id);
+export async function deleteAlumniFromSupabase(id: string): Promise<HardDeleteResult> {
   markIdAsDeleted('students', id);
-
-  try {
-    fetch(`/api/alumni/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-    fetch(`/api/students/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-  } catch (e) {}
 
   // Remove from localStorage alumni, students, and bills
   try {
@@ -3785,14 +3942,11 @@ export async function deleteAlumniFromSupabase(id: string): Promise<void> {
     }
   } catch (e) {}
 
-  const client = getSupabaseClient();
-  if (!client) return;
-  try {
-    await Promise.resolve(client.from('bill_payments').delete().eq('student_id', id)).catch(() => {});
-    await Promise.resolve(client.from('bills').delete().eq('student_id', id)).catch(() => {});
-    await Promise.resolve(client.from('alumni').delete().eq('id', id)).catch(() => {});
-    await Promise.resolve(client.from('students').delete().eq('id', id)).catch(() => {});
-  } catch (e) {
-    console.error('Failed to delete alumni from Supabase:', e);
-  }
+  return await hardDeleteFromSupabase('alumni', id, {
+    cascadeTables: [
+      { table: 'bill_payments', foreignKey: 'student_id' },
+      { table: 'bills', foreignKey: 'student_id' },
+      { table: 'students', foreignKey: 'id' }
+    ]
+  });
 }

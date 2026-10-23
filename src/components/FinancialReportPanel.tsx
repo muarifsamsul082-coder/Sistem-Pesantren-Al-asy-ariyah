@@ -652,7 +652,7 @@ export default function FinancialReportPanel({
   };
 
   // Confirm and Execute Permanent Deletion (Local + Server + Supabase + Tombstone)
-  const confirmDeleteExpense = () => {
+  const confirmDeleteExpense = async () => {
     if (!expenseToDelete) return;
     const target = expenseToDelete;
 
@@ -670,10 +670,12 @@ export default function FinancialReportPanel({
     });
 
     // 3. Server API deletion
-    fetch(`/api/financial-expenses/${encodeURIComponent(target.id)}`, { method: 'DELETE' }).catch(console.error);
+    await fetch(`/api/financial-expenses/${encodeURIComponent(target.id)}`, { method: 'DELETE' }).catch(console.error);
 
-    // 4. Supabase cloud database deletion
-    deleteExpenseFromSupabase(target.id).catch(console.error);
+    // 4. Supabase cloud database deletion (hard delete)
+    if (isSupabaseConfigured()) {
+      await deleteExpenseFromSupabase(target.id).catch(console.error);
+    }
 
     // 5. Activity log
     logAdminActivity(

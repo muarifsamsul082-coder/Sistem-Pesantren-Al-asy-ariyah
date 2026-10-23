@@ -52,6 +52,9 @@ import {
   pushAlumniToSupabase,
   syncAlumniWithSupabase,
   deleteAlumniFromSupabase,
+  deleteStaffUserFromSupabase,
+  hardDeleteFromSupabase,
+  hardDelete,
   markIdAsDeleted,
   getDeletedIdsSet,
   checkMissingSupabaseTables,
@@ -520,10 +523,10 @@ export default function AdminDashboard({
     isOpen: boolean;
     title: string;
     message: string;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;
   } | null>(null);
 
-  const triggerConfirm = (title: string, message: string, onConfirm: () => void) => {
+  const triggerConfirm = (title: string, message: string, onConfirm: () => void | Promise<void>) => {
     setConfirmDialog({ isOpen: true, title, message, onConfirm });
   };
   const [ppdbConfirmData, setPpdbConfirmData] = React.useState<{ id: string, name: string } | null>(null);
@@ -3003,8 +3006,20 @@ export default function AdminDashboard({
     showAlert('success', 'Akun pengurus berhasil diaktivasi dan siap digunakan!');
   };
 
-  const handleDeleteStaff = (id: string) => {
-    setStaffUsers(prev => prev.filter(u => u.id !== id));
+  const handleDeleteStaff = async (id: string) => {
+    markIdAsDeleted('staff_users', id);
+    markLocalDataChanged('staff_users');
+    setStaffUsers(prev => {
+      const next = prev.filter(u => u.id !== id);
+      try {
+        localStorage.setItem('pesantren_staff_users', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+    window.dispatchEvent(new Event('pesantren_staff_users_updated'));
+    if (isSupabaseConfigured()) {
+      await deleteStaffUserFromSupabase(id).catch(console.error);
+    }
     showAlert('success', 'Akun pengurus berhasil dihapus.');
   };
 
@@ -3419,14 +3434,16 @@ export default function AdminDashboard({
     triggerConfirm(
       'Hapus Berita',
       'Yakin ingin menghapus berita ini secara permanen?',
-      () => {
+      async () => {
         markIdAsDeleted('news', id);
         markLocalDataChanged('news');
         const updatedNews = news.filter(n => n.id !== id);
         setNews(updatedNews);
         localStorage.setItem('pesantren_news', JSON.stringify(updatedNews));
         fetch(`/api/news/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-        deleteNewsFromSupabase(id).catch(err => console.error('Cloud delete news error:', err));
+        if (isSupabaseConfigured()) {
+          await deleteNewsFromSupabase(id).catch(err => console.error('Cloud delete news error:', err));
+        }
         window.dispatchEvent(new Event('pesantren_db_sync'));
         showAlert('success', 'Berita berhasil dihapus.');
       }
@@ -3466,14 +3483,16 @@ export default function AdminDashboard({
     triggerConfirm(
       'Hapus Pengumuman',
       'Yakin ingin menghapus pengumuman ini secara permanen?',
-      () => {
+      async () => {
         markIdAsDeleted('announcements', id);
         markLocalDataChanged('announcements');
         const updatedAnn = announcements.filter(a => a.id !== id);
         setAnnouncements(updatedAnn);
         localStorage.setItem('pesantren_announcements', JSON.stringify(updatedAnn));
         fetch(`/api/announcements/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-        deleteAnnouncementFromSupabase(id).catch(err => console.error('Cloud delete ann error:', err));
+        if (isSupabaseConfigured()) {
+          await deleteAnnouncementFromSupabase(id).catch(err => console.error('Cloud delete ann error:', err));
+        }
         window.dispatchEvent(new Event('pesantren_db_sync'));
         showAlert('success', 'Pengumuman / Maklumat telah dihapus permanen.');
       }
@@ -3500,7 +3519,7 @@ export default function AdminDashboard({
       triggerConfirm(
         'Tolak Pendaftaran',
         `Apakah Anda yakin ingin menolak pendaftaran ${registration.fullName}?`,
-        () => {
+        async () => {
           const registrationWithStatus = { ...registration, status: 'Ditolak' as const, notes: 'Pendaftaran ditolak oleh panitia.' };
           const newArchive = [registrationWithStatus, ...ppdbArchive];
           setPpdbArchive(newArchive);
@@ -3509,12 +3528,20 @@ export default function AdminDashboard({
           const rem = ppdbList.filter(p => p.id !== id);
           setPpdbList(rem);
           localStorage.setItem('pesantren_ppdb', JSON.stringify(rem));
+
+          markIdAsDeleted('ppdb', id);
+          markLocalDataChanged('ppdb');
+
           fetch('/api/ppdb-archive', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newArchive)
           }).catch(() => {});
-          fetch(`/api/ppdb/${id}`, { method: 'DELETE' }).catch(() => {});
+          fetch(`/api/ppdb/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+
+          await hardDeleteFromSupabase('ppdb', id).catch(err => console.error('Error hard deleting rejected PPDB:', err));
+
+          window.dispatchEvent(new Event('pesantren_db_sync'));
 
           // Dispatch automatic polite WhatsApp notice to parent
           if (registration.parentPhone) {
@@ -3533,7 +3560,7 @@ export default function AdminDashboard({
     }
   };
 
-  const executePpdbAccept = (id: string) => {
+  const executePpdbAccept = async (id: string) => {
     const registration = ppdbList.find(p => p.id === id);
     if (!registration) return;
 
@@ -3651,12 +3678,16 @@ export default function AdminDashboard({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newArchive)
     }).catch(() => {});
-    fetch(`/api/ppdb/${id}`, { method: 'DELETE' }).catch(() => {});
+    fetch(`/api/ppdb/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    markIdAsDeleted('ppdb', registration.id);
+    markLocalDataChanged('ppdb');
+
     if (isSupabaseConfigured()) {
       pushStudentToSupabase(newStudent).catch(e => console.error('Cloud push student error:', e));
       pushAllBillsToSupabase(newBillsList).catch(e => console.error('Cloud push bills error:', e));
-      deletePpdbFromSupabase(registration.id).catch(e => console.error('Cloud delete PPDB error:', e));
-      pushAllPpdbToSupabase(remainingPpdb).catch(e => console.error('Cloud push PPDB error:', e));
+      await hardDeleteFromSupabase('ppdb', registration.id).catch(e => console.error('Cloud delete PPDB error:', e));
+    } else {
+      deletePpdbFromSupabase(registration.id).catch(() => {});
     }
     window.dispatchEvent(new Event('pesantren_db_sync'));
 
@@ -4485,13 +4516,14 @@ export default function AdminDashboard({
     triggerConfirm(
       'Hapus Agenda',
       `Apakah Anda yakin ingin menghapus agenda "${target.title}"?`,
-      () => {
+      async () => {
+        markIdAsDeleted('events', id);
+        markLocalDataChanged('events');
         const updatedEvents = events.filter(evt => evt.id !== id);
         setEvents(updatedEvents);
         localStorage.setItem('pesantren_events', JSON.stringify(updatedEvents));
-        markLocalDataChanged('events');
         if (isSupabaseConfigured()) {
-          deleteEventFromSupabase(id).catch(err => console.error('Cloud delete event error:', err));
+          await deleteEventFromSupabase(id).catch(err => console.error('Cloud delete event error:', err));
         }
         window.dispatchEvent(new Event('pesantren_db_sync'));
         logAdminActivity('Hapus Agenda', `Menghapus agenda: ${target.title}`);
@@ -5829,22 +5861,21 @@ export default function AdminDashboard({
                       onClick={() => triggerConfirm(
                         'Hapus Calon Santri',
                         `Apakah Anda yakin ingin menghapus data pendaftaran calon santri ${reg.fullName} secara permanen? Tindakan ini tidak dapat dibatalkan.`,
-                        () => {
+                        async () => {
                           markIdAsDeleted('ppdb', reg.id);
                           markLocalDataChanged('ppdb');
                           const updatedList = ppdbList.filter(p => p.id !== reg.id);
                           setPpdbList(updatedList);
                           localStorage.setItem('pesantren_ppdb', JSON.stringify(updatedList));
 
-                          fetch(`/api/ppdb/${reg.id}`, { method: 'DELETE' }).catch(() => {});
+                          fetch(`/api/ppdb/${encodeURIComponent(reg.id)}`, { method: 'DELETE' }).catch(() => {});
                           fetch('/api/ppdb', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ action: 'replace', ppdb: updatedList })
                           }).catch(() => {});
 
-                          deletePpdbFromSupabase(reg.id).catch(e => console.error('Cloud delete PPDB error:', e));
-                          pushAllPpdbToSupabase(updatedList).catch(e => console.error('Cloud push PPDB error:', e));
+                          await hardDeleteFromSupabase('ppdb', reg.id).catch(e => console.error('Cloud delete PPDB error:', e));
                           window.dispatchEvent(new Event('pesantren_db_sync'));
                           showAlert('danger', `Data pendaftaran ${reg.fullName} berhasil dihapus.`);
                         }
@@ -6387,7 +6418,7 @@ export default function AdminDashboard({
                                   triggerConfirm(
                                     'Hapus Data Alumni',
                                     `Apakah Anda yakin ingin menghapus data alumni ${alumni.fullName} secara permanen? Data akan dihapus dari server dan database alumni Supabase.`,
-                                    () => {
+                                    async () => {
                                       const almId = alumni.id;
                                       setAlumniList(prev => {
                                         const next = prev.filter(a => a.id !== almId && a.studentId !== almId);
@@ -6406,14 +6437,12 @@ export default function AdminDashboard({
 
                                       fetch(`/api/alumni/${encodeURIComponent(almId)}`, { method: 'DELETE' }).catch(() => {});
                                       fetch(`/api/students/${encodeURIComponent(almId)}`, { method: 'DELETE' }).catch(() => {});
-                                      deleteAlumniFromSupabase(almId).catch(console.error);
 
                                       // Purge any bills
                                       const studentBills = bills.filter(b => b.studentId === almId);
                                       studentBills.forEach(b => {
                                         markIdAsDeleted('bills', b.id);
                                         fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' }).catch(() => {});
-                                        deleteBillFromSupabase(b.id).catch(() => {});
                                       });
                                       const updatedBills = bills.filter(b => b.studentId !== almId);
                                       setBills(updatedBills);
@@ -6424,6 +6453,14 @@ export default function AdminDashboard({
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify(updatedBills)
                                       }).catch(() => {});
+
+                                      if (isSupabaseConfigured()) {
+                                        await deleteAlumniFromSupabase(almId).catch(console.error);
+                                        await deleteStudentFromSupabase(almId).catch(console.error);
+                                        if (studentBills.length > 0) {
+                                          await Promise.all(studentBills.map(b => deleteBillFromSupabase(b.id).catch(() => {})));
+                                        }
+                                      }
 
                                       window.dispatchEvent(new Event('pesantren_db_sync'));
                                       showAlert('success', `Data alumni ${alumni.fullName} berhasil dihapus permanen dari Supabase.`);
@@ -6573,7 +6610,7 @@ export default function AdminDashboard({
                             triggerConfirm(
                               'Hapus Data Alumni',
                               `Apakah Anda yakin ingin menghapus data alumni ${target.fullName} secara permanen? Tindakan ini akan menghapus data dari server dan database alumni Supabase.`,
-                              () => {
+                              async () => {
                                 const almId = target.id;
                                 setSelectedAlumniForDetails(null);
                                 setAlumniList(prev => {
@@ -6593,13 +6630,11 @@ export default function AdminDashboard({
 
                                 fetch(`/api/alumni/${encodeURIComponent(almId)}`, { method: 'DELETE' }).catch(() => {});
                                 fetch(`/api/students/${encodeURIComponent(almId)}`, { method: 'DELETE' }).catch(() => {});
-                                deleteAlumniFromSupabase(almId).catch(console.error);
 
                                 const studentBills = bills.filter(b => b.studentId === almId);
                                 studentBills.forEach(b => {
                                   markIdAsDeleted('bills', b.id);
                                   fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' }).catch(() => {});
-                                  deleteBillFromSupabase(b.id).catch(() => {});
                                 });
                                 const updatedBills = bills.filter(b => b.studentId !== almId);
                                 setBills(updatedBills);
@@ -6610,6 +6645,14 @@ export default function AdminDashboard({
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify(updatedBills)
                                 }).catch(() => {});
+
+                                if (isSupabaseConfigured()) {
+                                  await deleteAlumniFromSupabase(almId).catch(console.error);
+                                  await deleteStudentFromSupabase(almId).catch(console.error);
+                                  if (studentBills.length > 0) {
+                                    await Promise.all(studentBills.map(b => deleteBillFromSupabase(b.id).catch(() => {})));
+                                  }
+                                }
 
                                 window.dispatchEvent(new Event('pesantren_db_sync'));
                                 showAlert('success', `Data alumni ${target.fullName} berhasil dihapus permanen dari Supabase.`);
@@ -6735,7 +6778,7 @@ export default function AdminDashboard({
           triggerConfirm(
             'Hapus Kamar',
             `Apakah Anda yakin ingin menghapus Kamar ${room.name} dari database?`,
-            () => {
+            async () => {
               try {
                 markIdAsDeleted('rooms', room.id);
                 markLocalDataChanged('rooms');
@@ -6743,7 +6786,9 @@ export default function AdminDashboard({
                 setRooms(updated);
                 localStorage.setItem('pesantren_rooms', JSON.stringify(updated));
                 fetch(`/api/rooms/${encodeURIComponent(room.id)}`, { method: 'DELETE' }).catch(() => {});
-                deleteRoomFromSupabase(room.id).catch(console.error);
+                if (isSupabaseConfigured()) {
+                  await deleteRoomFromSupabase(room.id).catch(console.error);
+                }
                 window.dispatchEvent(new Event('pesantren_db_sync'));
                 showAlert('success', `Kamar ${room.name} berhasil dihapus.`);
               } catch (err) {
@@ -11628,8 +11673,8 @@ export default function AdminDashboard({
                                   triggerConfirm(
                                     'Hapus Akun Pengurus',
                                     `Apakah Anda yakin ingin menghapus akun pengurus ${resolvedName}?`,
-                                    () => {
-                                      handleDeleteStaff(user.id);
+                                    async () => {
+                                      await handleDeleteStaff(user.id);
                                     }
                                   );
                                 }}
@@ -13649,7 +13694,7 @@ export default function AdminDashboard({
               <button
                 type="button"
                 disabled={tightDeleteInputName !== tightDeleteStudent.fullName || tightDeleteInputCode !== 'HAPUS-SANTRI-PERMANEN-ALASYARIYAH'}
-                onClick={() => {
+                onClick={async () => {
                   try {
                     const stdId = tightDeleteStudent.id;
                     const isAlumni = tightDeleteStudent.status === 'Alumni' || tightDeleteStudent.status === 'Berhenti' || (alumniList || []).some(a => a.id === stdId);
@@ -13661,7 +13706,6 @@ export default function AdminDashboard({
                     studentBills.forEach(b => {
                       markIdAsDeleted('bills', b.id);
                       fetch(`/api/bills/${encodeURIComponent(b.id)}`, { method: 'DELETE' }).catch(() => {});
-                      deleteBillFromSupabase(b.id).catch(() => {});
                     });
                     const updatedBills = bills.filter(b => b.studentId !== stdId);
 
@@ -13680,7 +13724,9 @@ export default function AdminDashboard({
                       markIdAsDeleted('alumni', stdId);
                       markLocalDataChanged('alumni');
                       fetch(`/api/alumni/${encodeURIComponent(stdId)}`, { method: 'DELETE' }).catch(() => {});
-                      deleteAlumniFromSupabase(stdId).catch(console.error);
+                      if (isSupabaseConfigured()) {
+                        await deleteAlumniFromSupabase(stdId).catch(console.error);
+                      }
                     }
                     
                     markIdAsDeleted('students', stdId);
@@ -13700,11 +13746,14 @@ export default function AdminDashboard({
                       body: JSON.stringify(updatedBills)
                     }).catch(err => console.warn('Server update bills error:', err));
 
-                    deleteStudentFromSupabase(stdId).catch(console.error);
+                    if (isSupabaseConfigured()) {
+                      await deleteStudentFromSupabase(stdId).catch(console.error);
+                      if (studentBills.length > 0) {
+                        await Promise.all(studentBills.map(b => deleteBillFromSupabase(b.id).catch(() => {})));
+                      }
+                    }
 
-                    setTimeout(() => {
-                      window.dispatchEvent(new Event('pesantren_db_sync'));
-                    }, 0);
+                    window.dispatchEvent(new Event('pesantren_db_sync'));
                     setTightDeleteStudent(null);
                     showAlert('success', 'Data dan seluruh tagihan terkait berhasil dihapus selamanya dari server & Supabase.');
                   } catch (err) {
@@ -15438,9 +15487,9 @@ export default function AdminDashboard({
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   try {
-                    confirmDialog.onConfirm();
+                    await confirmDialog.onConfirm();
                   } catch (e) {
                     console.error('Error executing confirm dialog action:', e);
                   } finally {

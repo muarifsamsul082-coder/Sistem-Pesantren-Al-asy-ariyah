@@ -102,11 +102,13 @@ async function startServer() {
     if (t === 'student' || t === 'students') return 'students';
     if (t === 'bill' || t === 'bills') return 'bills';
     if (t === 'expense' || t === 'expenses' || t === 'financial_expenses') return 'expenses';
-    if (t === 'alumni') return 'alumni';
-    if (t === 'ppdb') return 'ppdb';
+    if (t === 'alumni' || t === 'alumnis') return 'alumni';
+    if (t === 'ppdb' || t === 'pcsb' || t === 'ppdbs') return 'ppdb';
     if (t === 'room' || t === 'rooms') return 'rooms';
-    if (t === 'news') return 'news';
+    if (t === 'news' || t === 'newss') return 'news';
     if (t === 'announcement' || t === 'announcements') return 'announcements';
+    if (t === 'event' || t === 'events') return 'events';
+    if (t === 'staff' || t === 'staffs' || t === 'staff_user' || t === 'staff_users') return 'staff_users';
     return t.endsWith('s') ? t : t + 's';
   };
 
@@ -171,7 +173,9 @@ async function startServer() {
       if (fs.existsSync(PPDB_STORAGE_PATH)) {
         const raw = fs.readFileSync(PPDB_STORAGE_PATH, 'utf-8');
         const parsed = JSON.parse(raw);
-        return res.json({ success: true, ppdb: Array.isArray(parsed) ? parsed : [] });
+        const deletedMap = new Set(getDeletedIdsRecord().ppdb);
+        const valid = (Array.isArray(parsed) ? parsed : []).filter((p: any) => p && p.id && !deletedMap.has(p.id));
+        return res.json({ success: true, ppdb: valid });
       }
     } catch (e) {
       console.error("Error reading ppdb file:", e);
@@ -190,25 +194,32 @@ async function startServer() {
         } catch (e) {}
       }
 
+      const deletedMap = new Set(getDeletedIdsRecord().ppdb);
+
       if (incoming && incoming.action === 'replace' && Array.isArray(incoming.ppdb)) {
-        fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(incoming.ppdb, null, 2), 'utf-8');
-        return res.json({ success: true, count: incoming.ppdb.length });
+        const clean = incoming.ppdb.filter((p: any) => p && p.id && !deletedMap.has(p.id));
+        fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(clean, null, 2), 'utf-8');
+        return res.json({ success: true, count: clean.length });
       }
 
       if (Array.isArray(incoming)) {
+        const cleanIncoming = incoming.filter((p: any) => p && p.id && !deletedMap.has(p.id));
         // If query replace=true or incoming array provided to sync
         if (req.query.replace === 'true') {
-          fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(incoming, null, 2), 'utf-8');
-          return res.json({ success: true, count: incoming.length });
+          fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(cleanIncoming, null, 2), 'utf-8');
+          return res.json({ success: true, count: cleanIncoming.length });
         }
         // Merge without losing data
         const map = new Map<string, any>();
-        list.forEach(item => { if (item && item.id) map.set(item.id, item); });
-        incoming.forEach(item => { if (item && item.id) map.set(item.id, item); });
+        list.forEach(item => { if (item && item.id && !deletedMap.has(item.id)) map.set(item.id, item); });
+        cleanIncoming.forEach(item => { if (item && item.id) map.set(item.id, item); });
         const merged = Array.from(map.values());
         fs.writeFileSync(PPDB_STORAGE_PATH, JSON.stringify(merged, null, 2), 'utf-8');
         return res.json({ success: true, count: merged.length });
       } else if (incoming && incoming.id) {
+        if (deletedMap.has(incoming.id)) {
+          return res.json({ success: true, count: list.length, ignored: true });
+        }
         const existingIdx = list.findIndex(p => p.id === incoming.id);
         if (existingIdx >= 0) {
           list[existingIdx] = incoming;
