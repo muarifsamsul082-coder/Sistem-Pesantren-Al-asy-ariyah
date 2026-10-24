@@ -24,19 +24,47 @@ import {
   Trash2,
   Eye,
   X,
-  Sun,
-  Moon,
-  EyeOff,
-  Menu,
-  LogOut,
-  Loader2
+  ChevronRight,
+  CheckCircle2,
+  AlertCircle,
+  Filter,
+  ArrowUpRight,
+  BarChart3,
+  Send,
+  RefreshCw,
+  FileSpreadsheet,
+  Layers,
+  Phone,
+  Home
 } from 'lucide-react';
 import { Student, SecurityLog, DisciplineLog, HealthLog, UserSession } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
-import { isSupabaseConfigured, pushAllStudentsToSupabase, pushStaffConfigToSupabase, pushAllStaffUsersToSupabase, markLocalDataChanged } from '../lib/supabase';
+import { 
+  isSupabaseConfigured, 
+  pushAllStudentsToSupabase, 
+  pushStaffConfigToSupabase, 
+  pushAllStaffUsersToSupabase, 
+  markLocalDataChanged 
+} from '../lib/supabase';
+import { recordStaffAuditLog } from '../lib/auditLogger';
+
+const INDONESIAN_MONTHS = [
+  { value: '01', name: 'Januari' },
+  { value: '02', name: 'Februari' },
+  { value: '03', name: 'Maret' },
+  { value: '04', name: 'April' },
+  { value: '05', name: 'Mei' },
+  { value: '06', name: 'Juni' },
+  { value: '07', name: 'Juli' },
+  { value: '08', name: 'Agustus' },
+  { value: '09', name: 'September' },
+  { value: '10', name: 'Oktober' },
+  { value: '11', name: 'November' },
+  { value: '12', name: 'Desember' }
+];
 
 const getCityFromAddress = (addr: string) => {
-  if (!addr) return 'Jawa Tengah';
+  if (!addr) return 'Jawa Timur';
   const cleanAddr = addr.replace(/,\s*Indonesia/gi, '').trim();
   const parts = cleanAddr.split(',');
   if (parts.length >= 2) {
@@ -47,7 +75,7 @@ const getCityFromAddress = (addr: string) => {
   if (match && match[1]) {
     return match[1].trim();
   }
-  return parts[0]?.trim() || 'Jawa Tengah';
+  return parts[0]?.trim() || 'Jawa Timur';
 };
 
 interface StaffDashboardProps {
@@ -55,8 +83,8 @@ interface StaffDashboardProps {
   students: Student[];
   setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
   onLogout?: () => void;
-  activeSubTab: 'students' | 'history' | 'profile' | 'skck' | 'takzir_letter';
-  setActiveSubTab: (tab: 'students' | 'history' | 'profile' | 'skck' | 'takzir_letter') => void;
+  activeSubTab: 'students' | 'history' | 'profile' | 'skck' | 'takzir_letter' | 'letters';
+  setActiveSubTab: (tab: any) => void;
 }
 
 export default function StaffDashboard({ 
@@ -67,8 +95,31 @@ export default function StaffDashboard({
   activeSubTab,
   setActiveSubTab
 }: StaffDashboardProps) {
-  const role = session.role as 'keamanan' | 'ketertiban' | 'kesehatan';
-  
+  const role = (session.role as 'keamanan' | 'ketertiban' | 'kesehatan') || 'keamanan';
+
+  // Normalize sub-tabs for backwards compatibility
+  const currentTab = React.useMemo(() => {
+    if (activeSubTab === 'skck' || activeSubTab === 'takzir_letter' || activeSubTab === 'letters') {
+      return 'letters';
+    }
+    if (activeSubTab === 'history') return 'history';
+    if (activeSubTab === 'profile') return 'profile';
+    return 'students';
+  }, [activeSubTab]);
+
+  const setTab = (tab: 'students' | 'history' | 'letters' | 'profile') => {
+    setActiveSubTab(tab);
+  };
+
+  const currentMonthNum = String(new Date().getMonth() + 1).padStart(2, '0');
+  const currentYearNum = String(new Date().getFullYear());
+  const currentMonthName = INDONESIAN_MONTHS.find(m => m.value === currentMonthNum)?.name || 'Bulan Ini';
+
+  // Report Month & Year Filter (defaults to CURRENT active month)
+  const [selectedMonth, setSelectedMonth] = React.useState<string>(currentMonthNum);
+  const [selectedYear, setSelectedYear] = React.useState<string>(currentYearNum);
+
+  // Portal settings
   const pesantrenSettings = React.useMemo(() => {
     try {
       const stored = localStorage.getItem('pesantren_settings');
@@ -80,24 +131,33 @@ export default function StaffDashboard({
       schoolName: "Pondok Pesantren Al-Asy'ariyah",
       namaYayasan: "Yayasan Al-Asy'ariyah",
       address: "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur",
-      phone: "",
+      phone: "(0291) 438291",
       email: "info@alasyariyah.sch.id",
       tagline: "Mencetak Generasi Qur'ani, Berakhlakul Karimah, Unggul, dan Mandiri",
       logoUrl: "/pesantren_logo.jpg"
     };
   }, []);
-  
+
   const isImageUrl = (str?: string): boolean => {
     if (!str) return false;
     return str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/') || str.startsWith('data:image/');
   };
 
+  // Staff Config / Signatures
+  const [deptName, setDeptName] = React.useState('');
+  const [deptSignature, setDeptSignature] = React.useState('');
+  const [deptSeal, setDeptSeal] = React.useState('');
+  const [letterTemplate1, setLetterTemplate1] = React.useState('');
+  const [letterTemplate2, setLetterTemplate2] = React.useState('');
+  const [letterTemplate3, setLetterTemplate3] = React.useState('');
+  const [profileSaveSuccess, setProfileSaveSuccess] = React.useState<string>('');
+
+  // Outbound letters log
   const [outboundLettersLog, setOutboundLettersLog] = React.useState<any[]>(() => {
     try {
       const saved = localStorage.getItem('pesantren_outbound_letters_log');
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      console.error(e);
       return [];
     }
   });
@@ -105,10 +165,6 @@ export default function StaffDashboard({
   React.useEffect(() => {
     localStorage.setItem('pesantren_outbound_letters_log', JSON.stringify(outboundLettersLog));
   }, [outboundLettersLog]);
-
-  React.useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  }, [activeSubTab, role]);
 
   const getRomanMonth = (dateObj = new Date()) => {
     const romanArr = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
@@ -122,7 +178,7 @@ export default function StaffDashboard({
     const seq = String(count + 1).padStart(2, '0');
     const roman = getRomanMonth();
     const year = new Date().getFullYear();
-    return `${seq}/${code}/PP. AM/${roman}/${year}`;
+    return `${seq}/${code}/PP.AM/${roman}/${year}`;
   };
 
   const handlePrintLetter = (elementId: string, id: string, type: string, code: string, recipient: string, subject: string) => {
@@ -140,165 +196,74 @@ export default function StaffDashboard({
         }
       ]);
     }
+    // Record audit log for letter generation
+    recordStaffAuditLog({
+      actorName: deptName || session.fullName || `Pengurus ${role}`,
+      actorRole: role,
+      actorEmail: session.email,
+      actionType: 'CETAK_SURAT',
+      actionTitle: `Penerbitan ${type}`,
+      targetName: recipient,
+      description: `Menerbitkan dan mencetak ${type} resmi (No: ${letterNo}) untuk ${recipient} dengan perihal: "${subject}"`
+    });
     downloadPrintableHTML(elementId, `${type.replace(/\s+/g, '_')}_${recipient.replace(/\s+/g, '_')}`);
   };
-  
-  // Tab states values: 'students' | 'history' | 'profile'
-  const [isStaffMenuOpen, setIsStaffMenuOpen] = React.useState(false);
-  const [searchTerm, setSearchTerm] = React.useState('');
-  const [selectedStudent, setSelectedStudent] = React.useState<Student | null>(null);
-  const [inputSearchTerm, setInputSearchTerm] = React.useState('');
-  const [inputSelectedStudentId, setInputSelectedStudentId] = React.useState('');
 
-  // Form states
-  const [showAddModal, setShowAddModal] = React.useState(false);
-
-  // Signature / Custom config for the department
-  const [deptName, setDeptName] = React.useState('');
-  const [deptSignature, setDeptSignature] = React.useState('');
-  const [deptSeal, setDeptSeal] = React.useState('');
-  const [letterTemplate1, setLetterTemplate1] = React.useState('');
-  const [letterTemplate2, setLetterTemplate2] = React.useState('');
-  const [letterTemplate3, setLetterTemplate3] = React.useState('');
-
-  // 1. Keamanan states
-  const [permitType, setPermitType] = React.useState<'Keluar Lingkungan' | 'Pulang (Keluarga)'>('Keluar Lingkungan');
-  const [permitDesc, setPermitDesc] = React.useState('');
-  const [expectedReturn, setExpectedReturn] = React.useState('');
-
-  // 2. Ketertiban states
-  const [violationType, setViolationType] = React.useState('');
-  const [violationLevel, setViolationLevel] = React.useState<'Ringan' | 'Sedang' | 'Berat'>('Ringan');
-  const [violationPoints, setViolationPoints] = React.useState(2);
-  const [violationConsequence, setViolationConsequence] = React.useState('');
-
-  // 3. Kesehatan states
-  const [complaint, setComplaint] = React.useState('');
-  const [diagnosis, setDiagnosis] = React.useState('');
-  const [treatment, setTreatment] = React.useState('');
-  const [healthStatus, setHealthStatus] = React.useState<'Rawat Jalan (Kamar)' | 'Nginap di Poskestren' | 'Dirujuk ke RS / Pulang'>('Rawat Jalan (Kamar)');
-  const [customInputType, setCustomInputType] = React.useState<'takzir' | 'izin' | 'kesehatan'>(role === 'ketertiban' ? 'izin' : role === 'kesehatan' ? 'kesehatan' : 'izin');
-  const [staffSubTab, setStaffSubTab] = React.useState<'perizinan' | 'takzir' | 'kesehatan'>(
-    role === 'ketertiban' ? 'takzir' : role === 'kesehatan' ? 'kesehatan' : 'perizinan'
-  );
-  const [sendWhatsAppOnRecord, setSendWhatsAppOnRecord] = React.useState<boolean>(true);
-
-  React.useEffect(() => {
-    if (role === 'ketertiban') {
-      setStaffSubTab('takzir');
-    } else if (role === 'kesehatan') {
-      setStaffSubTab('kesehatan');
-    } else {
-      setStaffSubTab('perizinan');
+  // Role Default Configs
+  const roleDefaults = React.useMemo(() => ({
+    keamanan: {
+      roleTitle: 'Bidang Keamanan (Kamtib)',
+      deptLabel: 'Kepala Bidang Keamanan & Pos Penjagaan',
+      subTitle: 'Pengawasan Perizinan Santri Keluar / Pulang & Ketertiban Pos',
+      color: 'emerald',
+      code: 'KMN',
+      defaultName: 'Ustadz Junaidi Al-Anshori',
+      signature: 'Junaidi',
+      seal: '️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
+      letter1Name: 'Surat Izin Keluar Lingkungan (Tidak Bermalam)',
+      letter2Name: 'Surat Izin Pulang / Keluar Bermalam (Sambang Keluarga)',
+      letter3Name: 'Surat Keterangan Catatan Keamanan / Kelakuan Baik (SKCK)',
+      letterTemplate1: 'Dengan ini diberikan izin kepada santri tertera di bawah ini untuk meninggalkan area pondok pesantren dengan rincian jadwal sebagai berikut:',
+      letterTemplate2: '* Ketentuan Khusus: Surat izin resmi ini wajib dibawa dan diserahkan kembali kepada petugas pos penjagaan keamanan saat santri tiba di pondok. Keterlambatan akan dikenakan sanksi tata tertib.',
+      letterTemplate3: 'Menerangkan bahwa santri bersangkutan berkelakuan baik, mematuhi tata tertib keamanan, dan tidak sedang dalam masa sanksi berat pelanggaran pesantren.'
+    },
+    ketertiban: {
+      roleTitle: 'Bidang Ketertiban & Kedisiplinan',
+      deptLabel: 'Kepala Bidang Ketertiban & Ta\'zir Santri',
+      subTitle: 'Penegakan Tata Tertib, Penilaian Poin, Ta\'zir & Pemanggilan Wali',
+      color: 'indigo',
+      code: 'KTT',
+      defaultName: 'Ustadz Abdul Somad, S.Sy',
+      signature: 'Abdul Somad',
+      seal: 'STEMPEL KETERTIBAN AL-ASY\'ARIYAH',
+      letter1Name: 'Surat Pemberitahuan Pelanggaran & Instruksi Ta\'zir',
+      letter2Name: 'Surat Panggilan Orang Tua / Wali Santri (Bimbingan Khusus)',
+      letter3Name: 'Surat Rekam Jejak Kedisiplinan & Pemutihan Sanksi Ta\'zir',
+      letterTemplate1: 'Berdasarkan catatan penegakan tata tertib pesantren, telah terbukti melakukan pelanggaran disiplin dan diberikan sanksi edukatif sebagai berikut:',
+      letterTemplate2: '* Peringatan Khusus: Apabila pelanggaran berulang atau akumulasi poin kedisiplinan mencapai ambang batas toleransi, santri akan disidangkan dan orang tua/wali wajib hadir ke pesantren.',
+      letterTemplate3: 'Demikian lembar instruksi sanksi ta\'zir ini dibuat untuk dilaksanakan dengan penuh kesungguhan dan tanggung jawab demi perbaikan akhlak santri.'
+    },
+    kesehatan: {
+      roleTitle: 'Pos Kesehatan Pesantren (Poskestren)',
+      deptLabel: 'Penanggung Jawab Medis Poskestren',
+      subTitle: 'Pelayanan Kesehatan Santri, Pengobatan, Rawat Inap & Rujukan Medis',
+      color: 'rose',
+      code: 'KST',
+      defaultName: 'Ustadzah dr. Fatimah Az-Zahra',
+      signature: 'dr. Fatimah',
+      seal: '🩺 POSKESTREN AL-ASY\'ARIYAH',
+      letter1Name: 'Surat Keterangan Sakit & Dispensasi Istirahat Poskestren',
+      letter2Name: 'Surat Rujukan Medis Fasilitas Kesehatan / Rumah Sakit',
+      letter3Name: 'Surat Rekomendasi Pemulangan Mandiri Santri Sakit',
+      letterTemplate1: 'Menerangkan dengan sesungguhnya bahwa santri tertera di bawah ini telah diperiksa kesehatannya di Poskestren dan memerlukan penanganan medis:',
+      letterTemplate2: '* Rekomendasi Medis: Diberikan dispensasi untuk beristirahat penuh dari kegiatan pengajian diniyah, sekolah formal, and piket pondok selama masa pemulihan.',
+      letterTemplate3: 'Demikian surat keterangan pemeriksaan medis ini dibuat untuk dapat dipergunakan sebagaimana mestinya.'
     }
-  }, [role]);
+  }), []);
 
-  // AI Validation Assistant states
-  const [aiOutput, setAiOutput] = React.useState<{[key: string]: string}>({});
-  const [aiLoading, setAiLoading] = React.useState<{[key: string]: boolean}>({});
+  const currentRoleInfo = roleDefaults[role] || roleDefaults.keamanan;
 
-  // Statistics Filter states
-  const [statsMonth, setStatsMonth] = React.useState<string>('Semua');
-  const [statsYear, setStatsYear] = React.useState<string>('Semua');
-
-  const runAiValidation = async (studentId: string, type: 'izin' | 'general', student: Student, extraPrompt?: string) => {
-    setAiLoading(prev => ({ ...prev, [studentId]: true }));
-    try {
-      const response = await fetch('/api/ai/validate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type,
-          studentData: student,
-          contextData: {
-            purpose: "Permohonan Evaluasi Kedisiplinan & Kelayakan Perizinan Keluar",
-            expectedReturn: "Sesuai Standar Operasional Pesantren"
-          },
-          extraPrompt
-        })
-      });
-      if (response.ok) {
-        const resData = await response.json();
-        if (resData.result) {
-          setAiOutput(prev => ({ ...prev, [studentId]: resData.result }));
-          return;
-        }
-      }
-      throw new Error("Server API tidak merespons atau mengembalikan format non-JSON");
-    } catch (e: any) {
-      // Fallback rule-based AI assistant output for static deployment or API offline
-      const points = student?.disciplineLogs?.filter((d: any) => d.status !== 'Selesai').reduce((sum: number, d: any) => sum + d.points, 0) || 0;
-      let fallbackText = '';
-      if (type === 'izin') {
-        if (points > 10) {
-          fallbackText = `[REKOMENDASI AI: TOLAK]\n\nSantri ${student?.fullName || 'ybs'} memiliki total ${points} poin pelanggaran aktif. Berdasarkan SOP Pesantren, perizinan keluar sebaiknya DITOLAK atau diberikan catatan pembinaan khusus.`;
-        } else {
-          fallbackText = `[REKOMENDASI AI: SETUJU]\n\nSantri ${student?.fullName || 'ybs'} memiliki ${points} poin pelanggaran aktif (di bawah ambang batas 10 poin). Permohonan izin keluar teridentifikasi aman dan layak disetujui.`;
-        }
-      } else {
-        fallbackText = `[ASISTEN AI PESANTREN]\n\nData santri ${student?.fullName || 'ybs'} (Kelas ${student?.class || '-'}) telah ditinjau. Sistem merekomendasikan penanganan administrasi sesuai standar operasional pondok.`;
-      }
-      setAiOutput(prev => ({ ...prev, [studentId]: fallbackText }));
-    } finally {
-      setAiLoading(prev => ({ ...prev, [studentId]: false }));
-    }
-  };
-
-  React.useEffect(() => {
-    if (role === 'ketertiban') {
-      setCustomInputType('izin');
-    } else if (role === 'kesehatan') {
-      setCustomInputType('kesehatan');
-    } else {
-      setCustomInputType('takzir');
-    }
-  }, [role]);
-
-  // 4. SKCK states (Keamanan)
-  const [skckNis, setSkckNis] = React.useState('');
-  const [skckReason, setSkckReason] = React.useState('Sebagai syarat sah administrasi kurban, mutasi pesantren formal, dan pendaftaran jenjang karir lanjutan.');
-  const [profileSaveSuccess, setProfileSaveSuccess] = React.useState<string>('');
-
-  // Print slip layout trigger
-  const [printSecurityLog, setPrintSecurityLog] = React.useState<SecurityLog | null>(null);
-  const [printDisciplineLog, setPrintDisciplineLog] = React.useState<DisciplineLog | null>(null);
-  const [printHealthLog, setPrintHealthLog] = React.useState<HealthLog | null>(null);
-  const [viewOnlyMode, setViewOnlyMode] = React.useState(false);
-
-  // Custom Confirmation Dialog State
-  const [confirmInputText, setConfirmInputText] = React.useState('');
-  const [confirmDialog, setConfirmDialog] = React.useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-    requireInput?: string;
-  }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-  });
-
-  const triggerConfirm = (title: string, message: string, onConfirm: () => void, requireInput?: string) => {
-    setConfirmInputText('');
-    setConfirmDialog({
-      isOpen: true,
-      title,
-      message,
-      onConfirm,
-      requireInput,
-    });
-  };
-
-  // Actions Dropdown & Editing logs states
-  const [activeDropdownId, setActiveDropdownId] = React.useState<string | null>(null);
-  const [activeStudentCardDropdownId, setActiveStudentCardDropdownId] = React.useState<string | null>(null);
-  const [editingLog, setEditingLog] = React.useState<{ id: string; type: 'security' | 'discipline' | 'health'; values: any } | null>(null);
-
-  // Load staff profile settings from localStorage on init
+  // Load config on mount
   React.useEffect(() => {
     const configKey = `${role}_config`;
     const saved = localStorage.getItem(configKey);
@@ -306,101 +271,25 @@ export default function StaffDashboard({
     const customStaffName = userEmail ? localStorage.getItem(`staff_custom_name_${userEmail}`) : null;
     const accountName = customStaffName || (session?.fullName && session.fullName !== 'Muhammad' ? session.fullName : '');
 
-    const defaults = {
-      keamanan: {
-        name: accountName || 'Ustadz Junaidi Al-Anshori',
-        signature: 'Junaidi',
-        seal: '️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
-        letterTemplate1: 'Sehubungan dengan pelanggaran tertulis pedoman kedisplinan pondok pesantren, diberikan sanksi resmi kepada santri berikut:',
-        letterTemplate2: '* Keterangan penting: Pelanggaran telah dicatatkan dalam server kesiswaan. Jika point melampaui batas toleransi (50 point), maka pihak pesantren berhak melakukan pemanggilan secara resmi kepada Wali Santri secara tertulis.',
-        letterTemplate3: ''
-      },
-      ketertiban: {
-        name: accountName || 'Ustadz Abdul Somad, S.Sy',
-        signature: 'Abdul Somad',
-        seal: 'STEMPEL KETERTIBAN',
-        letterTemplate1: 'Diberikan izin kepada santri yang identitasnya tertera di bawah ini untuk meninggalkan area pondok pesantren sesuai rincian:',
-        letterTemplate2: 'Sepanjang pengamatan lahiriah murni kami, yang bersangkutan selama berada di lingkungan Pondok Pesantren Al-Asy\'ariyah benar-benar Berkelakuan Baik, Taat Beribadah, serta bebas/bersih dari sanksi-sanksi pelanggaran berat hukum pondok pesantren.',
-        letterTemplate3: 'Demikian surat keterangan catatan kelakuan baik ini dibuat untuk dapat dipergunakan sebagaimana mestinya dengan penuh rasa tanggung jawab.'
-      },
-      kesehatan: {
-        name: accountName || 'Ustadzah dr. Fatimah Az-Zahra',
-        signature: 'dr. Fatimah',
-        seal: '🩺 POSKESTREN AL-ASY\'ARIYAH',
-        letterTemplate1: 'Menerangkan dengan ini bahwa santri yang tercantum di bawah ini sedang dalam perawatan kami:',
-        letterTemplate2: '* Rekomendasi Medis: Diberikan dispensasi untuk beristirahat penuh dari kegiatan quranic, kelas diniyah, and sekolah umum selama proses pemulihan berlangsung. Mohon dijaga kebersihan makanan dan pola istirahatnya.',
-        letterTemplate3: ''
-      }
-    };
-
     if (saved) {
-      const parsed = JSON.parse(saved);
-      // Prioritas nama: nama akun terdaftar > nama yang disimpan di config > default
-      const finalName = accountName || parsed.name || defaults[role].name;
-      setDeptName(finalName);
-      setDeptSignature(parsed.signature || defaults[role].signature);
-      setDeptSeal(parsed.seal || defaults[role].seal);
-      setLetterTemplate1(parsed.letterTemplate1 || defaults[role].letterTemplate1);
-      setLetterTemplate2(parsed.letterTemplate2 || defaults[role].letterTemplate2);
-      setLetterTemplate3(parsed.letterTemplate3 || defaults[role].letterTemplate3);
-    } else {
-      setDeptName(accountName || defaults[role].name);
-      setDeptSignature(defaults[role].signature);
-      setDeptSeal(defaults[role].seal);
-      setLetterTemplate1(defaults[role].letterTemplate1);
-      setLetterTemplate2(defaults[role].letterTemplate2);
-      setLetterTemplate3(defaults[role].letterTemplate3);
-    }
-  }, [role, session]);
-
-  // Listener sinkronisasi nama pengurus secara real-time
-  React.useEffect(() => {
-    const handleNameSync = () => {
-      const userEmail = (session?.email || `${role}@alasyariyah.sch.id`).toLowerCase();
-      const customStaffName = localStorage.getItem('staff_custom_name_' + userEmail);
-      if (customStaffName) {
-        setDeptName(customStaffName);
-        return;
-      }
       try {
-        const staffList = JSON.parse(localStorage.getItem('pesantren_staff_users') || '[]');
-        const found = staffList.find((u: any) => (u.email && u.email.toLowerCase() === userEmail) || u.role === role);
-        if (found && (found.fullName || found.name)) {
-          setDeptName(found.fullName || found.name);
-        }
+        const parsed = JSON.parse(saved);
+        setDeptName(accountName || parsed.name || currentRoleInfo.defaultName);
+        setDeptSignature(parsed.signature || currentRoleInfo.signature);
+        setDeptSeal(parsed.seal || currentRoleInfo.seal);
+        setLetterTemplate1(parsed.letterTemplate1 || currentRoleInfo.letterTemplate1);
+        setLetterTemplate2(parsed.letterTemplate2 || currentRoleInfo.letterTemplate2);
+        setLetterTemplate3(parsed.letterTemplate3 || currentRoleInfo.letterTemplate3);
+        return;
       } catch (e) {}
-    };
-
-    window.addEventListener('pesantren_staff_users_updated', handleNameSync);
-    window.addEventListener('staff_configs_updated', handleNameSync);
-    window.addEventListener('pesantren_admin_name_updated', handleNameSync);
-    return () => {
-      window.removeEventListener('pesantren_staff_users_updated', handleNameSync);
-      window.removeEventListener('staff_configs_updated', handleNameSync);
-      window.removeEventListener('pesantren_admin_name_updated', handleNameSync);
-    };
-  }, [role, session]);
-
-  const persistStudents = (updated: Student[]) => {
-    setStudents(updated);
-    markLocalDataChanged('students');
-    try {
-      localStorage.setItem('pesantren_students', JSON.stringify(updated));
-    } catch (e) {
-      console.error("Local storage error:", e);
     }
-    fetch('/api/students', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch(e => console.warn("Server sync students error:", e));
-    if (isSupabaseConfigured()) {
-      pushAllStudentsToSupabase(updated).catch(e => console.error("Cloud push students error:", e));
-    }
-    setTimeout(() => {
-      window.dispatchEvent(new Event('pesantren_db_sync'));
-    }, 0);
-  };
+    setDeptName(accountName || currentRoleInfo.defaultName);
+    setDeptSignature(currentRoleInfo.signature);
+    setDeptSeal(currentRoleInfo.seal);
+    setLetterTemplate1(currentRoleInfo.letterTemplate1);
+    setLetterTemplate2(currentRoleInfo.letterTemplate2);
+    setLetterTemplate3(currentRoleInfo.letterTemplate3);
+  }, [role, session, currentRoleInfo]);
 
   // Save profile settings
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -416,7 +305,6 @@ export default function StaffDashboard({
     };
     localStorage.setItem(configKey, JSON.stringify(dataObj));
     
-    // Sinkronkan nama pengurus ke daftar akun pengurus terdaftar & menu persetujuan
     const userEmail = (session?.email || `${role}@alasyariyah.sch.id`).toLowerCase();
     localStorage.setItem('staff_custom_name_' + userEmail, deptName);
     localStorage.setItem('staff_custom_name_' + role, deptName);
@@ -443,24 +331,8 @@ export default function StaffDashboard({
       }
     } catch (e) {}
 
-    // Update session jika ada (sessionStorage & localStorage)
-    try {
-      const storedSess = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
-      if (storedSess) {
-        const parsed = JSON.parse(storedSess);
-        parsed.fullName = deptName;
-        parsed.name = deptName;
-        parsed.roleName = deptName;
-        sessionStorage.setItem('pesantren_session', JSON.stringify(parsed));
-        localStorage.setItem('pesantren_session', JSON.stringify(parsed));
-      }
-    } catch (e) {}
-
-    // Dispatch custom event to notify admin and cloud sync
     window.dispatchEvent(new Event('pesantren_staff_users_updated'));
-    window.dispatchEvent(new Event('pesantren_admin_name_updated'));
     window.dispatchEvent(new Event('staff_configs_updated'));
-    window.dispatchEvent(new Event('pesantren_db_sync'));
     fetch('/api/staff-configs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -469,2140 +341,2144 @@ export default function StaffDashboard({
     if (isSupabaseConfigured()) {
       pushStaffConfigToSupabase(role, { name: deptName, signature: deptSignature, seal: deptSeal }).catch(e => console.error(e));
     }
-    setProfileSaveSuccess('Nama profil dan template surat berhasil disimpan serta disinkronkan ke seluruh sistem!');
+    recordStaffAuditLog({
+      actorName: deptName || session.fullName || `Pengurus ${role}`,
+      actorRole: role,
+      actorEmail: session.email,
+      actionType: 'UBAH_PROFIL',
+      actionTitle: `Pembaruan Profil & Spesimen TTD (${role.toUpperCase()})`,
+      description: `Pengurus memperbarui data profil nama pejabat (${deptName}) dan spesimen stempel/tanda tangan digital dinas biro ${role}`
+    });
+    setProfileSaveSuccess('Profil jabatan dan draf surat berhasil diperbarui serta disinkronkan!');
     setTimeout(() => setProfileSaveSuccess(''), 4000);
   };
 
-  // Helper to dynamically get any department configuration
-  const getStaffConfig = (dept: 'keamanan' | 'ketertiban' | 'kesehatan') => {
-    const saved = localStorage.getItem(`${dept}_config`);
-    const defaults = {
-      keamanan: {
-        name: 'Ustadz Junaidi Al-Anshori',
-        signature: 'Junaidi',
-        seal: '️ STEMPEL KEAMANAN AL-ASY\'ARIYAH',
-        letterTemplate1: 'Sehubungan dengan pelanggaran tertulis pedoman kedisplinan pondok pesantren, diberikan sanksi resmi kepada santri berikut:',
-        letterTemplate2: '* Keterangan penting: Pelanggaran telah dicatatkan dalam server kesiswaan. Jika point melampaui batas toleransi (50 point), maka pihak pesantren berhak melakukan pemanggilan secara resmi kepada Wali Santri secara tertulis.',
-        letterTemplate3: ''
-      },
-      ketertiban: {
-        name: 'Ustadz Abdul Somad, S.Sy',
-        signature: 'Abdul Somad',
-        seal: 'STEMPEL KETERTIBAN',
-        letterTemplate1: 'Diberikan izin kepada santri yang identitasnya tertera di bawah ini untuk meninggalkan area pondok pesantren sesuai rincian:',
-        letterTemplate2: 'Sepanjang pengamatan lahiriah murni kami, yang bersangkutan selama berada di lingkungan Pondok Pesantren Al-Asy\'ariyah benar-benar Berkelakuan Baik, Taat Beribadah, serta bebas/bersih dari sanksi-sanksi pelanggaran berat hukum pondok pesantren.',
-        letterTemplate3: 'Demikian surat keterangan catatan kelakuan baik ini dibuat untuk dapat dipergunakan sebagaimana mestinya dengan penuh rasa tanggung jawab.'
-      },
-      kesehatan: {
-        name: 'Ustadzah dr. Fatimah Az-Zahra',
-        signature: 'dr. Fatimah',
-        seal: '🩺 POSKESTREN AL-ASY\'ARIYAH',
-        letterTemplate1: 'Menerangkan dengan ini bahwa santri yang tercantum di bawah ini sedang dalam perawatan kami:',
-        letterTemplate2: '* Rekomendasi Medis: Diberikan dispensasi untuk beristirahat penuh dari kegiatan quranic, kelas diniyah, and sekolah umum selama proses pemulihan berlangsung. Mohon dijaga kebersihan makanan dan pola istirahatnya.',
-        letterTemplate3: ''
-      }
-    };
-
-    const sharedPengasuhSig = pesantrenSettings?.ttdPengasuhUrl || pesantrenSettings?.ttdPengurusUrl || '';
-    const sharedPengasuhSeal = pesantrenSettings?.stempelPengasuhUrl || pesantrenSettings?.stempelPesantrenUrl || '';
-
-    const settingsDeptName = dept === 'keamanan'
-      ? pesantrenSettings?.namaKeamanan
-      : dept === 'ketertiban'
-      ? pesantrenSettings?.namaKetertiban
-      : pesantrenSettings?.namaKesehatan;
-
-    const settingsDeptSig = dept === 'keamanan'
-      ? pesantrenSettings?.ttdKeamananUrl
-      : dept === 'ketertiban'
-      ? pesantrenSettings?.ttdKetertibanUrl
-      : pesantrenSettings?.ttdKesehatanUrl;
-
-    const settingsDeptSeal = dept === 'keamanan'
-      ? pesantrenSettings?.stempelKeamananUrl
-      : dept === 'ketertiban'
-      ? pesantrenSettings?.stempelKetertibanUrl
-      : pesantrenSettings?.stempelKesehatanUrl;
-
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          name: settingsDeptName || parsed.name || defaults[dept].name,
-          signature: settingsDeptSig || sharedPengasuhSig || parsed.signature || defaults[dept].signature,
-          seal: settingsDeptSeal || sharedPengasuhSeal || parsed.seal || defaults[dept].seal,
-          letterTemplate1: parsed.letterTemplate1 || defaults[dept].letterTemplate1,
-          letterTemplate2: parsed.letterTemplate2 || defaults[dept].letterTemplate2,
-          letterTemplate3: parsed.letterTemplate3 || defaults[dept].letterTemplate3
-        };
-      } catch (e) {
-        // ignore
-      }
+  // Persist students helper
+  const persistStudents = (updated: Student[]) => {
+    setStudents(updated);
+    markLocalDataChanged('students');
+    try {
+      localStorage.setItem('pesantren_students', JSON.stringify(updated));
+    } catch (e) {
+      console.error("Local storage error:", e);
     }
-    return {
-      ...defaults[dept],
-      name: settingsDeptName || defaults[dept].name,
-      signature: settingsDeptSig || sharedPengasuhSig || defaults[dept].signature,
-      seal: settingsDeptSeal || sharedPengasuhSeal || defaults[dept].seal
-    };
+    fetch('/api/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch(e => console.warn("Server sync students error:", e));
+    if (isSupabaseConfigured()) {
+      pushAllStudentsToSupabase(updated).catch(e => console.error("Cloud push students error:", e));
+    }
+    setTimeout(() => {
+      window.dispatchEvent(new Event('pesantren_db_sync'));
+    }, 0);
   };
 
-  // Automatically adjust default points based on level
-  React.useEffect(() => {
-    if (violationLevel === 'Ringan') setViolationPoints(2);
-    else if (violationLevel === 'Sedang') setViolationPoints(5);
-    else if (violationLevel === 'Berat') setViolationPoints(15);
-  }, [violationLevel]);
+  // ============================================================================
+  // STREAMLINED STUDENT INPUT STATE (TIDAK RIBET & HANYA SESUAI JABATAN)
+  // ============================================================================
+  const [showAddModal, setShowAddModal] = React.useState(false);
+  const [selectedStudentForInput, setSelectedStudentForInput] = React.useState<Student | null>(null);
+  const [studentSearchKeyword, setStudentSearchKeyword] = React.useState('');
+  const [isSearchingStudent, setIsSearchingStudent] = React.useState(false);
+  const [sendWhatsAppOnRecord, setSendWhatsAppOnRecord] = React.useState<boolean>(true);
+  const [actionSuccessToast, setActionSuccessToast] = React.useState<string>('');
 
-  // Insert items handler
-  const handleAddRecordSubmit = (e: React.FormEvent) => {
+  const triggerToast = (msg: string) => {
+    setActionSuccessToast(msg);
+    setTimeout(() => setActionSuccessToast(''), 4500);
+  };
+
+  // 1. KEAMANAN ONLY FORM FIELDS
+  const [secPermitType, setSecPermitType] = React.useState<'Keluar Lingkungan' | 'Pulang (Keluarga)'>('Keluar Lingkungan');
+  const [secPermitDesc, setSecPermitDesc] = React.useState('');
+  const [secOutDate, setSecOutDate] = React.useState(new Date().toISOString().replace('T', ' ').substring(0, 16));
+  const [secExpectedReturn, setSecExpectedReturn] = React.useState('');
+  const [secDestination, setSecDestination] = React.useState('');
+
+  // 2. KETERTIBAN ONLY FORM FIELDS
+  const [discViolationType, setDiscViolationType] = React.useState('');
+  const [discViolationLevel, setDiscViolationLevel] = React.useState<'Ringan' | 'Sedang' | 'Berat'>('Ringan');
+  const [discViolationPoints, setDiscViolationPoints] = React.useState(2);
+  const [discConsequence, setDiscConsequence] = React.useState('');
+  const [discDate, setDiscDate] = React.useState(new Date().toISOString().split('T')[0]);
+  const [discStatus, setDiscStatus] = React.useState<'Belum Diurus' | 'Sedang Mengurus' | 'Selesai'>('Belum Diurus');
+
+  // Auto adjust points on level change
+  React.useEffect(() => {
+    if (discViolationLevel === 'Ringan') setDiscViolationPoints(2);
+    else if (discViolationLevel === 'Sedang') setDiscViolationPoints(5);
+    else if (discViolationLevel === 'Berat') setDiscViolationPoints(15);
+  }, [discViolationLevel]);
+
+  // 3. KESEHATAN ONLY FORM FIELDS
+  const [healComplaint, setHealComplaint] = React.useState('');
+  const [healDiagnosis, setHealDiagnosis] = React.useState('');
+  const [healTreatment, setHealTreatment] = React.useState('');
+  const [healStatus, setHealStatus] = React.useState<'Rawat Jalan (Kamar)' | 'Nginap di Poskestren' | 'Dirujuk ke RS / Pulang'>('Rawat Jalan (Kamar)');
+  const [healDate, setHealDate] = React.useState(new Date().toISOString().split('T')[0]);
+
+  // Preset quick fill helpers for Keamanan
+  const setReturnPreset = (hours: number, days = 0) => {
+    const d = new Date();
+    if (days > 0) {
+      d.setDate(d.getDate() + days);
+      d.setHours(17, 0, 0, 0);
+    } else {
+      d.setHours(d.getHours() + hours);
+    }
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    setSecExpectedReturn(`${year}-${month}-${day} ${hh}:${mm}`);
+  };
+
+  // Search filtered student list for autocomplete
+  const studentAutocompleteResults = React.useMemo(() => {
+    const q = studentSearchKeyword.trim().toLowerCase();
+    if (!q) return [];
+    return students
+      .filter(s => {
+        if (!s || s.status === 'Alumni') return false;
+        const nMatch = s.fullName && s.fullName.toLowerCase().includes(q);
+        const nisMatch = s.nis && String(s.nis).toLowerCase().includes(q);
+        const kMatch = s.kamar && s.kamar.toLowerCase().includes(q);
+        return Boolean(nMatch || nisMatch || kMatch);
+      })
+      .slice(0, 8);
+  }, [students, studentSearchKeyword]);
+
+  // Reset form
+  const resetFormFields = () => {
+    setSelectedStudentForInput(null);
+    setStudentSearchKeyword('');
+    setIsSearchingStudent(false);
+    
+    // Keamanan
+    setSecPermitType('Keluar Lingkungan');
+    setSecPermitDesc('');
+    setSecDestination('');
+    setSecOutDate(new Date().toISOString().replace('T', ' ').substring(0, 16));
+    setSecExpectedReturn('');
+
+    // Ketertiban
+    setDiscViolationType('');
+    setDiscViolationLevel('Ringan');
+    setDiscViolationPoints(2);
+    setDiscConsequence('');
+    setDiscDate(new Date().toISOString().split('T')[0]);
+    setDiscStatus('Belum Diurus');
+
+    // Kesehatan
+    setHealComplaint('');
+    setHealDiagnosis('');
+    setHealTreatment('');
+    setHealStatus('Rawat Jalan (Kamar)');
+    setHealDate(new Date().toISOString().split('T')[0]);
+  };
+
+  // Open input modal with optional preselected student
+  const openInputModal = (student?: Student) => {
+    resetFormFields();
+    if (student) {
+      setSelectedStudentForInput(student);
+    }
+    // Set default expected return for Keamanan (+3 hours)
+    if (role === 'keamanan') {
+      setReturnPreset(3);
+    }
+    setShowAddModal(true);
+  };
+
+  // Submit record according to STRICT JABATAN
+  const handleSaveRecord = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent) return;
+    if (!selectedStudentForInput) {
+      alert('Silakan pilih data santri terlebih dahulu.');
+      return;
+    }
+
+    const targetStudent = selectedStudentForInput;
+    let successMessage = '';
+    let waMsg = '';
+    const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
 
     const updatedStudents = students.map(s => {
-      if (s.id === selectedStudent.id) {
-        if (customInputType === 'izin') {
-          const newSec: SecurityLog = {
-            id: `sec-${Date.now()}`,
-            studentId: s.id,
-            studentName: s.fullName,
-            permitType,
-            description: permitDesc,
-            outDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
-            expectedReturnDate: expectedReturn,
-            status: 'Aktif / Keluar',
-            signedBy: deptName || 'Ketertiban Perizinan'
-          };
-          return {
-            ...s,
-            securityLogs: [newSec, ...(s.securityLogs || [])]
-          };
-        } else if (customInputType === 'takzir') {
-          const newDisc: DisciplineLog = {
-            id: `disc-${Date.now()}`,
-            studentId: s.id,
-            studentName: s.fullName,
-            violationType,
-            level: violationLevel,
-            points: Number(violationPoints),
-            consequence: violationConsequence,
-            date: new Date().toISOString().split('T')[0],
-            signedBy: deptName || 'Keamanan Ketertiban',
-            status: 'Belum Diurus'
-          };
-          return {
-            ...s,
-            disciplineLogs: [newDisc, ...(s.disciplineLogs || [])]
-          };
-        } else if (customInputType === 'kesehatan') {
-          const newHeal: HealthLog = {
-            id: `heal-${Date.now()}`,
-            studentId: s.id,
-            studentName: s.fullName,
-            complaint,
-            diagnosis,
-            treatment,
-            status: healthStatus,
-            date: new Date().toISOString().split('T')[0],
-            signedBy: deptName || 'Poskestren'
-          };
-          return {
-            ...s,
-            healthLogs: [newHeal, ...(s.healthLogs || [])]
-          };
-        }
+      if (s.id !== targetStudent.id) return s;
+
+      if (role === 'keamanan') {
+        const newSec: SecurityLog = {
+          id: `sec-${Date.now()}`,
+          studentId: s.id,
+          studentName: s.fullName,
+          permitType: secPermitType,
+          description: secPermitDesc || (secPermitType === 'Pulang (Keluarga)' ? 'Kepentingan Keluarga' : 'Izin Keluar Lingkungan'),
+          outDate: secOutDate || new Date().toISOString().replace('T', ' ').substring(0, 16),
+          expectedReturnDate: secExpectedReturn || new Date().toISOString().replace('T', ' ').substring(0, 16),
+          status: 'Aktif / Keluar',
+          signedBy: deptName || currentRoleInfo.defaultName
+        };
+
+        successMessage = `Surat Izin ${secPermitType} untuk santri ${s.fullName} berhasil dicatat & aktif!`;
+        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${s.fullName}* (NIS: ${s.nis || '-'}),\n\nKami menginformasikan bahwa ananda telah diberikan Surat Izin (${secPermitType}) oleh Pengurus Keamanan *${schoolName}*:\n\n*Keperluan/Tujuan:* ${secPermitDesc || '-'}\n*Waktu Keluar:* ${secOutDate}\n⏰ *Batas Waktu Kembali:* ${secExpectedReturn}\n\nMohon bantuannya untuk memastikan ananda tiba kembali di pesantren tepat pada waktunya.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Keamanan & Penjagaan ${schoolName}_`;
+
+        recordStaffAuditLog({
+          actorName: deptName || session.fullName || 'Petugas Keamanan',
+          actorRole: 'keamanan',
+          actorEmail: session.email,
+          actionType: 'TAMBAH_IZIN',
+          actionTitle: `Penerbitan Surat Izin ${secPermitType}`,
+          targetName: s.fullName,
+          targetId: s.id,
+          description: `Menerbitkan surat izin (${secPermitType}) untuk ${s.fullName}. Keperluan: "${secPermitDesc || '-'}", Keluar: ${secOutDate}, Batas Kembali: ${secExpectedReturn}`
+        });
+
+        return {
+          ...s,
+          securityLogs: [newSec, ...(s.securityLogs || [])]
+        };
       }
+
+      if (role === 'ketertiban') {
+        const newDisc: DisciplineLog = {
+          id: `disc-${Date.now()}`,
+          studentId: s.id,
+          studentName: s.fullName,
+          violationType: discViolationType || 'Pelanggaran Disiplin',
+          level: discViolationLevel,
+          points: Number(discViolationPoints) || 2,
+          consequence: discConsequence || 'Bimbingan tata tertib pesantren',
+          date: discDate || new Date().toISOString().split('T')[0],
+          signedBy: deptName || currentRoleInfo.defaultName,
+          status: discStatus
+        };
+
+        successMessage = `Catatan pelanggaran ${discViolationLevel} (${discViolationPoints} Poin) untuk ${s.fullName} berhasil dicatat!`;
+        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${s.fullName}* (NIS: ${s.nis || '-'}),\n\nKami menyampaikan catatan pembinaan kedisiplinan santri dari Bidang Ketertiban *${schoolName}*:\n\n*Bentuk Pelanggaran:* ${discViolationType}\n️ *Tingkat/Poin:* ${discViolationLevel} (${discViolationPoints} Poin)\n️ *Bentuk Sanksi/Ta'zir:* ${discConsequence || '-'}\n*Tanggal:* ${discDate}\n\nMohon doa dan kerja sama bapak/ibu wali santri untuk terus membina ananda agar selalu berakhlakul karimah.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Ketertiban & Kedisiplinan ${schoolName}_`;
+
+        recordStaffAuditLog({
+          actorName: deptName || session.fullName || 'Petugas Ketertiban',
+          actorRole: 'ketertiban',
+          actorEmail: session.email,
+          actionType: 'TAMBAH_PELANGGARAN',
+          actionTitle: `Pencatatan Pelanggaran (${discViolationLevel} - ${discViolationPoints} Poin)`,
+          targetName: s.fullName,
+          targetId: s.id,
+          description: `Mencatat pelanggaran untuk santri ${s.fullName}: "${discViolationType}", Tingkat: ${discViolationLevel} (${discViolationPoints} poin), Sanksi: "${discConsequence || '-'}", Status: ${discStatus}`
+        });
+
+        return {
+          ...s,
+          disciplineLogs: [newDisc, ...(s.disciplineLogs || [])]
+        };
+      }
+
+      if (role === 'kesehatan') {
+        const newHeal: HealthLog = {
+          id: `heal-${Date.now()}`,
+          studentId: s.id,
+          studentName: s.fullName,
+          complaint: healComplaint || 'Pemeriksaan Kesehatan',
+          diagnosis: healDiagnosis || 'Pemeriksaan Medis Rutin',
+          treatment: healTreatment || 'Perawatan Medis',
+          status: healStatus,
+          date: healDate || new Date().toISOString().split('T')[0],
+          signedBy: deptName || currentRoleInfo.defaultName
+        };
+
+        successMessage = `Catatan rekam medis untuk santri ${s.fullName} berhasil disimpan!`;
+        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${s.fullName}* (NIS: ${s.nis || '-'}),\n\nKami menginformasikan kondisi kesehatan ananda yang telah diperiksa di Poskestren *${schoolName}*:\n\n🩺 *Keluhan:* ${healComplaint}\n*Diagnosa:* ${healDiagnosis}\n*Tindakan/Obat:* ${healTreatment}\n*Status Perawatan:* ${healStatus}\n\nSaat ini ananda dalam pengawasan tim medis poskestren. Mohon sambung doa untuk kesembuhan ananda.\n\nWassalamu'alaikum Wr. Wb.\n_Tim Medis Poskestren ${schoolName}_`;
+
+        recordStaffAuditLog({
+          actorName: deptName || session.fullName || 'Petugas Kesehatan',
+          actorRole: 'kesehatan',
+          actorEmail: session.email,
+          actionType: 'INPUT_REKAM_MEDIS',
+          actionTitle: 'Pencatatan Rekam Medis Poskestren',
+          targetName: s.fullName,
+          targetId: s.id,
+          description: `Mencatat rekam medis santri ${s.fullName}. Keluhan: "${healComplaint}", Diagnosa: "${healDiagnosis}", Tindakan/Obat: "${healTreatment}", Status: ${healStatus}`
+        });
+
+        return {
+          ...s,
+          healthLogs: [newHeal, ...(s.healthLogs || [])]
+        };
+      }
+
       return s;
     });
 
     persistStudents(updatedStudents);
 
-    // Automatic WhatsApp dispatch to parent
-    if (sendWhatsAppOnRecord && selectedStudent?.parentPhone) {
-      const rawPhone = selectedStudent.parentPhone.replace(/[^0-9]/g, '');
+    // Send WhatsApp notification if enabled
+    if (sendWhatsAppOnRecord && targetStudent.parentPhone && waMsg) {
+      const rawPhone = targetStudent.parentPhone.replace(/[^0-9]/g, '');
       const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
-      let waMsg = '';
-      const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
-
-      if (customInputType === 'takzir') {
-        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan catatan kedisiplinan santri dari Pengurus Ketertiban & Keamanan *${schoolName}*:\n\n*Pelanggaran:* ${violationType}\n️ *Tingkat/Poin:* ${violationLevel} (${violationPoints} Poin)\n️ *Bentuk Sanksi/Takzir:* ${violationConsequence || '-'}\n*Tanggal:* ${new Date().toISOString().split('T')[0]}\n\nMohon kerja sama dan doa bapak/ibu wali santri untuk terus memotivasi ananda menjadi pribadi berakhlakul karimah.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Keamanan & Ketertiban ${schoolName}_`;
-      } else if (customInputType === 'izin') {
-        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan bahwa ananda telah diberikan Surat Izin (${permitType}) oleh Pengurus Ketertiban & Perizinan *${schoolName}*:\n\n*Keperluan/Tujuan:* ${permitDesc}\n*Waktu Keluar:* ${new Date().toISOString().replace('T', ' ').substring(0, 16)}\n⏰ *Batas Kembali ke Pondok:* ${expectedReturn || '-'}\n\nMohon bantu memastikan ananda kembali ke pesantren tepat waktu sesuai jadwal perizinan.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Ketertiban & Perizinan ${schoolName}_`;
-      } else if (customInputType === 'kesehatan') {
-        waMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${selectedStudent.fullName}* (NIS: ${selectedStudent.nis || '-'}),\n\nKami menginformasikan kondisi kesehatan ananda dari Pos Kesehatan Pesantren (Poskestren) *${schoolName}*:\n\n🩺 *Keluhan:* ${complaint}\n*Diagnosa:* ${diagnosis}\n*Tindakan/Pengobatan:* ${treatment}\n*Status Saat Ini:* ${healthStatus}\n\nSaat ini ananda dalam penanganan dan pengawasan tim medis poskestren. Mohon sambung doa untuk kesembuhan ananda.\n\nWassalamu'alaikum Wr. Wb.\n_Tim Medis Poskestren ${schoolName}_`;
-      }
-
-      if (waMsg) {
-        fetch('/api/send-wa', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            target: cleanPhone,
-            message: waMsg
-          })
-        }).catch(err => console.warn('Auto-WA staff dispatch skipped or gateway error:', err));
-      }
+      fetch('/api/send-wa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: cleanPhone, message: waMsg })
+      }).catch(err => console.warn('Auto-WA staff dispatch skipped:', err));
     }
-    
-    // Reset forms
-    setPermitDesc('');
-    setExpectedReturn('');
-    setViolationType('');
-    setViolationConsequence('');
-    setComplaint('');
-    setDiagnosis('');
-    setTreatment('');
-    setSearchTerm('');
-    setInputSearchTerm('');
-    setInputSelectedStudentId('');
+
     setShowAddModal(false);
-    setSelectedStudent(null);
+    resetFormFields();
+    triggerToast(successMessage);
   };
 
-  // Update Security Status (Returned / Late)
+  // Quick Action: Keamanan mark return / late
   const handleUpdateReturnStatus = (studentId: string, logId: string, isLate: boolean) => {
-    let studentForNotice: Student | undefined;
-    let logForNotice: SecurityLog | undefined;
-
+    let studentName = '';
     const updated = students.map(s => {
-      if (s.id === studentId) {
-        studentForNotice = s;
-        let updatedDisciplineLogs = s.disciplineLogs || [];
-        const updatedLogs = (s.securityLogs || []).map(log => {
-          if (log.id === logId) {
-            logForNotice = log;
-            if (isLate) {
-              const newDisc: DisciplineLog = {
-                id: `disc-auto-${Date.now()}`,
-                studentId: s.id,
-                studentName: s.fullName,
-                violationType: `Keterlambatan Kembali (${log.permitType})`,
-                level: 'Sedang',
-                points: 5,
-                consequence: "Ta'zir disiplin keterlambatan (Membersihkan pos keamanan / sanksi luring)",
-                date: new Date().toISOString().split('T')[0],
-                signedBy: deptName || 'Keamanan Pos Penjagaan',
-                status: 'Belum Diurus'
-              };
-              updatedDisciplineLogs = [newDisc, ...updatedDisciplineLogs];
-            }
-            return {
-              ...log,
-              status: isLate ? 'Terlambat' as const : 'Kembali' as const,
-              actualReturnDate: new Date().toISOString().replace('T', ' ').substring(0, 16)
-            };
-          }
-          return log;
-        });
-        return { 
-          ...s, 
-          securityLogs: updatedLogs,
-          disciplineLogs: updatedDisciplineLogs
+      if (s.id !== studentId) return s;
+      studentName = s.fullName;
+      let discLogs = s.disciplineLogs || [];
+      const secLogs = (s.securityLogs || []).map(log => {
+        if (log.id !== logId) return log;
+        if (isLate) {
+          const autoDisc: DisciplineLog = {
+            id: `disc-auto-${Date.now()}`,
+            studentId: s.id,
+            studentName: s.fullName,
+            violationType: `Keterlambatan Kembali Izin (${log.permitType})`,
+            level: 'Sedang',
+            points: 5,
+            consequence: "Ta'zir kedisiplinan keterlambatan (Piket pos penjagaan / sanksi edukatif)",
+            date: new Date().toISOString().split('T')[0],
+            signedBy: deptName || currentRoleInfo.defaultName,
+            status: 'Belum Diurus'
+          };
+          discLogs = [autoDisc, ...discLogs];
+        }
+        return {
+          ...log,
+          status: isLate ? 'Terlambat' as const : 'Kembali' as const,
+          actualReturnDate: new Date().toISOString().replace('T', ' ').substring(0, 16)
         };
-      }
-      return s;
+      });
+      return { ...s, securityLogs: secLogs, disciplineLogs: discLogs };
     });
+
     persistStudents(updated);
 
-    // Send return confirmation notice to parent
-    if (studentForNotice?.parentPhone) {
-      const rawPhone = studentForNotice.parentPhone.replace(/[^0-9]/g, '');
-      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
-      const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
-      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
-      const returnMsg = isLate
-        ? `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nKami menginformasikan bahwa ananda telah tiba kembali di *${schoolName}* pada *${nowStr}* dengan status *Terlambat* dari batas jadwal izin. Ananda telah menerima pembinaan dari pos keamanan.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Keamanan & Ketertiban_`
-        : `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nAlhamdulillah, ananda telah tiba kembali di *${schoolName}* dengan selamat dan tepat waktu pada *${nowStr}*. Status perizinan ananda telah ditutup.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Keamanan & Ketertiban_`;
-
-      fetch('/api/send-wa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          target: cleanPhone,
-          message: returnMsg
-        })
-      }).catch(err => console.warn('Auto-WA return notice skipped:', err));
-    }
-  };
-
-  const handleApprovePermit = (studentId: string, logId: string) => {
-    let studentForNotice: Student | undefined;
-    let logForNotice: SecurityLog | undefined;
-    const updated = students.map(s => {
-      if (s.id === studentId) {
-        studentForNotice = s;
-        const updatedLogs = (s.securityLogs || []).map(log => {
-          if (log.id === logId) {
-            logForNotice = log;
-            return {
-              ...log,
-              status: 'Aktif / Keluar' as const,
-              signedBy: deptSignature || getStaffConfig('keamanan').signature || 'Petugas Keamanan'
-            };
-          }
-          return log;
-        });
-        return { ...s, securityLogs: updatedLogs };
-      }
-      return s;
+    recordStaffAuditLog({
+      actorName: deptName || session.fullName || 'Petugas Keamanan',
+      actorRole: 'keamanan',
+      actorEmail: session.email,
+      actionType: 'UPDATE_KEPULANGAN',
+      actionTitle: isLate ? 'Status Terlambat Kembali (Kena Ta\'zir)' : 'Status Kembali Tepat Waktu',
+      targetName: studentName,
+      targetId: studentId,
+      description: isLate
+        ? `Menandai santri ${studentName} TERLAMBAT kembali ke pondok dan otomatis mengenakan 5 poin sanksi ta'zir kedisiplinan`
+        : `Mengonfirmasi santri ${studentName} telah KEMBALI ke pondok pesantren tepat waktu`
     });
-    persistStudents(updated);
 
-    if (studentForNotice?.parentPhone && logForNotice) {
-      const rawPhone = studentForNotice.parentPhone.replace(/[^0-9]/g, '');
-      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
-      const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
-      const approveMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nSurat Izin Santri (${logForNotice.permitType}) telah *DISETUJUI & DIVERIFIKASI* oleh Pos Keamanan *${schoolName}*.\n\n*Keperluan:* ${logForNotice.description}\n⏰ *Batas Waktu Kembali:* ${logForNotice.expectedReturnDate || '-'}\n\nMohon bantu memastikan ananda kembali ke pesantren tepat waktu.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Pos Keamanan_`;
-
-      fetch('/api/send-wa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: cleanPhone, message: approveMsg })
-      }).catch(() => {});
-    }
-  };
-
-  const handleRejectPermit = (studentId: string, logId: string) => {
-    let studentForNotice: Student | undefined;
-    let logForNotice: SecurityLog | undefined;
-    const updated = students.map(s => {
-      if (s.id === studentId) {
-        studentForNotice = s;
-        const updatedLogs = (s.securityLogs || []).map(log => {
-          if (log.id === logId) {
-            logForNotice = log;
-            return {
-              ...log,
-              status: 'Ditolak' as const,
-              signedBy: deptSignature || getStaffConfig('keamanan').signature || 'Petugas Keamanan'
-            };
-          }
-          return log;
-        });
-        return { ...s, securityLogs: updatedLogs };
-      }
-      return s;
-    });
-    persistStudents(updated);
-
-    if (studentForNotice?.parentPhone && logForNotice) {
-      const rawPhone = studentForNotice.parentPhone.replace(/[^0-9]/g, '');
-      const cleanPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone.startsWith('62') ? rawPhone : '62' + rawPhone;
-      const schoolName = pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah";
-      const rejectMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${studentForNotice.fullName}*,\n\nPermohonan perizinan santri (${logForNotice.permitType}) untuk keperluan *${logForNotice.description}* saat ini *BELUM DAPAT DISETUJUI / DITOLAK* oleh Pengurus Keamanan *${schoolName}* karena alasan tata tertib atau kuota izin.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Pos Keamanan_`;
-
-      fetch('/api/send-wa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: cleanPhone, message: rejectMsg })
-      }).catch(() => {});
-    }
-  };
-
-  // Delete Log from a student record database
-  const handleDeleteLog = (logId: string, logType: 'security' | 'discipline' | 'health') => {
-    triggerConfirm(
-      'Hapus Catatan Riwayat (Keamanan Ganda)',
-      'PERINGATAN: Menghapus catatan log santri ini dapat mengganggu validitas audit kesiswaan. Untuk menghindari penghapusan tidak sengaja, harap masukkan kata kunci konfirmasi.',
-      () => {
-        const updated = students.map(s => {
-          if (logType === 'security') {
-            return {
-              ...s,
-              securityLogs: (s.securityLogs || []).filter(l => l.id !== logId)
-            };
-          } else if (logType === 'discipline') {
-            return {
-              ...s,
-              disciplineLogs: (s.disciplineLogs || []).filter(l => l.id !== logId)
-            };
-          } else {
-            return {
-              ...s,
-              healthLogs: (s.healthLogs || []).filter(l => l.id !== logId)
-            };
-          }
-        });
-        persistStudents(updated);
-      },
-      'HAPUS'
+    triggerToast(isLate 
+      ? `Santri ${studentName} ditandai TERLAMBAT dan dikenakan sanksi ta'zir kedisiplinan.`
+      : `Santri ${studentName} dikonfirmasi telah KEMBALI di pesantren tepat waktu.`
     );
   };
 
-  // Edit Log inside a student record
-  const handleEditLog = (logId: string, logType: 'security' | 'discipline' | 'health', updatedValues: any) => {
+  // Quick Action: Ketertiban change sanction status
+  const handleUpdateDisciplineStatus = (studentId: string, logId: string, newStatus: 'Belum Diurus' | 'Sedang Mengurus' | 'Selesai') => {
+    let studentName = '';
     const updated = students.map(s => {
-      if (logType === 'security') {
-        const hasLog = (s.securityLogs || []).some(l => l.id === logId);
-        if (hasLog) {
-          const updatedLogs = (s.securityLogs || []).map(l => l.id === logId ? { ...l, ...updatedValues } : l);
-          return { ...s, securityLogs: updatedLogs };
-        }
-      } else if (logType === 'discipline') {
-        const hasLog = (s.disciplineLogs || []).some(l => l.id === logId);
-        if (hasLog) {
-          const updatedLogs = (s.disciplineLogs || []).map(l => l.id === logId ? { ...l, ...updatedValues } : l);
-          return { ...s, disciplineLogs: updatedLogs };
-        }
-      } else {
-        const hasLog = (s.healthLogs || []).some(l => l.id === logId);
-        if (hasLog) {
-          const updatedLogs = (s.healthLogs || []).map(l => l.id === logId ? { ...l, ...updatedValues } : l);
-          return { ...s, healthLogs: updatedLogs };
-        }
-      }
-      return s;
+      if (s.id !== studentId) return s;
+      studentName = s.fullName;
+      const discLogs = (s.disciplineLogs || []).map(log => {
+        if (log.id !== logId) return log;
+        return { ...log, status: newStatus };
+      });
+      return { ...s, disciplineLogs: discLogs };
     });
     persistStudents(updated);
-  };
 
-  // Calculate Violation Points for a student
-  const getDisciplinePoints = (s: Student) => {
-    return (s.disciplineLogs || []).reduce((sum, log) => sum + log.points, 0);
-  };
-
-  // Filtered list of students
-  const filteredStudents = students.filter(s => {
-    if (!s) return false;
-    const term = (searchTerm || '').trim().toLowerCase();
-    if (!term) return true;
-    const nameMatch = s.fullName && String(s.fullName).toLowerCase().includes(term);
-    const nisMatch = s.nis && String(s.nis).includes(term);
-    return Boolean(nameMatch || nisMatch);
-  });
-
-  // All logs compiled for history tab
-  const allSecurityLogs: SecurityLog[] = [];
-  const allDisciplineLogs: DisciplineLog[] = [];
-  const allHealthLogs: HealthLog[] = [];
-
-  students.forEach(s => {
-    if (s.securityLogs) allSecurityLogs.push(...s.securityLogs);
-    if (s.disciplineLogs) allDisciplineLogs.push(...s.disciplineLogs);
-    if (s.healthLogs) allHealthLogs.push(...s.healthLogs);
-  });
-
-  // Sort logs by date descending
-  allSecurityLogs.sort((a,b) => b.id.localeCompare(a.id));
-  allDisciplineLogs.sort((a,b) => b.id.localeCompare(a.id));
-  allHealthLogs.sort((a,b) => b.id.localeCompare(a.id));
-
-  // Find all students who have 'Terlambat' security status logs OR whose active permits are overdue (return date is past now)
-  const violatorsFromDiscipline = React.useMemo(() => {
-    const list: Array<{ student: Student; log: SecurityLog; isPastExpected: boolean }> = [];
-    students.forEach(s => {
-      (s.securityLogs || []).forEach(log => {
-        const isLateStatus = log.status === 'Terlambat';
-        let isPastExpected = false;
-        if (log.status === 'Aktif / Keluar' && log.expectedReturnDate) {
-          try {
-            const returnDate = new Date(log.expectedReturnDate.replace(' ', 'T'));
-            isPastExpected = returnDate < new Date();
-          } catch (e) {
-            // ignore
-          }
-        }
-        if (isLateStatus || isPastExpected) {
-          list.push({ student: s, log, isPastExpected });
-        }
-      });
+    recordStaffAuditLog({
+      actorName: deptName || session.fullName || 'Petugas Ketertiban',
+      actorRole: 'ketertiban',
+      actorEmail: session.email,
+      actionType: 'STATUS_TAZIR',
+      actionTitle: `Update Status Ta'zir (${newStatus})`,
+      targetName: studentName,
+      targetId: studentId,
+      description: `Mengubah status penanganan sanksi ta'zir santri ${studentName} menjadi: "${newStatus}"`
     });
-    return list;
-  }, [students]);
 
-  // Role Theme definitions
-  const roleThemes = {
-    keamanan: {
-      accent: 'emerald',
-      bgTheme: 'bg-emerald-50 text-emerald-800',
-      badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      iconBg: 'bg-emerald-100 text-emerald-700',
-      textAccent: 'text-emerald-700',
-      borderAccent: 'border-emerald-200',
-      title: 'Bidang Keamanan (Pencatatan Pelanggaran & Takzir)',
-      colorClass: 'emerald'
-    },
-    ketertiban: {
-      accent: 'indigo',
-      bgTheme: 'bg-indigo-50 text-indigo-800',
-      badge: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-      iconBg: 'bg-indigo-100 text-indigo-700',
-      textAccent: 'text-indigo-700',
-      borderAccent: 'border-indigo-200',
-      title: 'Biro Ketertiban (Perizinan & Izin Keluar)',
-      colorClass: 'indigo'
-    },
-    kesehatan: {
-      accent: 'rose',
-      bgTheme: 'bg-rose-50 text-rose-800',
-      badge: 'bg-rose-100 text-rose-800 border-rose-200',
-      iconBg: 'bg-rose-100 text-rose-700',
-      textAccent: 'text-rose-700',
-      borderAccent: 'border-rose-200',
-      title: 'Staf Pos Kesehatan Pesantren (Poskestren)',
-      colorClass: 'rose'
-    }
+    triggerToast(`Status sanksi ta'zir diperbarui menjadi: ${newStatus}`);
   };
 
-  const theme = roleThemes[role];
+  // Quick Action: Kesehatan change recovery status
+  const handleUpdateHealthStatus = (studentId: string, logId: string, newStatus: any) => {
+    let studentName = '';
+    const updated = students.map(s => {
+      if (s.id !== studentId) return s;
+      studentName = s.fullName;
+      const healLogs = (s.healthLogs || []).map(log => {
+        if (log.id !== logId) return log;
+        return { ...log, status: newStatus };
+      });
+      return { ...s, healthLogs: healLogs };
+    });
+    persistStudents(updated);
+
+    recordStaffAuditLog({
+      actorName: deptName || session.fullName || 'Petugas Kesehatan',
+      actorRole: 'kesehatan',
+      actorEmail: session.email,
+      actionType: 'STATUS_RAWAT',
+      actionTitle: `Update Status Perawatan Medis (${newStatus})`,
+      targetName: studentName,
+      targetId: studentId,
+      description: `Mengubah status rawat medis santri ${studentName} menjadi: "${newStatus}"`
+    });
+
+    triggerToast(`Status perawatan santri diperbarui menjadi: ${newStatus}`);
+  };
+
+  // Delete Log with confirmation
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = React.useState<{ id: string; studentId: string; type: 'security' | 'discipline' | 'health' } | null>(null);
+
+  const executeDeleteLog = () => {
+    if (!deleteConfirmTarget) return;
+    const { id, studentId, type } = deleteConfirmTarget;
+    let targetName = '';
+    const updated = students.map(s => {
+      if (s.id !== studentId) return s;
+      targetName = s.fullName;
+      if (type === 'security') {
+        return { ...s, securityLogs: (s.securityLogs || []).filter(l => l.id !== id) };
+      }
+      if (type === 'discipline') {
+        return { ...s, disciplineLogs: (s.disciplineLogs || []).filter(l => l.id !== id) };
+      }
+      return { ...s, healthLogs: (s.healthLogs || []).filter(l => l.id !== id) };
+    });
+    persistStudents(updated);
+
+    recordStaffAuditLog({
+      actorName: deptName || session.fullName || `Petugas ${role}`,
+      actorRole: role,
+      actorEmail: session.email,
+      actionType: 'HAPUS_DATA',
+      actionTitle: `Hapus Catatan ${type === 'security' ? 'Perizinan' : type === 'discipline' ? 'Pelanggaran' : 'Kesehatan'}`,
+      targetName,
+      targetId: studentId,
+      description: `Menghapus 1 entri catatan riwayat ${type} santri ${targetName}`
+    });
+
+    setDeleteConfirmTarget(null);
+    triggerToast('Data riwayat berhasil dihapus.');
+  };
+
+  // Print popup states
+  const [printSecurityTarget, setPrintSecurityTarget] = React.useState<SecurityLog | null>(null);
+  const [printDisciplineTarget, setPrintDisciplineTarget] = React.useState<DisciplineLog | null>(null);
+  const [printHealthTarget, setPrintHealthTarget] = React.useState<HealthLog | null>(null);
+
+  // Month-filtered logs for the current role
+  const allLogsForRole = React.useMemo(() => {
+    const result: Array<{
+      id: string;
+      studentId: string;
+      studentName: string;
+      student?: Student;
+      date: string;
+      typeLabel: string;
+      desc: string;
+      status: string;
+      points?: number;
+      raw: any;
+    }> = [];
+
+    students.forEach(s => {
+      if (role === 'keamanan' && s.securityLogs) {
+        s.securityLogs.forEach(l => {
+          const logDate = l.outDate ? l.outDate.split(' ')[0] : (l.actualReturnDate ? l.actualReturnDate.split(' ')[0] : '');
+          result.push({
+            id: l.id,
+            studentId: s.id,
+            studentName: s.fullName,
+            student: s,
+            date: logDate,
+            typeLabel: l.permitType,
+            desc: l.description,
+            status: l.status,
+            raw: l
+          });
+        });
+      } else if (role === 'ketertiban' && s.disciplineLogs) {
+        s.disciplineLogs.forEach(l => {
+          result.push({
+            id: l.id,
+            studentId: s.id,
+            studentName: s.fullName,
+            student: s,
+            date: l.date,
+            typeLabel: `${l.level} (${l.points} Pts)`,
+            desc: `${l.violationType} - Sanksi: ${l.consequence}`,
+            status: l.status,
+            points: l.points,
+            raw: l
+          });
+        });
+      } else if (role === 'kesehatan' && s.healthLogs) {
+        s.healthLogs.forEach(l => {
+          result.push({
+            id: l.id,
+            studentId: s.id,
+            studentName: s.fullName,
+            student: s,
+            date: l.date,
+            typeLabel: l.status,
+            desc: `Keluhan: ${l.complaint} | Diagnosa: ${l.diagnosis} | Terapi: ${l.treatment}`,
+            status: l.status,
+            raw: l
+          });
+        });
+      }
+    });
+
+    // Sort by id / date descending
+    result.sort((a, b) => b.id.localeCompare(a.id));
+    return result;
+  }, [students, role]);
+
+  // Current Month Logs (for dashboard initial view & early month refresh)
+  const currentMonthLogs = React.useMemo(() => {
+    const prefix = `${currentYearNum}-${currentMonthNum}`;
+    return allLogsForRole.filter(l => l.date && l.date.startsWith(prefix));
+  }, [allLogsForRole, currentYearNum, currentMonthNum]);
+
+  // Selected Month Report Logs
+  const selectedMonthLogs = React.useMemo(() => {
+    if (selectedMonth === 'ALL') {
+      if (selectedYear === 'ALL') return allLogsForRole;
+      return allLogsForRole.filter(l => l.date && l.date.startsWith(selectedYear));
+    }
+    const prefix = `${selectedYear}-${selectedMonth}`;
+    return allLogsForRole.filter(l => l.date && l.date.startsWith(prefix));
+  }, [allLogsForRole, selectedMonth, selectedYear]);
+
+  // Active / Urgent Cases requiring attention
+  const activeCasesForRole = React.useMemo(() => {
+    if (role === 'keamanan') {
+      // Santri currently out
+      return allLogsForRole.filter(l => l.status === 'Aktif / Keluar' || l.status === 'Terlambat');
+    }
+    if (role === 'ketertiban') {
+      // Santri with unresolved violations
+      return allLogsForRole.filter(l => l.status === 'Belum Diurus' || l.status === 'Sedang Mengurus');
+    }
+    // Kesehatan: Santri currently being treated
+    return allLogsForRole.filter(l => l.status === 'Rawat Jalan (Kamar)' || l.status === 'Nginap di Poskestren');
+  }, [allLogsForRole, role]);
+
+  // General search term on Dashboard student list
+  const [dashSearchTerm, setDashSearchTerm] = React.useState('');
+  const filteredStudentsForDash = React.useMemo(() => {
+    const q = dashSearchTerm.trim().toLowerCase();
+    if (!q) return [];
+    return students.filter(s => {
+      if (!s || s.status === 'Alumni') return false;
+      const nMatch = s.fullName && s.fullName.toLowerCase().includes(q);
+      const nisMatch = s.nis && String(s.nis).toLowerCase().includes(q);
+      const kMatch = s.kamar && s.kamar.toLowerCase().includes(q);
+      const cMatch = s.class && s.class.toLowerCase().includes(q);
+      return Boolean(nMatch || nisMatch || kMatch || cMatch);
+    });
+  }, [students, dashSearchTerm]);
+
+  // Selected student for detail preview
+  const [previewStudent, setPreviewStudent] = React.useState<Student | null>(null);
 
   return (
-    <div className="min-h-screen bg-slate-50/70 font-sans p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50/70 font-sans pb-16">
       
-      {/* Sapaan Salam Friendly */}
-      <div className="mb-6 font-sans text-left bg-gradient-to-r from-emerald-800 to-emerald-950 p-5 rounded-2xl border border-emerald-950 flex items-center gap-4 shadow-md text-white animate-fade-in">
-        
-        <div>
-          <h2 className="text-sm font-black tracking-wide uppercase">
-            Assalamu'alaikum Wr. Wb. Selamat berkhidmah, <span className="text-amber-300 underline decoration-amber-400 decoration-2 font-black">{deptName || 'Ustadz Pengurus'}</span>!
-          </h2>
-          <p className="text-emerald-100 text-xs mt-1 leading-relaxed font-medium">
-            Selamat mengabdi selaku <strong className="text-amber-200 uppercase font-extrabold">{role === 'keamanan' ? 'Kepala Bidang Keamanan & Ketertiban (Kamtib)' : role === 'ketertiban' ? 'Kepala Bidang Ketertiban Santri & Perizinan' : 'Kepala Bidang Layanan Medis Poskestren'}</strong>. Semoga segala pengabdian tulus Anda dalam membina ketertiban, keamanan, dan kesehatan para santri senantiasa diridhoi Allah SWT serta membawa berkah.
-          </p>
+      {/* Toast Notification */}
+      {actionSuccessToast && (
+        <div className="fixed top-20 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 flex items-center gap-2.5 text-xs animate-fade-in font-medium">
+          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+          <span>{actionSuccessToast}</span>
+        </div>
+      )}
+
+      {/* TOP ROLE HEADER & TAB NAVIGATION */}
+      <div className="bg-gradient-to-r from-emerald-900 via-teal-950 to-slate-950 text-white border-b border-emerald-950/60 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            
+            <div className="flex items-center gap-3.5">
+              <div className="h-12 w-12 rounded-2xl bg-emerald-800/80 border border-emerald-500/30 flex items-center justify-center text-amber-300 shadow-inner shrink-0">
+                {role === 'keamanan' && <Shield className="h-6 w-6" />}
+                {role === 'ketertiban' && <AlertTriangle className="h-6 w-6" />}
+                {role === 'kesehatan' && <Heart className="h-6 w-6" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-base sm:text-lg font-black tracking-wide text-white uppercase font-sans">
+                    {currentRoleInfo.roleTitle}
+                  </h1>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black uppercase">
+                    KODE: {currentRoleInfo.code}
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-200/90 font-medium mt-0.5">
+                  Berkhidmah: <strong className="text-amber-200 font-bold">{deptName || currentRoleInfo.defaultName}</strong> • {currentRoleInfo.subTitle}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Action Button */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => openInputModal()}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>
+                  {role === 'keamanan' && 'Input Izin Keluar'}
+                  {role === 'ketertiban' && 'Input Catatan Takzir'}
+                  {role === 'kesehatan' && 'Input Catatan Medis'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-Tabs Bar */}
+          <div className="flex items-center gap-1 mt-6 border-b border-emerald-800/60 overflow-x-auto text-xs font-bold no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setTab('students')}
+              className={`px-4 py-2.5 border-b-2 transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                currentTab === 'students'
+                  ? 'border-amber-400 text-amber-300 font-black bg-white/5'
+                  : 'border-transparent text-emerald-100/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Activity className="h-4 w-4" />
+              <span>Dashboard & Input Santri</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab('history')}
+              className={`px-4 py-2.5 border-b-2 transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                currentTab === 'history'
+                  ? 'border-amber-400 text-amber-300 font-black bg-white/5'
+                  : 'border-transparent text-emerald-100/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>Riwayat & Laporan Bulanan</span>
+              {currentMonthLogs.length > 0 && (
+                <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-700 text-white font-mono font-bold">
+                  {currentMonthLogs.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab('letters')}
+              className={`px-4 py-2.5 border-b-2 transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                currentTab === 'letters'
+                  ? 'border-amber-400 text-amber-300 font-black bg-white/5'
+                  : 'border-transparent text-emerald-100/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Printer className="h-4 w-4" />
+              <span>Penerbitan & Draf Surat</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab('profile')}
+              className={`px-4 py-2.5 border-b-2 transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                currentTab === 'profile'
+                  ? 'border-amber-400 text-amber-300 font-black bg-white/5'
+                  : 'border-transparent text-emerald-100/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Signature className="h-4 w-4" />
+              <span>Profil & TTD Jabatan</span>
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* MAIN CONTENT AREA */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
 
+        {/* ========================================================================= */}
+        {/* TAB 1: DASHBOARD UTAMA & MONITORING AKTIF                                  */}
+        {/* ========================================================================= */}
+        {currentTab === 'students' && (
+          <div className="space-y-6 animate-fade-in">
 
-      {/* Sub Tab: Profile Settings */}
-      {activeSubTab === 'profile' && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 max-w-xl animate-fade-in">
-          <div className="flex items-center gap-2.5 border-b border-dashed border-slate-100 pb-3 mb-4">
-            <Signature className="h-5 w-5 text-emerald-700" />
-            <h2 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Pengaturan Profil & Draf Surat</h2>
-          </div>
-          {profileSaveSuccess && (
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-bold animate-fade-in flex items-center gap-2">
-              <Check className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span>{profileSaveSuccess}</span>
+            {/* Monthly Reset Banner / Indicator */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-100">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-mono font-bold text-slate-400">Periode Operasional Berjalan</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-bold">Auto-Refresh Awal Bulan</span>
+                  </div>
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Bulan {currentMonthName} {currentYearNum}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                <span>Total Santri Aktif Pesantren: <strong className="text-slate-900 font-bold">{students.filter(s => s.status !== 'Alumni').length}</strong> Santri</span>
+                <button
+                  type="button"
+                  onClick={() => openInputModal()}
+                  className="ml-2 px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Input Data Santri</span>
+                </button>
+              </div>
             </div>
-          )}
-          <form onSubmit={handleSaveProfile} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Nama Resmi Pengurus</label>
-              <input
-                type="text"
-                required
-                value={deptName}
-                onChange={(e) => setDeptName(e.target.value)}
-                placeholder="Contoh: Ustadz Hasanuddin, S.Pd"
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
-              />
-            </div>
 
-            {/* Custom Wording / Templates */}
-            <div className="border-t border-dashed border-slate-200 pt-4 space-y-4">
-              <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                Edit Redaksi / Isi Kata dalam Surat
-              </h3>
-              <p className="text-[10px] text-slate-500">
-                Sesuaikan kata-kata baku yang dicantumkan pada surat resmi yang diterbitkan oleh bidang Anda.
-              </p>
+            {/* 4 SUMMARY METRIC CARDS (ROLE-SPECIFIC, ZERO-PILL DISCIPLINE) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  {role === 'ketertiban' ? 'Redaksi Surat Izin (Keluar Pondok)' :
-                   role === 'keamanan' ? 'Pernyataan Pembuka Surat Sanksi / Takzir' :
-                   'Pernyataan Pembuka Surat Keterangan Sakit'}
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  value={letterTemplate1}
-                  onChange={(e) => setLetterTemplate1(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 font-sans"
-                />
+              {/* Card 1 */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  {role === 'keamanan' && 'Santri Sedang di Luar'}
+                  {role === 'ketertiban' && 'Pelanggaran Belum Diurus'}
+                  {role === 'kesehatan' && 'Sedang Rawat / Sakit'}
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
+                    {activeCasesForRole.length}
+                  </span>
+                  <span className="text-[11px] text-amber-700 font-bold">Aktif Dipantau</span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  {role === 'keamanan' && 'Memerlukan pengecekan saat kembali'}
+                  {role === 'ketertiban' && 'Menunggu penyelesaian sanksi ta\'zir'}
+                  {role === 'kesehatan' && 'Dalam pengawasan medis poskestren'}
+                </p>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  {role === 'ketertiban' ? 'Catatan / Ketentuan Tambahan (Bawah Surat Izin)' :
-                   role === 'keamanan' ? 'Ketentuan Penting Sanksi & Takzir (Bawah)' :
-                   'Rekomendasi Medis / Istirahat Sakit (Bawah)'}
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  value={letterTemplate2}
-                  onChange={(e) => setLetterTemplate2(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 font-sans"
-                />
+              {/* Card 2 */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  {role === 'keamanan' && `Izin Keluar (${currentMonthName})`}
+                  {role === 'ketertiban' && `Kasus (${currentMonthName})`}
+                  {role === 'kesehatan' && `Kunjungan (${currentMonthName})`}
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-emerald-800 font-mono">
+                    {currentMonthLogs.length}
+                  </span>
+                  <span className="text-[11px] text-emerald-700 font-bold">Bulan Ini</span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Total tercatat periode {currentMonthName} {currentYearNum}
+                </p>
+              </div>
+
+              {/* Card 3 */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  {role === 'keamanan' && 'Terlambat Kembali'}
+                  {role === 'ketertiban' && 'Akumulasi Poin Bulan Ini'}
+                  {role === 'kesehatan' && 'Opname / Rawat Inap'}
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-rose-800 font-mono">
+                    {role === 'keamanan' && allLogsForRole.filter(l => l.status === 'Terlambat').length}
+                    {role === 'ketertiban' && currentMonthLogs.reduce((sum, l) => sum + (l.points || 0), 0)}
+                    {role === 'kesehatan' && allLogsForRole.filter(l => l.status === 'Nginap di Poskestren').length}
+                  </span>
+                  <span className="text-[11px] text-rose-700 font-bold">
+                    {role === 'ketertiban' ? 'Poin' : 'Perlu Tindakan'}
+                  </span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  {role === 'keamanan' && 'Telah lewat batas waktu kembali'}
+                  {role === 'ketertiban' && 'Total bobot pelanggaran bulan ini'}
+                  {role === 'kesehatan' && 'Santri menginap di pos kesehatan'}
+                </p>
+              </div>
+
+              {/* Card 4 */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  {role === 'keamanan' && 'Selesai Tepat Waktu'}
+                  {role === 'ketertiban' && 'Ta\'zir Telah Diputihkan'}
+                  {role === 'kesehatan' && 'Sembuh & Selesai'}
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
+                    {role === 'keamanan' && allLogsForRole.filter(l => l.status === 'Kembali').length}
+                    {role === 'ketertiban' && allLogsForRole.filter(l => l.status === 'Selesai').length}
+                    {role === 'kesehatan' && allLogsForRole.filter(l => l.status === 'Rawat Jalan (Kamar)' || l.status === 'Dirujuk ke RS / Pulang').length}
+                  </span>
+                  <span className="text-[11px] text-slate-600 font-bold">Total Selesai</span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  {role === 'keamanan' && 'Telah kembali ke pondok'}
+                  {role === 'ketertiban' && 'Sanksi tuntas dilaksanakan'}
+                  {role === 'kesehatan' && 'Santri telah kembali belajar'}
+                </p>
               </div>
             </div>
 
-            <button
-              type="submit"
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-850 to-teal-900 hover:from-emerald-800 hover:to-teal-800 text-white rounded-lg text-xs font-bold shadow-md transition-all active:scale-95 cursor-pointer w-full text-center uppercase"
-            >
-              Simpan Identitas & Template Surat
-            </button>
-          </form>
-        </div>
-      )}
+            {/* TABEL 1: KASUS AKTIF / MEMERLUKAN PERHATIAN SEGERA */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/50">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                    <span>
+                      {role === 'keamanan' && 'Daftar Santri Sedang Izin Keluar (Perlu Kontrol Pos)'}
+                      {role === 'ketertiban' && 'Daftar Sanksi Ta\'zir Aktif yang Belum Selesai'}
+                      {role === 'kesehatan' && 'Daftar Santri dalam Perawatan Poskestren'}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Data dipantau langsung untuk ketertiban dan akuntabilitas kepengurusan pesantren.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold text-slate-600">
+                  Total: {activeCasesForRole.length} Santri
+                </span>
+              </div>
 
-      {/* Sub Tab: SKCK Penerbitan or Takzir Letter */}
-      {((activeSubTab === 'skck' || activeSubTab === 'takzir_letter')) && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 max-w-3xl space-y-6 animate-fade-in">
-          <div className="flex items-center gap-2 border-b border-dashed border-slate-150 pb-3">
-            <Shield className="h-5 w-5 text-emerald-800" />
-            <h2 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">
-              {activeSubTab === 'skck' 
-                ? "Layanan Administrasi SKCK (Surat Keterangan Catatan Kelakuan Baik)" 
-                : "Layanan Rekam Jejak Takzir & Kedisiplinan"}
-            </h2>
-          </div>
+              {activeCasesForRole.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+                  <p className="font-bold text-slate-700">Alhamdulillah, tidak ada santri yang berstatus aktif/tertunggak.</p>
+                  <p className="text-[11px] mt-1">Semua data santri dalam kondisi tertib dan telah terselesaikan.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200/80 text-slate-500 font-bold uppercase tracking-wider bg-slate-50/70 text-[10px]">
+                        <th className="py-3 px-4">Nama Santri & NIS</th>
+                        <th className="py-3 px-4">Kamar / Kelas</th>
+                        <th className="py-3 px-4">
+                          {role === 'keamanan' && 'Jenis & Keperluan Izin'}
+                          {role === 'ketertiban' && 'Pelanggaran & Ta\'zir'}
+                          {role === 'kesehatan' && 'Keluhan & Diagnosa'}
+                        </th>
+                        <th className="py-3 px-4">
+                          {role === 'keamanan' && 'Waktu Keluar / Batas Kembali'}
+                          {role === 'ketertiban' && 'Tanggal / Poin Ta\'zir'}
+                          {role === 'kesehatan' && 'Tanggal & Rekomendasi'}
+                        </th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-right">Aksi Cepat</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {activeCasesForRole.map(item => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3 px-4">
+                            <strong className="text-slate-900 block font-bold">{item.studentName}</strong>
+                            <span className="text-[10px] font-mono text-emerald-800 font-bold">NIS: {item.student?.nis || '-'}</span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 font-medium">
+                            <div>{item.student?.kamar || 'Kamar -'}</div>
+                            <div className="text-[10px] text-slate-400">{item.student?.class || '-'}</div>
+                          </td>
+                          <td className="py-3 px-4 max-w-xs">
+                            <span className="font-bold text-slate-800 block text-[11px]">{item.typeLabel}</span>
+                            <span className="text-[11px] text-slate-500 line-clamp-2">{item.desc}</span>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-[11px]">
+                            {role === 'keamanan' ? (
+                              <div>
+                                <div className="text-slate-500">Keluar: {item.raw?.outDate}</div>
+                                <div className="font-bold text-rose-700">Kembali: {item.raw?.expectedReturnDate}</div>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="text-slate-900 font-bold">{item.date}</div>
+                                {item.points && <div className="text-rose-700 font-bold">{item.points} Poin Sanksi</div>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              item.status === 'Terlambat' ? 'bg-rose-100 text-rose-800' :
+                              item.status === 'Aktif / Keluar' ? 'bg-amber-100 text-amber-900' :
+                              item.status === 'Belum Diurus' ? 'bg-rose-100 text-rose-800' :
+                              item.status === 'Sedang Mengurus' ? 'bg-blue-100 text-blue-900' :
+                              'bg-emerald-100 text-emerald-900'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Keamanan quick action */}
+                              {role === 'keamanan' && item.status === 'Aktif / Keluar' && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateReturnStatus(item.studentId, item.id, false)}
+                                    className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[10px] font-bold cursor-pointer transition shadow-xs"
+                                    title="Santri sudah tiba di pondok tepat waktu"
+                                  >
+                                    Kembali Tepat Waktu
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateReturnStatus(item.studentId, item.id, true)}
+                                    className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold cursor-pointer transition shadow-xs"
+                                    title="Santri terlambat dari batas waktu izin"
+                                  >
+                                    Terlambat
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPrintSecurityTarget(item.raw)}
+                                    className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                                    title="Cetak Slip Izin"
+                                  >
+                                    <Printer className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              )}
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Cari / Input NIS Santri</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                              {/* Ketertiban quick action */}
+                              {role === 'ketertiban' && (
+                                <>
+                                  <select
+                                    value={item.status}
+                                    onChange={(e) => handleUpdateDisciplineStatus(item.studentId, item.id, e.target.value as any)}
+                                    className="px-2 py-1 text-[10px] font-bold border border-slate-200 rounded-lg bg-white text-slate-800 cursor-pointer"
+                                  >
+                                    <option value="Belum Diurus">Belum Diurus</option>
+                                    <option value="Sedang Mengurus">Sedang Mengurus</option>
+                                    <option value="Selesai">Selesai (Pemutihan)</option>
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPrintDisciplineTarget(item.raw)}
+                                    className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                                    title="Cetak Surat Sanksi Ta'zir"
+                                  >
+                                    <Printer className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Kesehatan quick action */}
+                              {role === 'kesehatan' && (
+                                <>
+                                  <select
+                                    value={item.status}
+                                    onChange={(e) => handleUpdateHealthStatus(item.studentId, item.id, e.target.value)}
+                                    className="px-2 py-1 text-[10px] font-bold border border-slate-200 rounded-lg bg-white text-slate-800 cursor-pointer"
+                                  >
+                                    <option value="Rawat Jalan (Kamar)">Rawat Jalan (Kamar)</option>
+                                    <option value="Nginap di Poskestren">Opname Poskestren</option>
+                                    <option value="Dirujuk ke RS / Pulang">Dirujuk RS / Pulang</option>
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPrintHealthTarget(item.raw)}
+                                    className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                                    title="Cetak Surat Keterangan Sakit"
+                                  >
+                                    <Printer className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* PENCARIAN & INPUT CEPAT SANTRI */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-emerald-800" />
+                    <span>Cari Santri untuk Input Data Baru</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Cari santri berdasarkan Nama, NIS, Kamar, atau Kelas untuk membuka formulir input instan.
+                  </p>
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Ketik NIS santri atau nama..."
-                    value={skckNis}
-                    onChange={(e) => setSkckNis(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 focus:outline-none font-mono text-slate-900"
+                    placeholder="Ketik Nama, NIS, atau Kamar..."
+                    value={dashSearchTerm}
+                    onChange={(e) => setDashSearchTerm(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
                   />
+                  {dashSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setDashSearchTerm('')}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 
+              {!dashSearchTerm.trim() ? (
+                <div className="p-6 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-center">
+                  <Search className="h-6 w-6 text-slate-400 mx-auto mb-1.5" />
+                  <p className="text-xs font-bold text-slate-700">Ketik Nama atau NIS Santri di Kolom Pencarian</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Hanya menampilkan data yang relevan agar halaman tetap ringan dan cepat.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => openInputModal()}
+                    className="mt-3 px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Atau Buka Modal Input Langsung</span>
+                  </button>
+                </div>
+              ) : filteredStudentsForDash.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 text-xs bg-rose-50/30 rounded-xl border border-dashed border-rose-200">
+                  <p className="font-bold text-rose-800">Santri tidak ditemukan</p>
+                  <p className="text-[11px] mt-0.5">Tidak ada kecocokan dengan kueri "{dashSearchTerm}".</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredStudentsForDash.slice(0, 12).map(std => {
+                    const secCount = (std.securityLogs || []).length;
+                    const discCount = (std.disciplineLogs || []).length;
+                    const pts = (std.disciplineLogs || []).reduce((sum, d) => sum + d.points, 0);
+                    const healCount = (std.healthLogs || []).length;
+
+                    return (
+                      <div key={std.id} className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition bg-white flex flex-col justify-between gap-3">
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <strong className="text-xs font-bold text-slate-900 block">{std.fullName}</strong>
+                              <span className="text-[10px] font-mono text-emerald-800 font-bold">NIS: {std.nis || '-'}</span>
+                            </div>
+                            <span className="text-[9px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold">
+                              {std.kamar || 'Kamar -'}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            Kelas: {std.class || '-'} • Wali: {std.parentName || '-'}
+                          </div>
+
+                          {/* Quick summary for role */}
+                          <div className="mt-2 pt-2 border-t border-dashed border-slate-100 flex items-center gap-2 text-[10px] text-slate-600">
+                            {role === 'keamanan' && (
+                              <span>Total Izin Keluar: <strong className="text-slate-900">{secCount} kali</strong></span>
+                            )}
+                            {role === 'ketertiban' && (
+                              <span>Total Pelanggaran: <strong className={pts > 10 ? 'text-rose-700 font-bold' : 'text-slate-900'}>{discCount} ({pts} Pts)</strong></span>
+                            )}
+                            {role === 'kesehatan' && (
+                              <span>Catatan Medis: <strong className="text-slate-900">{healCount} kali</strong></span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => openInputModal(std)}
+                            className="flex-1 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold text-center transition flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="h-3 w-3" />
+                            <span>Input untuk Santri Ini</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: RIWAYAT DATA & LAPORAN BULANAN (DENGAN FILTER BULAN SPESIFIK)       */}
+        {/* ========================================================================= */}
+        {currentTab === 'history' && (
+          <div className="space-y-6 animate-fade-in">
+            
+            {/* MONTH SELECTOR BAR & REPORT ACTIONS */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Atau Pilih dari Daftar Santri</label>
-                <select
-                  value={skckNis}
-                  onChange={(e) => setSkckNis(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 focus:outline-none bg-white text-slate-800 font-semibold"
-                >
-                  <option value="">-- Pilih Santri ({students.length} Santri) --</option>
-                  {students.map(s => (
-                    <option key={s.id} value={s.nis || s.fullName}>
-                      {s.fullName} {s.nis ? `(${s.nis})` : ''} - Kamar {s.kamar || '-'}
-                    </option>
-                  ))}
-                </select>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-800" />
+                  <span>Rekapitulasi & Laporan Bulanan {currentRoleInfo.roleTitle}</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Pilih bulan dan tahun di bawah ini untuk melihat dan mencetak laporan resmi pada periode tertentu.
+                </p>
               </div>
-            </div>
 
-            {(() => {
-              const cleanQuery = (skckNis || '').trim().toLowerCase();
-              const matchedStudent = cleanQuery === '' ? null : students.find(s => 
-                (s.nis && String(s.nis).trim().toLowerCase() === cleanQuery) ||
-                (s.fullName && String(s.fullName).toLowerCase().includes(cleanQuery)) ||
-                (s.id && s.id === cleanQuery)
-              );
-              if (!matchedStudent) {
-                if (skckNis.trim()) {
-                  return (
-                    <div className="text-xs text-red-600 bg-red-50 p-3 rounded font-medium">
-                      Santri dengan NIS atau nama "{skckNis}" tidak ditemukan di basis data Pesantren.
-                    </div>
-                  );
-                }
-                return (
-                  <div className="text-xs text-slate-500 bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-center font-medium">
-                    Masukkan NIS santri di atas atau pilih santri dari menu pilihan untuk menampilkan surat.
-                  </div>
-                );
-              }
-
-              // Filter active (unresolved) logs
-              const activeLogs = (matchedStudent.disciplineLogs || []).filter(log => log.status !== 'Selesai');
-              const hasActiveViolations = activeLogs.length > 0;
-              const pts = (matchedStudent.disciplineLogs || []).reduce((acc, log) => acc + log.points, 0);
-
-              return (
-                <div className="space-y-4 border-t border-slate-100 pt-4 font-sans">
-                  <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/70 space-y-2">
-                    <h4 className="font-bold text-xs text-slate-900 border-b border-emerald-100 pb-1.5 uppercase tracking-wide">Data Profil Terverifikasi</h4>
-                    <div className="grid grid-cols-3 gap-y-1.5 text-xs text-slate-805">
-                      <span className="font-medium text-slate-500">Nama Lengkap</span>
-                      <span className="col-span-2 font-bold text-slate-900">: {matchedStudent.fullName}</span>
-                      
-                      <span className="font-medium text-slate-500">NIS (4 Digit)</span>
-                      <span className="col-span-2 font-mono font-extrabold text-emerald-950">: {matchedStudent.nis}</span>
-                      
-                      <span className="font-medium text-slate-500">Kelas Pagi Sore</span>
-                      <span className="col-span-2 font-bold px-1.5 py-0.5 bg-emerald-100 border border-emerald-250 text-emerald-950 rounded uppercase text-[10px] w-fit">: {matchedStudent.class}</span>
-
-                      <span className="font-medium text-slate-500">Orang Tua / Wali</span>
-                      <span className="col-span-2">: {matchedStudent.parentName}</span>
-
-                      <span className="font-medium text-slate-555">Pembawa/Wali No. HP</span>
-                      <span className="col-span-2 font-mono">{matchedStudent.parentPhone}</span>
-
-                      <span className="font-medium text-slate-500">Status Kedisiplinan</span>
-                      <span className="col-span-2">
-                        <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
-                          hasActiveViolations ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                        }`}>
-                          {hasActiveViolations 
-                            ? `${activeLogs.length} Pelanggaran Aktif (Perlu Bimbingan)` 
-                            : 'Sangat Baik (Bebas Pelanggaran Aktif)'}
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-
-                  {activeSubTab === 'skck' && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Ketik Alasan / Keperluan (Bisa Diedit Sesuka Anda)</label>
-                      <textarea
-                        required
-                        value={skckReason}
-                        onChange={(e) => setSkckReason(e.target.value)}
-                        placeholder="Contoh: Digunakan sebagai syarat sah pemindahan domisili pondok dan melanjutkan studi di Perguruan Tinggi Agama Islam."
-                        rows={3}
-                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 text-slate-850"
-                      />
-                    </div>
-                  )}
-
-                  {/* Editor helpful tip inside SKCK page */}
-                  {(!hasActiveViolations || activeSubTab === 'takzir_letter') && (
-                    <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-2.5 text-[11px] font-sans flex items-center gap-2">
-                      
-                      <span><strong>Kolom Editor Surat Interaktif:</strong> Paragraf surat di bawah ini dapat diklik dan diedit kata-katanya secara langsung di layar sebelum dicetak / diunduh.</span>
-                    </div>
-                  )}
-
-                  {activeSubTab === 'skck' && hasActiveViolations ? (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-xs text-amber-950 font-sans space-y-3">
-                      <p className="font-extrabold text-sm flex items-center gap-1.5 text-amber-950">️ PENERBITAN SKCK TERKUNCI (SANKSI BELUM SELESAI)</p>
-                      <p>Santri <strong>{matchedStudent.fullName}</strong> saat ini tercatat memiliki {activeLogs.length} catatan pelanggaran yang <strong>belum diselesaikan (status: Belum Diurus atau Sedang Mengurus)</strong>.</p>
-                      <p className="text-[11.5px] text-amber-900 leading-relaxed">Sesuai peraturan pesantren, Surat Keterangan Catatan Keamanan / Kelakuan Baik (SKCK) hanya dapat dicetak apabila seluruh bimbingan sanksi ta'zir santri telah dinyatakan <strong>Selesai</strong> oleh Bagian Keamanan.</p>
-                      <p>Silakan selesaikan pengurusan sanksi terlebih dahulu atau cetak <strong>Surat Rekam Jejak Takzir</strong> untuk santri ini melalui menu Rekam Jejak Takzir.</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Document Print Area */}
-                      <div className="border border-slate-300 rounded-xl p-6 bg-white font-serif shadow-xs text-slate-900 relative" id="skck-print-area">
-                    <div className="text-center border-b-2 border-slate-950 pb-3 mb-4 animate-fade-in">
-                      <h2 className="font-extrabold text-base uppercase leading-tight font-sans text-slate-950">{pesantrenSettings.namaYayasan || "YAYASAN AL-ASY'ARIYAH"}</h2>
-                      <h3 className="font-black text-sm uppercase leading-tight font-sans text-slate-900">{pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h3>
-                      <p className="text-[10px] italic font-sans text-slate-600 font-bold tracking-wider uppercase">Lembaga Keamanan, Ketertiban, dan Kedisplinan Santri (LKSD)</p>
-                      <p className="text-[8px] font-sans text-slate-600 mt-0.5 font-medium">
-                        {pesantrenSettings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur"}
-                      </p>
-                      <p className="text-[8px] font-sans text-slate-600 font-medium">
-                        Telp: {pesantrenSettings.phone || "(0291) 438291"} | Email: {pesantrenSettings.email || "info@alasyariyah.sch.id"}
-                      </p>
-                    </div>
-
-                    {(activeSubTab === 'takzir_letter') ? (
-                      /* ADAPTIVE TYPE A: SURAT REKAP PELANGGARAN & PANDUAN PEMUTIHAN SANKSI (If they have violations) */
-                      <>
-                        <div className="text-center mb-5 font-serif animate-fade-in">
-                          <h4 className="font-black text-xs sm:text-sm tracking-wide underline uppercase text-slate-950 block">SURAT KETERANGAN REKAM JEJAK KEDISIPLINAN & BIMBINGAN SANKSI TA'ZIR</h4>
-                          <p className="text-[10px] font-mono mt-0.5 text-slate-500">Nomor: {getLetterNumber(matchedStudent.id + '_KTT', 'Surat Rekap Sanksi Ta\'zir', 'KTT')}</p>
-                        </div>
-
-                        <div className="space-y-4 text-xs leading-relaxed font-serif text-justify animate-fade-in">
-                          <p 
-                            contentEditable={true} 
-                            suppressContentEditableWarning={true}
-                            className="indent-8 text-slate-950 font-serif focus:bg-amber-50/20 focus:outline-none focus:ring-1 focus:ring-slate-350 p-1 rounded cursor-text"
-                          >
-                            Berdasarkan pencatatan resmi harian dan hasil penilaian berkala kesiswaan oleh Bagian Keamanan Pondok Pesantren Al-Asy'ariyah, dengan ini menerangkan dengan sebenarnya bahwa santri yang bersangkutan di bawah ini:
-                          </p>
-
-                          <table className="w-full max-w-lg mx-auto font-sans text-xs border-collapse my-2">
-                            <tbody>
-                              <tr className="border-b border-slate-200">
-                                <td className="py-2 px-2 font-bold text-slate-500 text-left">NIS (4 DIGIT)</td>
-                                <td className="py-2 px-2 font-mono font-black text-emerald-900 text-left">: {matchedStudent.nis}</td>
-                              </tr>
-                              <tr className="border-b border-slate-200">
-                                <td className="py-2 px-2 font-bold text-slate-500 w-1/3 text-left">NAMA LENGKAP</td>
-                                <td className="py-2 px-2 font-black text-slate-950 text-left">: {matchedStudent.fullName}</td>
-                              </tr>
-                              <tr className="border-b border-slate-200">
-                                <td className="py-2 px-2 font-bold text-slate-500 text-left">KELAS / ASRAMA</td>
-                                <td className="py-2 px-2 font-semibold text-slate-800 text-left">: {matchedStudent.class} {matchedStudent.kamar ? `/ ${matchedStudent.kamar}` : ''}</td>
-                              </tr>
-                              <tr className="border-b border-slate-200">
-                                <td className="py-2 px-2 font-bold text-slate-500 text-left">WALI / ORANG TUA</td>
-                                <td className="py-2 px-2 text-left">: {matchedStudent.parentName}</td>
-                              </tr>
-                            </tbody>
-                          </table>
-
-                          <p className="text-slate-950 font-serif">
-                            Dinyatakan memiliki <strong>{(matchedStudent.disciplineLogs || []).filter(log => log.status !== 'Selesai').length} catatan pelanggaran aktif (belum selesai)</strong> dengan total bobot kedisiplinan sebesar <strong className="text-red-700 font-bold">{(matchedStudent.disciplineLogs || []).filter(log => log.status !== 'Selesai').reduce((acc, log) => acc + log.points, 0)} Point Ta'zir</strong>. Berikut rincian pelanggaran yang belum diputihkan:
-                          </p>
-
-                          <div className="border border-slate-300 rounded-lg overflow-hidden font-sans my-2">
-                            <table className="w-full text-left text-[10px] border-collapse bg-slate-50/50">
-                              <thead>
-                                <tr className="bg-slate-100 text-slate-600 font-extrabold uppercase border-b border-slate-200">
-                                  <th className="py-1.5 px-2">Tanggal</th>
-                                  <th className="py-1.5 px-2">Bentuk Pelanggaran</th>
-                                  <th className="py-1.5 px-2">Poin</th>
-                                  <th className="py-1.5 px-2">Kewajiban Sanksi (Bimbingan)</th>
-                                  <th className="py-1.5 px-2">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(matchedStudent.disciplineLogs || []).filter(log => log.status !== 'Selesai').map(log => (
-                                  <tr key={log.id} className="border-b border-slate-200 bg-white">
-                                    <td className="py-1.5 px-2 font-mono">{log.date}</td>
-                                    <td className="py-1.5 px-2 font-bold text-slate-900">{log.violationType}</td>
-                                    <td className="py-1.5 px-2 font-black text-red-700 font-mono">{log.points} Pts</td>
-                                    <td className="py-1.5 px-2 italic text-slate-600">{log.consequence}</td>
-                                    <td className="py-1.5 px-2">
-                                      <select
-                                        value={log.status || 'Belum Diurus'}
-                                        onChange={(e) => {
-                                          const newStatus = e.target.value as 'Belum Diurus' | 'Sedang Mengurus' | 'Selesai';
-                                          handleEditLog(log.id, 'discipline', { status: newStatus });
-                                        }}
-                                        className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold focus:outline-none focus:ring-1 focus:ring-indigo-500 border cursor-pointer ${
-                                          log.status === 'Selesai' ? 'bg-emerald-50 text-emerald-850 border-emerald-200' :
-                                          log.status === 'Sedang Mengurus' ? 'bg-amber-50 text-amber-850 border-amber-200' :
-                                          'bg-red-50 text-red-850 border-red-200'
-                                        }`}
-                                      >
-                                        <option value="Belum Diurus">Belum Diurus</option>
-                                        <option value="Sedang Mengurus">Sedang Mengurus</option>
-                                        <option value="Selesai">Selesai</option>
-                                      </select>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          <p 
-                            contentEditable={true} 
-                            suppressContentEditableWarning={true}
-                            className="indent-8 text-slate-950 font-serif focus:bg-amber-50/20 focus:outline-none focus:ring-1 focus:ring-slate-350 p-1 rounded cursor-text"
-                          >
-                            Demikian surat keterangan ini diterbitkan secara resmi khusus sebagai lembar instruksi bimbingan agar wali santri dan santri yang bersangkutan dapat bersinergi menyelesaikan kewajiban di atas demi terciptanya akhlakul karimah di lingkungan pesantren.
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-center mb-5 font-serif animate-fade-in">
-                          <h4 className="font-black text-xs sm:text-sm tracking-wide underline uppercase text-slate-950 block">SURAT KETERANGAN CATATAN KEAMANAN / KELAKUAN BAIK (SKCK)</h4>
-                          <p className="text-[10px] font-mono mt-0.5 text-slate-500">Nomor: {getLetterNumber(matchedStudent.id + '_SKCK', 'Surat Keterangan Kelakuan Baik (SKCK)', 'SKCK')}</p>
-                        </div>
-
-                        <div className="space-y-3 text-xs leading-relaxed font-serif text-justify">
-                          <p 
-                            contentEditable={true} 
-                            suppressContentEditableWarning={true}
-                            className="indent-8 text-slate-950 font-serif focus:bg-amber-50/20 focus:outline-none focus:ring-1 focus:ring-slate-350 p-1 rounded cursor-text"
-                            title="Klik untuk mengedit baris paragraf ini secara langsung"
-                          >
-                            Berdasarkan catatan register harian dan hasil penilaian ketat hukum kepondokan oleh Bagian Keamanan Pondok Pesantren Al-Asy'ariyah, menerangkan dengan sebenarnya bahwa santri yang tersebut di bawah ini:
-                          </p>
-
-                          <table className="w-full max-w-lg mx-auto font-sans text-xs border-collapse">
-                            <tbody>
-                              <tr className="border-b border-slate-200">
-                                <td className="py-2 px-2 font-bold text-slate-500 text-left">NIS (4 DIGIT)</td>
-                                <td className="py-2 px-2 font-mono font-black text-emerald-900 text-left">: {matchedStudent.nis}</td>
-                              </tr>
-                              <tr className="border-b border-slate-200">
-                                <td className="py-2 px-2 font-bold text-slate-500 w-1/3 text-left">NAMA LENGKAP</td>
-                                <td className="py-2 px-2 font-black text-slate-950 text-left">: {matchedStudent.fullName}</td>
-                              </tr>
-                              <tr className="border-b border-slate-200">
-                                <td className="py-2 px-2 font-bold text-slate-500 text-left">KELAS PAGI SORE</td>
-                                <td className="py-2 px-2 font-semibold text-slate-800 text-left">: {matchedStudent.class}</td>
-                              </tr>
-                              <tr className="border-b border-slate-200">
-                                <td className="py-2 px-2 font-bold text-slate-500 text-left">ORANG TUA / WALI</td>
-                                <td className="py-2 px-2 text-left">: {matchedStudent.parentName}</td>
-                              </tr>
-                              <tr>
-                                <td className="py-2 px-2 font-bold text-slate-500 text-left">ALAMAT RUMAH</td>
-                                <td className="py-2 px-2 text-left">: {matchedStudent.address}</td>
-                              </tr>
-                            </tbody>
-                          </table>
-
-                          <p 
-                            contentEditable={true} 
-                            suppressContentEditableWarning={true}
-                            className="indent-8 text-slate-950 font-serif focus:bg-amber-50/20 focus:outline-none focus:ring-1 focus:ring-slate-350 p-1 rounded cursor-text"
-                            title="Klik untuk mengedit baris paragraf ini secara langsung"
-                          >
-                            {getStaffConfig('keamanan').letterTemplate2}
-                          </p>
-
-                          <p 
-                            contentEditable={true} 
-                            suppressContentEditableWarning={true}
-                            className="indent-8 text-slate-950 font-serif focus:bg-amber-50/20 focus:outline-none focus:ring-1 focus:ring-slate-350 p-1 rounded cursor-text"
-                            title="Klik untuk mengedit baris paragraf ini secara langsung"
-                          >
-                            Surat keterangan ini diterbitkan secara resmi khusus atas keperluan: <strong className="font-bold italic">"{skckReason}"</strong>.
-                          </p>
-
-                          <p 
-                            contentEditable={true} 
-                            suppressContentEditableWarning={true}
-                            className="indent-8 text-slate-950 font-serif focus:bg-amber-50/20 focus:outline-none focus:ring-1 focus:ring-slate-350 p-1 rounded cursor-text"
-                            title="Klik untuk mengedit baris paragraf ini secara langsung"
-                          >
-                            {getStaffConfig('keamanan').letterTemplate3}
-                          </p>
-                        </div>
-
-                        {/* Signature Block: 1 penanda tangan di sebelah kanan rata kiri, stempel di sebelah kiri */}
-                        <div className="border-t border-dashed border-slate-300 mt-6 pt-4 flex justify-end font-sans">
-                          <div className="w-[300px] text-left space-y-1 relative">
-                            <p className="text-[10px] text-slate-500 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toISOString().split('T')[0]}</p>
-                            <p className="text-[10px] text-emerald-950 font-bold uppercase tracking-wider">Mengetahui, Kabid Keamanan</p>
-
-                            <div className="h-20 w-full relative flex items-center justify-start select-none py-1">
-                              {/* Stempel: Berada di SEBELAH KIRI tanda tangan */}
-                              {(getStaffConfig('keamanan').seal) && (
-                                <div className="z-20 absolute -left-10 top-0 pointer-events-none opacity-85">
-                                  {isImageUrl(getStaffConfig('keamanan').seal) ? (
-                                    <img 
-                                      src={getStaffConfig('keamanan').seal} 
-                                      alt="Stempel Keamanan" 
-                                      className="h-20 w-20 object-contain rotate-[-6deg] select-none mix-blend-multiply" 
-                                      referrerPolicy="no-referrer" 
-                                    />
-                                  ) : (
-                                    <div className="border border-emerald-600 border-dashed rounded p-1 text-[8px] uppercase font-mono font-black text-emerald-800 rotate-[-6deg] max-w-[124px] leading-tight mb-2 bg-white/80">
-                                      {getStaffConfig('keamanan').seal || 'STEMPEL KEAMANAN'}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Tanda tangan: Berada di sebelah kanan stempel dengan teks rata kiri */}
-                              <div className="z-10 relative flex items-center justify-start pl-10">
-                                {isImageUrl(getStaffConfig('keamanan').signature) ? (
-                                  <img 
-                                    src={getStaffConfig('keamanan').signature} 
-                                    alt="Tanda Tangan" 
-                                    className="h-16 max-w-[190px] object-contain select-none mix-blend-multiply" 
-                                    referrerPolicy="no-referrer" 
-                                  />
-                                ) : (
-                                  <span className="text-sm font-serif italic text-emerald-900 font-bold underline">
-                                    {getStaffConfig('keamanan').signature || 'M. Hasanuddin'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <p className="text-xs font-black text-slate-900 underline leading-none uppercase">{deptName || getStaffConfig('keamanan').name || session?.fullName || 'Ustadz Pengurus Keamanan'}</p>
-                            <p className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Kepala Bidang Keamanan & Ketertiban</p>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const styleNode = document.createElement('style');
-                        styleNode.innerHTML = `@media print { body { visibility: hidden; } #skck-print-area { visibility: visible; position: absolute; left: 0; top: 0; width: 100%; } }`;
-                        document.head.appendChild(styleNode);
-                        
-                        const letterType = pts > 0 ? 'Surat Rekap Sanksi Ta\'zir' : 'Surat Keterangan Kelakuan Baik (SKCK)';
-                        const letterCode = pts > 0 ? 'KTT' : 'SKCK';
-                        const letterNo = getLetterNumber(matchedStudent.id + '_' + letterCode, letterType, letterCode);
-                        if (!outboundLettersLog.some(l => l.id === matchedStudent.id + '_' + letterCode)) {
-                          setOutboundLettersLog(prev => [
-                            ...prev,
-                            {
-                              id: matchedStudent.id + '_' + letterCode,
-                              type: letterType,
-                              recipient: matchedStudent.fullName,
-                              subject: pts > 0 ? `Bimbingan Sanksi Ta'zir (${pts} pts)` : `SKCK: ${skckReason}`,
-                              letterNo,
-                              date: new Date().toISOString().split('T')[0]
-                            }
-                          ]);
-                        }
-                        
-                        window.print();
-                        document.head.removeChild(styleNode);
-                      }}
-                      className="px-4 py-2 bg-indigo-700 hover:bg-indigo-850 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow cursor-pointer"
-                    >
-                      <Printer className="h-3.5 w-3.5" />
-                      {pts > 0 ? 'Cetak Surat Takzir ⎙' : 'Cetak SKCK langsung ⎙'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const styleNode = document.createElement('style');
-                        styleNode.innerHTML = `@media print { body { visibility: hidden; } #skck-print-area { visibility: visible; position: absolute; left: 0; top: 0; width: 100%; } }`;
-                        document.head.appendChild(styleNode);
-                        const cleanHTML = document.getElementById('skck-print-area')?.innerHTML || '';
-                        
-                        const htmlContent = `
-                        <!DOCTYPE html>
-                        <html lang="id">
-                        <head>
-                          <meta charset="UTF-8">
-                          <title>${pts > 0 ? 'SURAT_TAXZIR_SANTRI' : 'SKCK_SANTRI'}_${matchedStudent.fullName.toUpperCase()}</title>
-                          <script src="https://cdn.tailwindcss.com"></script>
-                        </head>
-                        <body onload="window.print()" class="p-10 font-serif">
-                          <div class="border border-slate-350 p-6 rounded-lg bg-white max-w-2xl mx-auto">
-                            ${cleanHTML}
-                          </div>
-                        </body>
-                        </html>
-                        `;
-                        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.setAttribute('download', `${pts > 0 ? 'SURAT_TAXZIR' : 'SKCK'}_SANTRI_${matchedStudent.fullName.toUpperCase()}_OFFLINE.html`);
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
-                        document.head.removeChild(styleNode);
-                      }}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 rounded-lg cursor-pointer"
-                    >
-                      Unduh Berkas Offline
-                    </button>
-                  </div>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* Sub Tab: Log History */}
-      {activeSubTab === 'history' && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 animate-fade-in">
-          <div className="flex items-center justify-between border-b border-dashed border-slate-100 pb-3 mb-4">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-emerald-800" />
-              <h2 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">
-                Riwayat Log Tindakan Pondok Pesantren
-              </h2>
-            </div>
-            <span className="text-[10px] font-mono text-slate-400">Diurutkan berdasarkan yang terbaru dihimpun</span>
-          </div>
-
-          {/* Role-based history indicator for account role */}
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            {role === 'kesehatan' ? (
-              <div className="px-4 py-2 rounded-xl text-xs font-extrabold bg-rose-800 text-white shadow-md flex items-center gap-2 uppercase tracking-wider">
-                🩺 Riwayat Pelayanan Medis ({allHealthLogs.length} Data)
-              </div>
-            ) : (role === 'keamanan' || role === 'ketertiban') ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStaffSubTab('perizinan')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
-                    staffSubTab === 'perizinan' ? 'bg-emerald-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >️ Riwayat Perizinan Santri ({allSecurityLogs.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStaffSubTab('takzir')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
-                    staffSubTab === 'takzir' ? 'bg-indigo-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >️ Riwayat Takzir & Sanksi Pelanggaran ({allDisciplineLogs.length})
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStaffSubTab('perizinan')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
-                    staffSubTab === 'perizinan' ? 'bg-emerald-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >️ Riwayat Perizinan Santri ({allSecurityLogs.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStaffSubTab('takzir')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
-                    staffSubTab === 'takzir' ? 'bg-indigo-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >️ Riwayat Takzir & Sanksi Pelanggaran ({allDisciplineLogs.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStaffSubTab('kesehatan')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
-                    staffSubTab === 'kesehatan' ? 'bg-rose-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  🩺 Riwayat Pelayanan Medis ({allHealthLogs.length})
-                </button>
-              </div>
-            )}
-          </div>
-
-          {staffSubTab === 'perizinan' && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider bg-slate-50/50">
-                    <th className="py-2.5 px-3">Nama Santri</th>
-                    <th className="py-2.5 px-3">Jenis Izin</th>
-                    <th className="py-2.5 px-3">Keterangan Keperluan</th>
-                    <th className="py-2.5 px-3">Tanggal Keluar</th>
-                    <th className="py-2.5 px-3">Rencana Kembali</th>
-                    <th className="py-2.5 px-3">Kembali Aktual</th>
-                    <th className="py-2.5 px-3 text-center">Status</th>
-                    <th className="py-2.5 px-3 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allSecurityLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">Belum ada riwayat perizinan santri.</td>
-                    </tr>
-                  ) : (
-                    allSecurityLogs.map(log => (
-                      <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                        <td className="py-3 px-3 font-semibold text-slate-900">{log.studentName}</td>
-                        <td className="py-3 px-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            log.permitType === 'Pulang (Keluarga)' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {log.permitType}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 max-w-xs truncate" title={log.description}>{log.description}</td>
-                        <td className="py-3 px-3 font-mono">{log.outDate}</td>
-                        <td className="py-3 px-3 font-mono text-indigo-750">{log.expectedReturnDate}</td>
-                        <td className="py-3 px-3 font-mono text-emerald-800">{log.actualReturnDate || '-'}</td>
-                        <td className="py-3 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            log.status === 'Kembali' ? 'bg-emerald-100 text-emerald-800' :
-                            log.status === 'Terlambat' ? 'bg-rose-100 text-rose-800' : 'bg-yellow-100 text-yellow-800 animate-pulse'
-                          }`}>
-                            {log.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-right relative whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1.5 justify-end">
-                            {log.status === 'Menunggu Persetujuan' && (
-                              <div className="flex gap-1 mr-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleApprovePermit(log.studentId, log.id)}
-                                  className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[10px] font-bold rounded cursor-pointer transition shadow-3xs"
-                                >
-                                  Setujui
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRejectPermit(log.studentId, log.id)}
-                                  className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded cursor-pointer transition shadow-3xs"
-                                >
-                                  Tolak
-                                </button>
-                              </div>
-                            )}
-
-                            {log.status === 'Aktif / Keluar' && (
-                              <div className="flex gap-1 mr-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateReturnStatus(log.studentId, log.id, false)}
-                                  className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-800 bg-opacity-90 text-white text-[10px] font-bold rounded cursor-pointer transition shadow-3xs"
-                                >
-                                  Kembali
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateReturnStatus(log.studentId, log.id, true)}
-                                  className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded cursor-pointer transition shadow-3xs"
-                                >
-                                  Terlambat
-                                </button>
-                              </div>
-                            )}
-
-                            <div className="relative inline-block">
-                              <button
-                                type="button"
-                                onClick={() => setActiveDropdownId(activeDropdownId === log.id ? null : log.id)}
-                                className="p-1 hover:bg-slate-100 rounded-full transition text-slate-500 hover:text-emerald-950 cursor-pointer"
-                                title="Aksi"
-                              >
-                                <MoreVertical className="h-4 w-4 inline" />
-                              </button>
-
-                              {activeDropdownId === log.id && (
-                                <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden text-left py-1">
-                                  <button
-                                    onClick={() => {
-                                      setPrintSecurityLog(log);
-                                      setViewOnlyMode(true);
-                                      setActiveDropdownId(null);
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1.5 text-[11px] font-medium text-slate-700 cursor-pointer"
-                                  >
-                                    <Eye className="h-3.5 w-3.5 text-slate-500" /> Lihat Surat
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditingLog({ id: log.id, type: 'security', values: { ...log } });
-                                      setActiveDropdownId(null);
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800 cursor-pointer"
-                                  >
-                                    <Edit2 className="h-3.5 w-3.5 text-emerald-700" /> Edit Isian
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      handleDeleteLog(log.id, 'security');
-                                      setActiveDropdownId(null);
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1.5 text-[11px] font-bold text-red-600 cursor-pointer"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5 text-red-500" /> Hapus Data
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {staffSubTab === 'takzir' && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider bg-slate-50/50">
-                    <th className="py-2.5 px-3">Nama Santri</th>
-                    <th className="py-2.5 px-3">Jenis Pelanggaran</th>
-                    <th className="py-2.5 px-3">Kategori</th>
-                    <th className="py-2.5 px-3">Sanksi / Tindakan</th>
-                    <th className="py-2.5 px-3">Tanggal Catat</th>
-                    <th className="py-2.5 px-3">Tanda Tangan</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allDisciplineLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-400">Belum ada riwayat pencatatan takzir.</td>
-                    </tr>
-                  ) : (
-                    allDisciplineLogs.map(log => (
-                      <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                        <td className="py-3 px-3 font-semibold text-slate-900">{log.studentName}</td>
-                        <td className="py-3 px-3 uppercase font-mono text-[11px] font-bold text-red-900">{log.violationType}</td>
-                        <td className="py-3 px-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            log.level === 'Ringan' ? 'bg-yellow-100 text-amber-800 bg-amber-150' :
-                            log.level === 'Sedang' ? 'bg-orange-100 text-orange-850' : 'bg-red-100 text-red-800 font-extrabold'
-                          }`}>
-                            {log.level}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-slate-600 font-bold italic">{log.consequence}</td>
-                        <td className="py-3 px-3 font-mono">{log.date}</td>
-                        <td className="py-3 px-3 font-mono text-slate-400">{log.signedBy}</td>
-                        <td className="py-3 px-3">
-                          <select
-                            value={log.status || 'Belum Diurus'}
-                            onChange={(e) => {
-                              const newStatus = e.target.value as 'Belum Diurus' | 'Sedang Mengurus' | 'Selesai';
-                              handleEditLog(log.id, 'discipline', { status: newStatus });
-                            }}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold focus:outline-none focus:ring-1 focus:ring-indigo-500 border cursor-pointer ${
-                              log.status === 'Selesai' ? 'bg-emerald-50 text-emerald-850 border-emerald-200' :
-                              log.status === 'Sedang Mengurus' ? 'bg-amber-50 text-amber-850 border-amber-200' :
-                              'bg-red-50 text-red-850 border-red-200'
-                            }`}
-                          >
-                            <option value="Belum Diurus">Belum Diurus</option>
-                            <option value="Sedang Mengurus">Sedang Mengurus</option>
-                            <option value="Selesai">Selesai</option>
-                          </select>
-                        </td>
-                        <td className="py-3 px-3 text-right relative">
-                          <div className="relative inline-block">
-                            <button
-                              type="button"
-                              onClick={() => setActiveDropdownId(activeDropdownId === log.id ? null : log.id)}
-                              className="p-1 hover:bg-slate-100 rounded-full transition text-slate-500 hover:text-indigo-950 cursor-pointer"
-                              title="Aksi"
-                            >
-                              <MoreVertical className="h-4 w-4 inline" />
-                            </button>
-
-                            {activeDropdownId === log.id && (
-                              <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-205 rounded-xl shadow-lg z-30 overflow-hidden text-left py-1">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPrintDisciplineLog(log);
-                                    setViewOnlyMode(true);
-                                    setActiveDropdownId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1.5 text-[11px] font-medium text-slate-700 cursor-pointer"
-                                >
-                                  <Eye className="h-3.5 w-3.5 text-slate-500" /> Lihat Surat
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingLog({ id: log.id, type: 'discipline', values: { ...log } });
-                                    setActiveDropdownId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1.5 text-[11px] font-semibold text-indigo-800 cursor-pointer"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5 text-indigo-750" /> Edit Isian
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleDeleteLog(log.id, 'discipline');
-                                    setActiveDropdownId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1.5 text-[11px] font-bold text-red-650 cursor-pointer"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5 text-red-500" /> Hapus Data
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {staffSubTab === 'kesehatan' && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider bg-slate-50/50">
-                    <th className="py-2.5 px-3">Nama Santri</th>
-                    <th className="py-2.5 px-3">Keluhan Sakit</th>
-                    <th className="py-2.5 px-3">Diagnosis Medis</th>
-                    <th className="py-2.5 px-3">Penanganan / Terapi</th>
-                    <th className="py-2.5 px-3 text-center">Status Rawat</th>
-                    <th className="py-2.5 px-3">Tanggal Catat</th>
-                    <th className="py-2.5 px-3 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allHealthLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">Belum ada riwayat medis Poskestren.</td>
-                    </tr>
-                  ) : (
-                    allHealthLogs.map(log => (
-                      <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                        <td className="py-3 px-3 font-semibold text-slate-900">{log.studentName}</td>
-                        <td className="py-3 px-3 font-semibold text-red-950">{log.complaint}</td>
-                        <td className="py-3 px-3 italic">{log.diagnosis}</td>
-                        <td className="py-3 px-3 text-slate-600">{log.treatment}</td>
-                        <td className="py-3 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            log.status === 'Nginap di Poskestren' ? 'bg-rose-100 text-rose-800' :
-                            log.status === 'Dirujuk ke RS / Pulang' ? 'bg-orange-100 text-orange-850' : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            {log.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 font-mono">{log.date}</td>
-                        <td className="py-3 px-3 text-right relative">
-                          <div className="relative inline-block">
-                            <button
-                              type="button"
-                              onClick={() => setActiveDropdownId(activeDropdownId === log.id ? null : log.id)}
-                              className="p-1 hover:bg-slate-100 rounded-full transition text-slate-500 hover:text-rose-955 cursor-pointer"
-                              title="Aksi"
-                            >
-                              <MoreVertical className="h-4 w-4 inline" />
-                            </button>
-
-                            {activeDropdownId === log.id && (
-                              <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-205 rounded-xl shadow-lg z-30 overflow-hidden text-left py-1">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPrintHealthLog(log);
-                                    setViewOnlyMode(true);
-                                    setActiveDropdownId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1.5 text-[11px] font-medium text-slate-700 cursor-pointer"
-                                >
-                                  <Eye className="h-3.5 w-3.5 text-slate-500" /> Lihat Surat
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingLog({ id: log.id, type: 'health', values: { ...log } });
-                                    setActiveDropdownId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1.5 text-[11px] font-semibold text-rose-850 cursor-pointer"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5 text-rose-700 font-medium" /> Edit Isian
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleDeleteLog(log.id, 'health');
-                                    setActiveDropdownId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1.5 text-[11px] font-bold text-red-650 cursor-pointer"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5 text-red-500" /> Hapus Data
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Sub Tab: Student Main List (Default Fallback) */}
-      {(activeSubTab === 'students' || !['profile', 'skck', 'takzir_letter', 'history'].includes(activeSubTab)) && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 animate-fade-in">
-
-          {/* GRAPHS AND ANALYTICS ACCORDING TO ROLE AUTHORITY */}
-          <div className="mb-8 p-6 bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-slate-200/80">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-dashed border-slate-200 pb-3 mb-5">
-              <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
-                 Visualisasi Tren & Statistik Real-Time ({theme.title.split('(')[0]})
-              </h3>
-              <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-                <div className="min-w-[120px]">
+              {/* Filter controls */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
                   <select
-                    value={statsMonth}
-                    onChange={(e) => setStatsMonth(e.target.value)}
-                    className="w-full bg-white border border-slate-250 text-[11px] rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-700 shadow-2xs"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 px-2 py-1 focus:outline-none cursor-pointer"
                   >
-                    <option value="Semua">Semua Bulan</option>
-                    <option value="01">Januari</option>
-                    <option value="02">Februari</option>
-                    <option value="03">Maret</option>
-                    <option value="04">April</option>
-                    <option value="05">Mei</option>
-                    <option value="06">Juni</option>
-                    <option value="07">Juli</option>
-                    <option value="08">Agustus</option>
-                    <option value="09">September</option>
-                    <option value="10">Oktober</option>
-                    <option value="11">November</option>
-                    <option value="12">Desember</option>
+                    <option value="ALL">Semua Bulan</option>
+                    {INDONESIAN_MONTHS.map(m => (
+                      <option key={m.value} value={m.value}>{m.name}</option>
+                    ))}
                   </select>
-                </div>
-                <div className="min-w-[100px]">
+
+                  <span className="text-slate-300">|</span>
+
                   <select
-                    value={statsYear}
-                    onChange={(e) => setStatsYear(e.target.value)}
-                    className="w-full bg-white border border-slate-250 text-[11px] rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-700 shadow-2xs"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 px-2 py-1 focus:outline-none cursor-pointer"
                   >
-                    <option value="Semua">Semua Tahun</option>
+                    <option value="ALL">Semua Tahun</option>
                     <option value="2024">2024</option>
                     <option value="2025">2025</option>
                     <option value="2026">2026</option>
                     <option value="2027">2027</option>
                   </select>
                 </div>
-              </div>
-            </div>
-            
-            {role === 'keamanan' && (() => {
-              const filteredLogs = students.flatMap(s => s.disciplineLogs || []).filter(l => {
-                if (!l.date) return false;
-                if (statsYear !== 'Semua') {
-                  const year = l.date.split('-')[0];
-                  if (year !== statsYear) return false;
-                }
-                if (statsMonth !== 'Semua') {
-                  const month = l.date.split('-')[1];
-                  if (month !== statsMonth) return false;
-                }
-                return true;
-              });
 
-              const lightViolations = filteredLogs.filter(l => l.level === 'Ringan').length;
-              const mediumViolations = filteredLogs.filter(l => l.level === 'Sedang').length;
-              const heavyViolations = filteredLogs.filter(l => l.level === 'Berat').length;
-              const totalV = lightViolations + mediumViolations + heavyViolations;
-              
-              const maxVal = Math.max(lightViolations, mediumViolations, heavyViolations, 1);
-              const getPercent = (v: number) => (v / maxVal) * 100;
-              
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                  <div className="space-y-3.5">
-                    <p className="text-[11px] text-slate-500 font-medium">Grafik di bawah ini memetakan total akumulasi takzir (pelanggaran kedisiplinan) santri aktif berdasarkan tingkat bobot pelanggaran:</p>
-                    <div className="space-y-2.5">
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold text-emerald-800 mb-1">
-                          <span>Ringan (Sanksi Edukatif)</span>
-                          <span>{lightViolations} Kasus</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200">
-                          <div className="bg-emerald-600 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(lightViolations)}%` }} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold text-amber-700 mb-1">
-                          <span>Sedang (Ta'zir Menengah)</span>
-                          <span>{mediumViolations} Kasus</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200">
-                          <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(mediumViolations)}%` }} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold text-rose-800 mb-1">
-                          <span>Berat (Peringatan & Skorsing)</span>
-                          <span>{heavyViolations} Kasus</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200">
-                          <div className="bg-rose-600 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(heavyViolations)}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-slate-150 flex flex-col items-center justify-center">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Komposisi Kasus</span>
-                    <svg className="w-40 h-40 transform -rotate-90" viewBox="0 0 36 36">
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" strokeWidth="3" />
-                      {totalV > 0 ? (
-                        <>
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="#059669" strokeWidth="3" strokeDasharray={`${(lightViolations/totalV)*100} ${100 - (lightViolations/totalV)*100}`} strokeDashoffset="100" />
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="#d97706" strokeWidth="3" strokeDasharray={`${(mediumViolations/totalV)*100} ${100 - (mediumViolations/totalV)*100}`} strokeDashoffset={`${100 - (lightViolations/totalV)*100}`} />
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="#dc2626" strokeWidth="3" strokeDasharray={`${(heavyViolations/totalV)*100} ${100 - (heavyViolations/totalV)*100}`} strokeDashoffset={`${100 - (lightViolations/totalV)*100 - (mediumViolations/totalV)*100}`} />
-                        </>
-                      ) : (
-                        <circle cx="18" cy="18" r="15.915" fill="none" stroke="#e2e8f0" strokeWidth="3" />
-                      )}
-                    </svg>
-                    <div className="flex gap-3 mt-3 text-[10px] font-bold">
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-600" /> Ringan</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Sedang</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-600" /> Berat</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {role === 'ketertiban' && (() => {
-              const filteredLogs = students.flatMap(s => s.securityLogs || []).filter(l => {
-                if (!l.outDate) return false;
-                const datePart = l.outDate.split('T')[0];
-                if (statsYear !== 'Semua') {
-                  const year = datePart.split('-')[0];
-                  if (year !== statsYear) return false;
-                }
-                if (statsMonth !== 'Semua') {
-                  const month = datePart.split('-')[1];
-                  if (month !== statsMonth) return false;
-                }
-                return true;
-              });
-
-              const returned = filteredLogs.filter(l => l.status === 'Kembali').length;
-              const activeOut = filteredLogs.filter(l => l.status === 'Aktif / Keluar').length;
-              const late = filteredLogs.filter(l => l.status === 'Terlambat').length;
-              const totalP = returned + activeOut + late;
-              
-              const maxVal = Math.max(returned, activeOut, late, 1);
-              const getPercent = (v: number) => (v / maxVal) * 100;
-              
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                  <div className="space-y-3.5">
-                    <p className="text-[11px] text-slate-500 font-medium">Grafik di bawah ini memetakan status sirkulasi perizinan keluar santri untuk memastikan tertib administrasi perizinan pesantren:</p>
-                    <div className="space-y-2.5">
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold text-emerald-800 mb-1">
-                          <span>Sudah Kembali (Selesai Izin)</span>
-                          <span>{returned} Santri</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200">
-                          <div className="bg-emerald-600 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(returned)}%` }} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold text-amber-700 mb-1">
-                          <span>Aktif / Sedang Di Luar</span>
-                          <span>{activeOut} Santri</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200">
-                          <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(activeOut)}%` }} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold text-rose-800 mb-1">
-                          <span>Terlambat Kembali (Lewat Batas)</span>
-                          <span>{late} Santri</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200">
-                          <div className="bg-rose-600 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(late)}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-slate-150 flex flex-col items-center justify-center">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Rasio Sirkulasi Izin</span>
-                    <svg className="w-40 h-40 transform -rotate-90" viewBox="0 0 36 36">
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" strokeWidth="3" />
-                      {totalP > 0 ? (
-                        <>
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="#059669" strokeWidth="3" strokeDasharray={`${(returned/totalP)*100} ${100 - (returned/totalP)*100}`} strokeDashoffset="100" />
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="#d97706" strokeWidth="3" strokeDasharray={`${(activeOut/totalP)*100} ${100 - (activeOut/totalP)*100}`} strokeDashoffset={`${100 - (returned/totalP)*100}`} />
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="#dc2626" strokeWidth="3" strokeDasharray={`${(late/totalP)*100} ${100 - (late/totalP)*100}`} strokeDashoffset={`${100 - (returned/totalP)*100 - (activeOut/totalP)*100}`} />
-                        </>
-                      ) : (
-                        <circle cx="18" cy="18" r="15.915" fill="none" stroke="#e2e8f0" strokeWidth="3" />
-                      )}
-                    </svg>
-                    <div className="flex gap-3 mt-3 text-[10px] font-bold">
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-600" /> Kembali</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Di Luar</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-600" /> Terlambat</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {role === 'kesehatan' && (() => {
-              const filteredLogs = students.flatMap(s => s.healthLogs || []).filter(l => {
-                if (!l.date) return false;
-                if (statsYear !== 'Semua') {
-                  const year = l.date.split('-')[0];
-                  if (year !== statsYear) return false;
-                }
-                if (statsMonth !== 'Semua') {
-                  const month = l.date.split('-')[1];
-                  if (month !== statsMonth) return false;
-                }
-                return true;
-              });
-
-              const outpatient = filteredLogs.filter(l => l.status === 'Rawat Jalan (Kamar)').length;
-              const inpatient = filteredLogs.filter(l => l.status === 'Nginap di Poskestren').length;
-              const referred = filteredLogs.filter(l => l.status === 'Dirujuk ke RS / Pulang').length;
-              const totalK = outpatient + inpatient + referred;
-              
-              const maxVal = Math.max(outpatient, inpatient, referred, 1);
-              const getPercent = (v: number) => (v / maxVal) * 100;
-              
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                  <div className="space-y-3.5">
-                    <p className="text-[11px] text-slate-500 font-medium">Grafik di bawah ini memetakan jenis penanganan medis santri sakit yang tercatat di Pos Kesehatan Pesantren (Poskestren):</p>
-                    <div className="space-y-2.5">
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold text-emerald-800 mb-1">
-                          <span>Rawat Jalan (Istirahat Kamar)</span>
-                          <span>{outpatient} Santri</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200">
-                          <div className="bg-emerald-600 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(outpatient)}%` }} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold text-amber-700 mb-1">
-                          <span>Opname / Nginap di Poskestren</span>
-                          <span>{inpatient} Santri</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200">
-                          <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(inpatient)}%` }} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold text-rose-800 mb-1">
-                          <span>Rujukan Rumah Sakit / Pulang Mandiri</span>
-                          <span>{referred} Santri</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden border border-slate-200">
-                          <div className="bg-rose-600 h-full rounded-full transition-all duration-500" style={{ width: `${getPercent(referred)}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-slate-150 flex flex-col items-center justify-center">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Penyebaran Kondisi</span>
-                    <svg className="w-40 h-40 transform -rotate-90" viewBox="0 0 36 36">
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" strokeWidth="3" />
-                      {totalK > 0 ? (
-                        <>
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="#059669" strokeWidth="3" strokeDasharray={`${(outpatient/totalK)*100} ${100 - (outpatient/totalK)*100}`} strokeDashoffset="100" />
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="#d97706" strokeWidth="3" strokeDasharray={`${(inpatient/totalK)*100} ${100 - (inpatient/totalK)*100}`} strokeDashoffset={`${100 - (outpatient/totalK)*100}`} />
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="#dc2626" strokeWidth="3" strokeDasharray={`${(referred/totalK)*100} ${100 - (referred/totalK)*100}`} strokeDashoffset={`${100 - (outpatient/totalK)*100 - (inpatient/totalK)*100}`} />
-                        </>
-                      ) : (
-                        <circle cx="18" cy="18" r="15.915" fill="none" stroke="#e2e8f0" strokeWidth="3" />
-                      )}
-                    </svg>
-                    <div className="flex gap-3 mt-3 text-[10px] font-bold">
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-600" /> Rawat Jalan</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Opname</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-600" /> Rujukan/Pulang</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-          
-          {/* Unified Quick Input Log Form for security/permits (Keamanan/Ketertiban/Kesehatan) */}
-          <div className={`p-4 sm:p-5 rounded-2xl border mb-6 ${
-            role === 'ketertiban' ? 'bg-indigo-50/40 border-indigo-100' :
-            role === 'kesehatan' ? 'bg-rose-50/40 border-rose-100' :
-            'bg-emerald-50 bg-opacity-30 border-emerald-100/70'
-          }`}>
-            <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              {role === 'ketertiban' && <>️ Input Surat Izin Baru (Ketertiban)</>}
-              {role === 'kesehatan' && <>🩺 Input Surat Keterangan Baru (Poskestren)</>}
-              {role === 'keamanan' && <>️ Input Catatan Takzir / Pelanggaran Baru</>}
-            </h3>
-            <p className="text-[11px] text-slate-500 mb-4">
-              {role === 'ketertiban' && 'Silakan pilih nama santri di bawah ini untuk menginput dan menerbitkan Surat Izin (Keluar/Sambang) secara cepat.'}
-              {role === 'kesehatan' && 'Silakan pilih nama santri di bawah ini untuk membuat Surat Keterangan / Catatan Pelayanan Medis baru.'}
-              {role === 'keamanan' && 'Silakan pilih nama santri di bawah ini untuk mencatat log takzir sanksi kedisiplinan santri.'}
-            </p>
-
-
-
-            {(() => {
-              const term = (inputSearchTerm || '').trim().toLowerCase();
-              const filteredOptions = term === '' 
-                ? students.slice(0, 100) 
-                : students.filter(s => {
-                    if (!s) return false;
-                    const nameMatch = s.fullName && String(s.fullName).toLowerCase().includes(term);
-                    const nisMatch = s.nis && String(s.nis).toLowerCase().includes(term);
-                    return Boolean(nameMatch || nisMatch);
-                  });
-
-              return (
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  let targetId = inputSelectedStudentId;
-                  
-                  // If not chosen from dropdown, attempt auto-match from inputSearchTerm
-                  if (!targetId && term !== '') {
-                    const directMatch = students.find(s => {
-                      if (!s) return false;
-                      const exactNis = s.nis && String(s.nis).trim().toLowerCase() === term;
-                      const exactName = s.fullName && String(s.fullName).trim().toLowerCase() === term;
-                      const partialNis = s.nis && String(s.nis).toLowerCase().includes(term);
-                      const partialName = s.fullName && String(s.fullName).toLowerCase().includes(term);
-                      return exactNis || exactName || partialNis || partialName;
-                    });
-                    if (directMatch) {
-                      targetId = directMatch.id;
-                    }
-                  }
-
-                  if (!targetId) {
-                    alert('Silakan ketik NIS / Nama santri atau pilih nama santri dari daftar terlebih dahulu.');
-                    return;
-                  }
-                  const foundStud = students.find(s => s.id === targetId);
-                  if (foundStud) {
-                    setSelectedStudent(foundStud);
-                    setShowAddModal(true);
-                    // Clear the search box and selected student dropdown
-                    setInputSearchTerm('');
-                    setInputSelectedStudentId('');
-                  }
-                }} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-                  <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Cari Nama / NIS Santri</label>
-                      <input
-                        type="text"
-                        value={inputSearchTerm}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setInputSearchTerm(val);
-                          // Auto match if exact NIS
-                          const cleanVal = val.trim().toLowerCase();
-                          if (cleanVal) {
-                            const exact = students.find(s => s.nis && String(s.nis).trim().toLowerCase() === cleanVal);
-                            if (exact) setInputSelectedStudentId(exact.id);
-                          }
-                        }}
-                        placeholder="Ketik NIS atau Nama Santri..."
-                        className="w-full shadow-3xs border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-emerald-700 focus:outline-none bg-white text-slate-800 font-semibold h-9"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pilih Data Santri</label>
-                      <select 
-                        value={inputSelectedStudentId}
-                        onChange={(e) => setInputSelectedStudentId(e.target.value)}
-                        className="w-full shadow-3xs border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-emerald-700 focus:outline-none bg-white text-slate-800 font-semibold h-9"
-                      >
-                        <option value="">
-                          {term === '' 
-                            ? `-- Pilih Santri (${students.length} Santri) --` 
-                            : `-- Hasil Pencarian (${filteredOptions.length} kecocokan) --`}
-                        </option>
-                        {filteredOptions.map(s => (
-                          <option key={s.id} value={s.id}>
-                            {s.fullName} {s.nis ? `(${s.nis})` : ''} - Kamar {s.kamar || '-'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kategori Dokumen / Log</label>
-                    <select
-                      value={customInputType}
-                      onChange={(e) => setCustomInputType(e.target.value as any)}
-                      className="w-full h-9 px-2.5 border border-slate-200 rounded-lg text-xs font-bold bg-white text-slate-800 focus:ring-2 focus:ring-emerald-700 focus:outline-none"
-                    >
-                      <option value="izin">️ Surat Perizinan (Izin Keluar/Pulang)</option>
-                      <option value="takzir">️ Catatan Takzir & Pelanggaran</option>
-                      <option value="kesehatan">🩺 Rekam Pelayanan Medis Poskestren</option>
-                    </select>
-                  </div>
-                  <button type="submit" className="w-full h-9 bg-emerald-800 hover:bg-emerald-950 text-white font-bold text-xs rounded-lg transition duration-150 uppercase shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
-                    <Plus className="h-3.5 w-3.5" /> Buka Lembar Input
-                  </button>
-                </form>
-              );
-            })()}
-          </div>
-
-          {/* Search bar and Filters */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 justify-between mb-6">
-            <div className="relative w-full sm:max-w-md">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Cari santri berdasarkan Nama atau NIS..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-700 focus:outline-none"
-              />
-            </div>
-            
-            <span className="text-xs text-slate-400 font-semibold font-mono">
-              {searchTerm.trim() === '' ? (
-                'Ketik Nama atau NIS untuk memulai pencarian...'
-              ) : (
-                `Hasil: ${filteredStudents.length} Santri ditemukan`
-              )}
-            </span>
-          </div>
-
-          {/* Student Grids layout */}
-          {searchTerm.trim() === '' ? (
-            <div className="text-center py-12 px-4 border border-dashed border-slate-200 rounded-2xl bg-slate-50/40">
-              <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
-                <Search className="h-5 w-5" />
-              </div>
-              <p className="text-slate-800 font-extrabold text-xs uppercase tracking-wider">Cari Santri Berdasarkan Nama / NIS</p>
-              <p className="text-[11px] text-slate-400 mt-1 max-w-xs mx-auto">
-                Sesuai kebijakan pengurus, database tidak ditampilkan secara penuh demi efisiensi halaman. Masukkan Nama atau NIS untuk memanggil rekam data santri.
-              </p>
-            </div>
-          ) : filteredStudents.length === 0 ? (
-            <div className="text-center py-12 px-4 border border-dashed border-red-100 rounded-2xl bg-red-50/20">
-              <p className="text-red-800 font-extrabold text-xs uppercase tracking-wider">Santri Tidak Ditemukan</p>
-              <p className="text-[11px] text-slate-400 mt-1 max-w-xs mx-auto">
-                Kueri pencarian "{searchTerm}" tidak cocok dengan data Nama atau NIS di database santri aktif.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredStudents.map(student => {
-                return (
-                  <div 
-                    key={student.id}
-                    className="bg-white rounded-xl p-5 border border-slate-150/70 shadow-xs hover:border-emerald-500 transition duration-150 flex flex-col justify-between"
-                  >
-                    <div>
-                      <h3 className="font-extrabold text-sm text-slate-900 tracking-tight leading-none mb-1">{student.fullName}</h3>
-                      <p className="text-[10px] font-bold text-slate-500 font-mono mt-1">NIS: {student.nis}</p>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedStudent(student);
-                          setCustomInputType('izin');
-                          setShowAddModal(true);
-                          setSearchTerm('');
-                          setInputSearchTerm('');
-                          setInputSelectedStudentId('');
-                        }}
-                        className="w-full py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-[11px] rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer shadow-3xs"
-                      >️ + Surat Perizinan
-                      </button>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedStudent(student);
-                            setCustomInputType('takzir');
-                            setShowAddModal(true);
-                            setSearchTerm('');
-                            setInputSearchTerm('');
-                            setInputSelectedStudentId('');
-                          }}
-                          className="py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 font-bold text-[10px] rounded-lg border border-indigo-200 transition cursor-pointer"
-                        >️ + Takzir
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedStudent(student);
-                            setCustomInputType('kesehatan');
-                            setShowAddModal(true);
-                            setSearchTerm('');
-                            setInputSearchTerm('');
-                            setInputSelectedStudentId('');
-                          }}
-                          className="py-1 bg-rose-50 hover:bg-rose-100 text-rose-900 font-bold text-[10px] rounded-lg border border-rose-200 transition cursor-pointer"
-                        >
-                          🩺 + Medis
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* INPUT DATA RECORD MODAL */}
-      {showAddModal && selectedStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/70 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-emerald-100 my-auto max-h-[92vh] flex flex-col">
-            
-            {/* Modal header */}
-            <div className="p-4 bg-gradient-to-r from-emerald-800 to-teal-900 text-white">
-              <div className="flex justify-between items-center mb-2">
-                <div>
-                  <h3 className="font-extrabold text-sm uppercase tracking-wider">Input Catatan / Tindakan Baru</h3>
-                  <p className="text-xs text-emerald-100 mt-0.5">Santri: <strong className="text-amber-300">{selectedStudent.fullName}</strong> ({selectedStudent.nis})</p>
-                </div>
                 <button
                   type="button"
                   onClick={() => {
-                    setShowAddModal(false);
-                    setSelectedStudent(null);
+                    setSelectedMonth(currentMonthNum);
+                    setSelectedYear(currentYearNum);
                   }}
-                  className="p-1 rounded bg-emerald-900/60 hover:bg-emerald-900 text-teal-100 hover:text-white text-xs font-bold transition cursor-pointer"
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                  title="Kembali ke Bulan Berjalan"
                 >
-                  </button>
-              </div>
+                  Bulan Ini
+                </button>
 
-              {/* Tab Selector inside Modal */}
-              <div className="grid grid-cols-3 gap-1 mt-3 bg-emerald-950/40 p-1 rounded-xl text-[10px] font-bold">
                 <button
                   type="button"
-                  onClick={() => setCustomInputType('izin')}
-                  className={`py-1 rounded-lg transition cursor-pointer ${
-                    customInputType === 'izin' ? 'bg-white text-emerald-900 font-extrabold shadow-3xs' : 'text-teal-100 hover:text-white'
-                  }`}
-                >️ Perizinan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCustomInputType('takzir')}
-                  className={`py-1 rounded-lg transition cursor-pointer ${
-                    customInputType === 'takzir' ? 'bg-white text-emerald-900 font-extrabold shadow-3xs' : 'text-teal-100 hover:text-white'
-                  }`}
-                >️ Takzir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCustomInputType('kesehatan')}
-                  className={`py-1 rounded-lg transition cursor-pointer ${
-                    customInputType === 'kesehatan' ? 'bg-white text-emerald-900 font-extrabold shadow-3xs' : 'text-teal-100 hover:text-white'
-                  }`}
+                  onClick={() => downloadPrintableHTML('monthly-report-printable', `LAPORAN_BULANAN_${currentRoleInfo.code}_${selectedMonth}_${selectedYear}`)}
+                  className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
-                  🩺 Medis
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Cetak Laporan Bulanan (PDF/A4)</span>
                 </button>
               </div>
             </div>
 
-            <form onSubmit={handleAddRecordSubmit} className="p-5 space-y-4">
+            {/* REPORT SUMMARY CARD */}
+            <div className="bg-gradient-to-r from-slate-900 to-emerald-950 text-white p-5 rounded-2xl shadow-md border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-mono text-emerald-300 uppercase tracking-widest font-bold">
+                  Status Rekap Periode Terpilih
+                </span>
+                <h4 className="text-base sm:text-lg font-black mt-0.5 text-white">
+                  Laporan {selectedMonth === 'ALL' ? 'Seluruh Bulan' : INDONESIAN_MONTHS.find(m => m.value === selectedMonth)?.name} {selectedYear === 'ALL' ? 'Seluruh Tahun' : selectedYear}
+                </h4>
+                <p className="text-xs text-emerald-100/80 mt-1">
+                  Total dokumen tercatat: <strong className="text-amber-300 font-bold">{selectedMonthLogs.length} Catatan</strong>
+                </p>
+              </div>
 
-              {/* Form 1: Ketertiban (Perizinan) Form */}
-              {customInputType === 'izin' && (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Jenis Izin</label>
-                    <select
-                      value={permitType}
-                      onChange={(e) => setPermitType(e.target.value as any)}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-700 bg-white text-slate-855 font-semibold"
-                    >
-                      <option value="Keluar Lingkungan">Keluar Lingkungan (Beli Kitab / ATM / Fotokopi)</option>
-                      <option value="Pulang (Keluarga)">Pulang Sambang Keluarga (Sakit / Kepentingan Penting)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Rincian Tujuan & Alasan Keperluan</label>
-                    <textarea
-                      required
-                      value={permitDesc}
-                      onChange={(e) => setPermitDesc(e.target.value)}
-                      placeholder="Contoh: Menghadiri walimatussafar paman di Cilacap, dijemput orang tua kandung."
-                      rows={3}
-                      className="w-full px-4 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-700 text-slate-800 placeholder-slate-400 font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Rencana Batas Tanggal Kembali</label>
-                    <input
-                      type="datetime-local"
-                      required
-                      value={expectedReturn}
-                      onChange={(e) => setExpectedReturn(e.target.value.replace('T', ' '))}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-800 focus:ring-2 focus:ring-indigo-700 font-medium font-mono"
-                    />
-                  </div>
-                </>
+              <div className="flex gap-4">
+                <div className="text-right">
+                  <span className="text-[10px] uppercase text-emerald-200/80 font-bold block">Tuntas / Selesai</span>
+                  <span className="text-xl font-black font-mono text-emerald-300">
+                    {selectedMonthLogs.filter(l => l.status === 'Kembali' || l.status === 'Selesai' || l.status.includes('Rawat Jalan')).length}
+                  </span>
+                </div>
+                <div className="text-right pl-4 border-l border-emerald-800/80">
+                  <span className="text-[10px] uppercase text-emerald-200/80 font-bold block">Aktif / Perlu Tindakan</span>
+                  <span className="text-xl font-black font-mono text-amber-300">
+                    {selectedMonthLogs.filter(l => l.status === 'Aktif / Keluar' || l.status === 'Belum Diurus' || l.status === 'Terlambat').length}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* TABEL DATA LENGKAP LAPORAN */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                  Rincian Data ({selectedMonthLogs.length} Catatan)
+                </h4>
+                <span className="text-[11px] font-mono text-slate-400">
+                  Diurutkan berdasarkan waktu terbaru
+                </span>
+              </div>
+
+              {selectedMonthLogs.length === 0 ? (
+                <div className="p-10 text-center text-slate-400 text-xs">
+                  <FileText className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="font-bold text-slate-600">Tidak ada catatan data pada periode bulan ini.</p>
+                  <p className="text-[11px] mt-0.5">Pilih bulan lain pada dropdown filter di atas atau input data baru.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200/80 text-slate-500 font-bold uppercase tracking-wider bg-slate-50/70 text-[10px]">
+                        <th className="py-3 px-4">No</th>
+                        <th className="py-3 px-4">Tanggal</th>
+                        <th className="py-3 px-4">Nama Santri & NIS</th>
+                        <th className="py-3 px-4">Kamar / Kelas</th>
+                        <th className="py-3 px-4">Jenis Catatan</th>
+                        <th className="py-3 px-4">Keterangan / Rincian</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedMonthLogs.map((log, idx) => (
+                        <tr key={log.id} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">{idx + 1}</td>
+                          <td className="py-3 px-4 font-mono font-medium text-slate-700 whitespace-nowrap">{log.date || '-'}</td>
+                          <td className="py-3 px-4">
+                            <strong className="text-slate-900 block font-bold">{log.studentName}</strong>
+                            <span className="text-[10px] font-mono text-emerald-800 font-bold">NIS: {log.student?.nis || '-'}</span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            <div>{log.student?.kamar || '-'}</div>
+                            <div className="text-[10px] text-slate-400">{log.student?.class || '-'}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-bold text-slate-800">{log.typeLabel}</span>
+                          </td>
+                          <td className="py-3 px-4 max-w-sm">
+                            <span className="text-slate-600 line-clamp-2">{log.desc}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              log.status === 'Kembali' || log.status === 'Selesai' ? 'bg-emerald-100 text-emerald-800' :
+                              log.status === 'Terlambat' ? 'bg-rose-100 text-rose-800' :
+                              'bg-amber-100 text-amber-900'
+                            }`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              {role === 'keamanan' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPrintSecurityTarget(log.raw)}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-emerald-800 rounded transition cursor-pointer"
+                                  title="Cetak Surat Izin"
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {role === 'ketertiban' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPrintDisciplineTarget(log.raw)}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-indigo-800 rounded transition cursor-pointer"
+                                  title="Cetak Surat Ta'zir"
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {role === 'kesehatan' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPrintHealthTarget(log.raw)}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-rose-800 rounded transition cursor-pointer"
+                                  title="Cetak Surat Sakit"
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmTarget({ id: log.id, studentId: log.studentId, type: role === 'keamanan' ? 'security' : role === 'ketertiban' ? 'discipline' : 'health' })}
+                                className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                title="Hapus Catatan"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
+            </div>
 
-              {/* Form 2: Keamanan (Takzir Pelanggaran) Form */}
-              {customInputType === 'takzir' && (
-                <>
+            {/* HIDDEN PRINTABLE CONTAINER FOR OFFICIAL MONTHLY REPORT (A4 KOP RESMI) */}
+            <div id="monthly-report-printable" className="hidden print:block p-8 bg-white font-serif text-slate-900">
+              {/* Kop Surat Resmi */}
+              <div className="border-b-4 border-double border-slate-900 pb-3 mb-5 flex items-center">
+                {pesantrenSettings.logoUrl ? (
+                  <img src={pesantrenSettings.logoUrl} alt="Logo" className="h-16 w-16 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
+                ) : null}
+                <div className="flex-1 text-center font-sans">
+                  <h3 className="font-extrabold text-sm uppercase leading-tight tracking-wider text-slate-900">
+                    {pesantrenSettings.namaYayasan || "YAYASAN AL-ASY'ARIYAH"}
+                  </h3>
+                  <h2 className="font-black text-base uppercase leading-tight tracking-wide text-slate-950">
+                    {pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}
+                  </h2>
+                  <p className="text-[10px] italic font-bold tracking-wider uppercase text-slate-700">
+                    {currentRoleInfo.deptLabel}
+                  </p>
+                  <p className="text-[9px] text-slate-600 mt-0.5">
+                    {pesantrenSettings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur"} | Telp: {pesantrenSettings.phone || "(0291) 438291"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Judul Laporan */}
+              <div className="text-center mb-5 font-sans">
+                <h3 className="font-black text-sm uppercase underline tracking-wider">
+                  LAPORAN BULANAN {currentRoleInfo.roleTitle.toUpperCase()}
+                </h3>
+                <p className="text-[10px] font-mono mt-0.5 text-slate-600">
+                  Periode: {selectedMonth === 'ALL' ? 'Semua Bulan' : INDONESIAN_MONTHS.find(m => m.value === selectedMonth)?.name} {selectedYear === 'ALL' ? 'Semua Tahun' : selectedYear}
+                </p>
+              </div>
+
+              {/* Tabel Cetak Laporan */}
+              <table className="w-full text-left text-[10px] border-collapse font-sans mb-8 border border-slate-900">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-900 font-bold uppercase text-slate-900">
+                    <th className="py-2 px-2 border-r border-slate-900 text-center">No</th>
+                    <th className="py-2 px-2 border-r border-slate-900">Tanggal</th>
+                    <th className="py-2 px-2 border-r border-slate-900">Nama Santri (NIS)</th>
+                    <th className="py-2 px-2 border-r border-slate-900">Kamar / Kelas</th>
+                    <th className="py-2 px-2 border-r border-slate-900">Jenis Catatan</th>
+                    <th className="py-2 px-2 border-r border-slate-900">Keterangan / Tindakan</th>
+                    <th className="py-2 px-2 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-300">
+                  {selectedMonthLogs.map((log, i) => (
+                    <tr key={log.id}>
+                      <td className="py-1.5 px-2 border-r border-slate-900 text-center font-mono">{i + 1}</td>
+                      <td className="py-1.5 px-2 border-r border-slate-900 font-mono">{log.date}</td>
+                      <td className="py-1.5 px-2 border-r border-slate-900 font-bold">{log.studentName} ({log.student?.nis || '-'})</td>
+                      <td className="py-1.5 px-2 border-r border-slate-900">{log.student?.kamar || '-'}</td>
+                      <td className="py-1.5 px-2 border-r border-slate-900 font-semibold">{log.typeLabel}</td>
+                      <td className="py-1.5 px-2 border-r border-slate-900">{log.desc}</td>
+                      <td className="py-1.5 px-2 text-center font-bold">{log.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Tanda Tangan Berjenjang */}
+              <div className="flex justify-between items-start font-sans text-xs mt-8 pt-4">
+                <div className="text-center w-56 space-y-1">
+                  <p className="text-[11px] text-slate-600">Mengetahui,</p>
+                  <p className="font-bold text-slate-900">Pengasuh / Pimpinan Pondok</p>
+                  <div className="h-16 flex items-center justify-center">
+                    {pesantrenSettings.ttdPengasuhUrl ? (
+                      <img src={pesantrenSettings.ttdPengasuhUrl} alt="TTD" className="h-14 object-contain" referrerPolicy="no-referrer" />
+                    ) : null}
+                  </div>
+                  <p className="font-black text-slate-950 underline">{pesantrenSettings.namaPengasuh || 'KH. M. Syamsul Arifin'}</p>
+                  <p className="text-[10px] text-slate-500">Pengasuh Pesantren</p>
+                </div>
+
+                <div className="text-center w-56 space-y-1">
+                  <p className="text-[11px] text-slate-600">
+                    {getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="font-bold text-slate-900">{currentRoleInfo.deptLabel}</p>
+                  <div className="h-16 flex items-center justify-center">
+                    {deptSignature && isImageUrl(deptSignature) ? (
+                      <img src={deptSignature} alt="TTD" className="h-14 object-contain" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="font-serif italic font-bold text-sm text-slate-900 underline">{deptSignature || 'Tanda Tangan'}</span>
+                    )}
+                  </div>
+                  <p className="font-black text-slate-950 underline">{deptName || currentRoleInfo.defaultName}</p>
+                  <p className="text-[10px] text-slate-500">Kepala Bidang Terkait</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: PENERBITAN & DRAF SURAT RESMI (DISESUAIKAN UNTUK MASING-MASING PERAN) */}
+        {/* ========================================================================= */}
+        {currentTab === 'letters' && (
+          <div className="space-y-6 animate-fade-in">
+            
+            {/* Header info */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                  <Printer className="h-4 w-4 text-emerald-800" />
+                  <span>Draf Format Surat Resmi {currentRoleInfo.roleTitle}</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Format surat di bawah ini telah disesuaikan secara khusus dengan kewenangan {currentRoleInfo.deptLabel}.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTab('profile')}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <span>Ubah Redaksi & TTD</span>
+              </button>
+            </div>
+
+            {/* LIST OF 3 ROLE-SPECIFIC LETTER FORMATS */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              {/* Surat 1 */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between gap-4">
+                <div>
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center font-bold text-xs mb-3">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-mono text-emerald-800 font-bold uppercase">Format Surat 01</span>
+                  <h4 className="text-sm font-extrabold text-slate-900 mt-1">
+                    {currentRoleInfo.letter1Name}
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1.5 line-clamp-3">
+                    {letterTemplate1 || currentRoleInfo.letterTemplate1}
+                  </p>
+                </div>
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-slate-400">Kode: {currentRoleInfo.code}-01</span>
+                  <button
+                    type="button"
+                    onClick={() => setTab('profile')}
+                    className="text-xs font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Edit Format</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Surat 2 */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between gap-4">
+                <div>
+                  <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-800 flex items-center justify-center font-bold text-xs mb-3">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-mono text-indigo-800 font-bold uppercase">Format Surat 02</span>
+                  <h4 className="text-sm font-extrabold text-slate-900 mt-1">
+                    {currentRoleInfo.letter2Name}
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1.5 line-clamp-3">
+                    {letterTemplate2 || currentRoleInfo.letterTemplate2}
+                  </p>
+                </div>
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-slate-400">Kode: {currentRoleInfo.code}-02</span>
+                  <button
+                    type="button"
+                    onClick={() => setTab('profile')}
+                    className="text-xs font-bold text-indigo-800 hover:text-indigo-950 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Edit Format</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Surat 3 */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between gap-4">
+                <div>
+                  <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-800 flex items-center justify-center font-bold text-xs mb-3">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-mono text-rose-800 font-bold uppercase">Format Surat 03</span>
+                  <h4 className="text-sm font-extrabold text-slate-900 mt-1">
+                    {currentRoleInfo.letter3Name}
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1.5 line-clamp-3">
+                    {letterTemplate3 || currentRoleInfo.letterTemplate3}
+                  </p>
+                </div>
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-slate-400">Kode: {currentRoleInfo.code}-03</span>
+                  <button
+                    type="button"
+                    onClick={() => setTab('profile')}
+                    className="text-xs font-bold text-rose-800 hover:text-rose-950 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Edit Format</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* PREVIEW SAMPLE LETTER */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 font-serif">
+              <div className="border-b border-slate-200 pb-3 mb-4 font-sans flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">Pratinjau Draf Standar Pesantren</span>
+                  <h4 className="text-xs font-extrabold text-slate-900 uppercase">
+                    Format Surat Resmi: {currentRoleInfo.letter1Name}
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => downloadPrintableHTML('sample-letter-preview', `FORMAT_SURAT_${currentRoleInfo.code}`)}
+                  className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Cetak Draf</span>
+                </button>
+              </div>
+
+              <div id="sample-letter-preview" className="p-6 bg-white border border-slate-200 rounded-xl text-xs space-y-4 text-slate-900">
+                {/* Kop */}
+                <div className="border-b-4 border-double border-slate-900 pb-3 flex items-center font-sans">
+                  {pesantrenSettings.logoUrl ? (
+                    <img src={pesantrenSettings.logoUrl} alt="Logo" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
+                  ) : null}
+                  <div className="flex-1 text-center">
+                    <h4 className="font-extrabold text-xs uppercase leading-tight">{pesantrenSettings.namaYayasan || "YAYASAN AL-ASY'ARIYAH"}</h4>
+                    <h3 className="font-black text-sm uppercase leading-tight text-slate-950">{pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}</h3>
+                    <p className="text-[10px] italic font-bold tracking-wider uppercase text-slate-600">{currentRoleInfo.deptLabel}</p>
+                    <p className="text-[9px] text-slate-500">{pesantrenSettings.address}</p>
+                  </div>
+                </div>
+
+                <div className="text-center font-sans">
+                  <h4 className="font-black text-sm uppercase underline">{currentRoleInfo.letter1Name}</h4>
+                  <p className="text-[10px] font-mono text-slate-500 mt-0.5">Nomor: 01/{currentRoleInfo.code}/PP.AM/X/2026</p>
+                </div>
+
+                <p className="indent-8 text-slate-800 font-serif leading-relaxed">
+                  {letterTemplate1 || currentRoleInfo.letterTemplate1}
+                </p>
+
+                <table className="w-full max-w-md mx-auto font-sans text-xs border-collapse my-2">
+                  <tbody>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1 font-bold text-slate-500 w-1/3">NIS / ID</td>
+                      <td className="py-1 font-mono font-bold">: 0012</td>
+                    </tr>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1 font-bold text-slate-500">Nama Lengkap</td>
+                      <td className="py-1 font-extrabold">: (Nama Lengkap Santri)</td>
+                    </tr>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1 font-bold text-slate-500">Kelas & Kamar</td>
+                      <td className="py-1">: VII SMP Formal / Kamar Al-Ghazali 1</td>
+                    </tr>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1 font-bold text-slate-500">Keterangan Khusus</td>
+                      <td className="py-1">: Sesuai ketentuan operasional pesantren</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <p className="text-[11px] text-slate-600 italic font-sans leading-normal">
+                  {letterTemplate2 || currentRoleInfo.letterTemplate2}
+                </p>
+
+                {/* TTD */}
+                <div className="pt-4 flex justify-end font-sans text-xs">
+                  <div className="w-56 text-left space-y-1">
+                    <p className="text-[11px] text-slate-600">
+                      {getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                    <p className="font-bold text-slate-900">{currentRoleInfo.deptLabel}</p>
+                    <div className="h-16 flex items-center justify-start">
+                      {deptSignature && isImageUrl(deptSignature) ? (
+                        <img src={deptSignature} alt="TTD" className="h-14 object-contain" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="font-serif italic font-bold text-sm text-slate-900 underline">{deptSignature || 'Tanda Tangan'}</span>
+                      )}
+                    </div>
+                    <p className="font-black text-slate-950 underline leading-none">{deptName || currentRoleInfo.defaultName}</p>
+                    <p className="text-[10px] text-slate-500">Pejabat Berwenang</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 4: PROFIL JABATAN & DRAF SURAT                                         */}
+        {/* ========================================================================= */}
+        {currentTab === 'profile' && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 max-w-2xl mx-auto animate-fade-in">
+            <div className="flex items-center gap-2.5 border-b border-dashed border-slate-200 pb-3 mb-4">
+              <Signature className="h-5 w-5 text-emerald-800" />
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider">
+                  Pengaturan Profil & Draf Surat {currentRoleInfo.roleTitle}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Sesuaikan nama resmi pengurus, tanda tangan, stempel, dan kalimat baku dalam surat.
+                </p>
+              </div>
+            </div>
+
+            {profileSaveSuccess && (
+              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-bold flex items-center gap-2">
+                <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>{profileSaveSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Nama Resmi Pejabat / Pengurus
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={deptName}
+                  onChange={(e) => setDeptName(e.target.value)}
+                  placeholder="Contoh: Ustadz Hasanuddin, S.Pd"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Nama Teks Tanda Tangan
+                  </label>
+                  <input
+                    type="text"
+                    value={deptSignature}
+                    onChange={(e) => setDeptSignature(e.target.value)}
+                    placeholder="Contoh: Hasanuddin"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700 font-serif italic"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Teks Stempel Resmi
+                  </label>
+                  <input
+                    type="text"
+                    value={deptSeal}
+                    onChange={(e) => setDeptSeal(e.target.value)}
+                    placeholder="Contoh: STEMPEL KEAMANAN"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  />
+                </div>
+              </div>
+
+              {/* ROLE SPECIFIC LETTER PARAGRAPHS */}
+              <div className="border-t border-slate-200 pt-4 space-y-4">
+                <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
+                  Penyesuaian Kalimat Redaksi Surat Khusus {currentRoleInfo.roleTitle}
+                </h4>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    1. Kalimat Pembuka ({currentRoleInfo.letter1Name})
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={letterTemplate1}
+                    onChange={(e) => setLetterTemplate1(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    2. Catatan Khusus / Ketentuan ({currentRoleInfo.letter2Name})
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={letterTemplate2}
+                    onChange={(e) => setLetterTemplate2(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    3. Kalimat Penutup ({currentRoleInfo.letter3Name})
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={letterTemplate3}
+                    onChange={(e) => setLetterTemplate3(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition shadow-md cursor-pointer"
+                >
+                  Simpan Perubahan Profil & Format Surat
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+      </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL INPUT DATA SANTRI (STREAMLINED, TIDAK RIBET, SESUAI JABATAN)          */}
+      {/* ========================================================================= */}
+      {showAddModal && (
+        <div 
+          onClick={() => setShowAddModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 flex flex-col my-auto max-h-[92vh] animate-fade-in text-xs font-sans"
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-emerald-900 to-teal-950 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-emerald-800 flex items-center justify-center text-amber-300">
+                  {role === 'keamanan' && <Shield className="h-4 w-4" />}
+                  {role === 'ketertiban' && <AlertTriangle className="h-4 w-4" />}
+                  {role === 'kesehatan' && <Heart className="h-4 w-4" />}
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm uppercase tracking-wider text-white">
+                    {role === 'keamanan' && 'Input Surat Izin Keluar Santri'}
+                    {role === 'ketertiban' && 'Input Catatan Takzir & Disiplin'}
+                    {role === 'kesehatan' && 'Input Catatan Medis Poskestren'}
+                  </h3>
+                  <p className="text-[10px] text-emerald-200 font-medium">
+                    Kewenangan Khusus: {currentRoleInfo.deptLabel}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="text-emerald-200 hover:text-white p-1 rounded-lg transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRecord} className="p-5 space-y-4 overflow-y-auto flex-1 text-left">
+              
+              {/* STEP 1: PILIH SANTRI DENGAN MUDAH (TIDAK RIBET) */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 uppercase">
+                  Pilih Santri <span className="text-rose-500">*</span>
+                </label>
+
+                {!selectedStudentForInput ? (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Ketik Nama, NIS, atau Kamar santri..."
+                        value={studentSearchKeyword}
+                        onChange={(e) => {
+                          setStudentSearchKeyword(e.target.value);
+                          setIsSearchingStudent(true);
+                        }}
+                        onFocus={() => setIsSearchingStudent(true)}
+                        className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
+                      />
+                    </div>
+
+                    {/* Autocomplete Dropdown */}
+                    {isSearchingStudent && studentSearchKeyword.trim() && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                        {studentAutocompleteResults.length === 0 ? (
+                          <div className="p-3 text-center text-slate-400 text-[11px]">
+                            Santri tidak ditemukan dengan kata kunci "{studentSearchKeyword}".
+                          </div>
+                        ) : (
+                          studentAutocompleteResults.map(s => (
+                            <div
+                              key={s.id}
+                              onClick={() => {
+                                setSelectedStudentForInput(s);
+                                setStudentSearchKeyword('');
+                                setIsSearchingStudent(false);
+                              }}
+                              className="p-2.5 hover:bg-emerald-50 cursor-pointer flex items-center justify-between text-xs transition"
+                            >
+                              <div>
+                                <strong className="text-slate-900 block font-bold">{s.fullName}</strong>
+                                <span className="text-[10px] text-slate-400">
+                                  NIS: <strong className="text-emerald-800">{s.nis || '-'}</strong> • Kamar: {s.kamar || '-'}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
+                                Pilih
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="h-9 w-9 rounded-full bg-emerald-800 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                        {selectedStudentForInput.fullName.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <strong className="text-slate-900 text-xs font-extrabold truncate block">
+                          {selectedStudentForInput.fullName}
+                        </strong>
+                        <span className="text-[10px] text-emerald-800 font-mono font-bold">
+                          NIS: {selectedStudentForInput.nis || '-'} • {selectedStudentForInput.kamar || 'Kamar -'} (Kelas {selectedStudentForInput.class || '-'})
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStudentForInput(null)}
+                      className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 cursor-pointer transition shrink-0"
+                    >
+                      Ganti Santri
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* STEP 2: FORMULIR KHUSUS SESUAI JABATAN (HANYA SATU JABATAN) */}
+
+              {/* A. FORM KHUSUS KEAMANAN (PERIZINAN) */}
+              {role === 'keamanan' && (
+                <div className="space-y-3.5 pt-2 border-t border-slate-100">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Nama / Deskripsi Pelanggaran</label>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Jenis Izin
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSecPermitType('Keluar Lingkungan')}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition text-center cursor-pointer ${
+                          secPermitType === 'Keluar Lingkungan'
+                            ? 'bg-emerald-800 text-white border-emerald-800 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Izin Keluar Lingkungan (Siang/Sore)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSecPermitType('Pulang (Keluarga)')}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition text-center cursor-pointer ${
+                          secPermitType === 'Pulang (Keluarga)'
+                            ? 'bg-emerald-800 text-white border-emerald-800 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Izin Pulang Bermalam (Keluarga)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Keperluan / Alasan Izin
+                    </label>
+                    {/* Quick preset chips */}
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {['Beli Kitab / ATK', 'Ke ATM / Bank', 'Periksa Dokter', 'Acara Keluarga', 'Takziyah'].map(chip => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => setSecPermitDesc(chip)}
+                          className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-medium transition cursor-pointer"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
+                    </div>
                     <input
                       type="text"
                       required
-                      value={violationType}
-                      onChange={(e) => setViolationType(e.target.value)}
-                      placeholder="Contoh: Menggunakan barang orang lain tanpa izin (Ghozab)"
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 text-slate-800 font-semibold"
+                      placeholder="Contoh: Mengambil uang di ATM dan fotokopi materi kitab"
+                      value={secPermitDesc}
+                      onChange={(e) => setSecPermitDesc(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-700"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Kategori Tingkatan</label>
-                    <select
-                      value={violationLevel}
-                      onChange={(e) => setViolationLevel(e.target.value as any)}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-white text-slate-850 font-semibold"
-                    >
-                      <option value="Ringan">Ringan (E.g. Terlambat)</option>
-                      <option value="Sedang">Sedang (E.g. Ghozab)</option>
-                      <option value="Berat">Berat (E.g. Merokok/Keluar Malam)</option>
-                    </select>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Waktu Keluar
+                      </label>
+                      <input
+                        type="text"
+                        value={secOutDate}
+                        onChange={(e) => setSecOutDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-medium focus:ring-2 focus:ring-emerald-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Batas Waktu Kembali
+                      </label>
+                      {/* Presets */}
+                      <div className="flex gap-1 mb-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setReturnPreset(3)}
+                          className="px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded text-[9px] font-bold hover:bg-emerald-100 cursor-pointer"
+                        >
+                          +3 Jam
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReturnPreset(5)}
+                          className="px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded text-[9px] font-bold hover:bg-emerald-100 cursor-pointer"
+                        >
+                          Sore (17:00)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReturnPreset(0, 1)}
+                          className="px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded text-[9px] font-bold hover:bg-emerald-100 cursor-pointer"
+                        >
+                          Besok
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReturnPreset(0, 3)}
+                          className="px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded text-[9px] font-bold hover:bg-emerald-100 cursor-pointer"
+                        >
+                          3 Hari
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={secExpectedReturn}
+                        onChange={(e) => setSecExpectedReturn(e.target.value)}
+                        placeholder="YYYY-MM-DD HH:MM"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold text-rose-800 focus:ring-2 focus:ring-emerald-700"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Sanksi / Ta'zir yang Diberikan</label>
-                    <textarea
-                      required
-                      value={violationConsequence}
-                      onChange={(e) => setViolationConsequence(e.target.value)}
-                      placeholder="Contoh: Membersihkan toilet umum komplek barat dan menghafal 1 halaman surah Yasin"
-                      rows={2}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium"
-                    />
-                  </div>
-                </>
+                </div>
               )}
 
-              {/* Form 3: Kesehatan Form */}
-              {customInputType === 'kesehatan' && (
-                <>
+              {/* B. FORM KHUSUS KETERTIBAN (PELANGGARAN & TA'ZIR) */}
+              {role === 'ketertiban' && (
+                <div className="space-y-3.5 pt-2 border-t border-slate-100">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Keluhan Kesehatan / Sakit</label>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Bentuk Pelanggaran Disiplin
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {['Terlambat Shalat Berjamaah', 'Keluar Tanpa Izin (Kabur)', 'Ghozab Barang/Sandal', 'Merokok / Vape', 'Bolos Pengajian Diniyah'].map(chip => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => setDiscViolationType(chip)}
+                          className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-medium transition cursor-pointer"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
+                    </div>
                     <input
                       type="text"
                       required
-                      value={complaint}
-                      onChange={(e) => setComplaint(e.target.value)}
-                      placeholder="Contoh: Demam tinggi 38.5C dan pusing pening"
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-700"
+                      placeholder="Contoh: Terlambat mengikuti shalat maghrib berjamaah di masjid"
+                      value={discViolationType}
+                      onChange={(e) => setDiscViolationType(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-indigo-700"
                     />
                   </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Prakiraan Diagnosa</label>
-                      <input
-                        type="text"
-                        required
-                        value={diagnosis}
-                        onChange={(e) => setDiagnosis(e.target.value)}
-                        placeholder="Contoh: Kelelahan mendalam & demam"
-                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-700"
-                      />
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Tingkat Pelanggaran
+                      </label>
+                      <select
+                        value={discViolationLevel}
+                        onChange={(e) => setDiscViolationLevel(e.target.value as any)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white focus:ring-2 focus:ring-indigo-700"
+                      >
+                        <option value="Ringan">Ringan (E.g. Terlambat)</option>
+                        <option value="Sedang">Sedang (E.g. Ghozab)</option>
+                        <option value="Berat">Berat (E.g. Merokok/Keluar Malam)</option>
+                      </select>
                     </div>
+
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Pemberian Obat / Terapis</label>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Bobot Poin Ta'zir
+                      </label>
                       <input
-                        type="text"
-                        required
-                        value={treatment}
-                        onChange={(e) => setTreatment(e.target.value)}
-                        placeholder="Contoh: Paracetamol 3x1 & Amoxicillin"
-                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-700"
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={discViolationPoints}
+                        onChange={(e) => setDiscViolationPoints(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold text-rose-700 focus:ring-2 focus:ring-indigo-700"
                       />
                     </div>
                   </div>
+
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Rekomendasi Perawatan</label>
-                    <select
-                      value={healthStatus}
-                      onChange={(e) => setHealthStatus(e.target.value as any)}
-                      className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-rose-750 text-slate-800"
-                    >
-                      <option value="Rawat Jalan (Kamar)">Rawat Jalan di Kamar Santri</option>
-                      <option value="Nginap di Poskestren">Opname / Rawat Inap di Klinik Poskestren</option>
-                      <option value="Dirujuk ke RS / Pulang">Dirujuk ke Rumah Sakit terdekat / Dipulangkan sementara</option>
-                    </select>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Sanksi Edukatif / Ta'zir yang Diberikan
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {['Membaca Al-Qur\'an 1 Juz', 'Membersihkan Halaman Masjid', 'Menghafal Surah Yasin', 'Piket Dapur Umum', 'Peringatan Lisan'].map(chip => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => setDiscConsequence(chip)}
+                          className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-medium transition cursor-pointer"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: Membersihkan selasar masjid dan membaca Al-Qur'an 1 juz"
+                      value={discConsequence}
+                      onChange={(e) => setDiscConsequence(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-700"
+                    />
                   </div>
-                </>
+                </div>
               )}
 
-              {/* Toggle Notifikasi Otomatis via WhatsApp */}
+              {/* C. FORM KHUSUS KESEHATAN (POSKESTREN) */}
+              {role === 'kesehatan' && (
+                <div className="space-y-3.5 pt-2 border-t border-slate-100">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Keluhan / Gejala Sakit Santri
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {['Demam & Menggigil', 'Sakit Kepala / Pusing', 'Sakit Perut / Maag', 'Batuk & Flu Pilek', 'Luka / Cedera Ringan'].map(chip => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => setHealComplaint(chip)}
+                          className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-medium transition cursor-pointer"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: Demam 38°C disertai pusing dan lemas"
+                      value={healComplaint}
+                      onChange={(e) => setHealComplaint(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-rose-700"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Prakiraan Diagnosa
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Contoh: Febris / Gejala Tifus Ringan"
+                        value={healDiagnosis}
+                        onChange={(e) => setHealDiagnosis(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-rose-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Tindakan & Pemberian Obat
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Contoh: Paracetamol 500mg 3x1 & Vitamin C"
+                        value={healTreatment}
+                        onChange={(e) => setHealTreatment(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-rose-700"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Rekomendasi Perawatan
+                    </label>
+                    <select
+                      value={healStatus}
+                      onChange={(e) => setHealStatus(e.target.value as any)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-800 focus:ring-2 focus:ring-rose-700"
+                    >
+                      <option value="Rawat Jalan (Kamar)">Rawat Jalan di Kamar Asrama</option>
+                      <option value="Nginap di Poskestren">Opname / Rawat Inap di Poskestren</option>
+                      <option value="Dirujuk ke RS / Pulang">Dirujuk ke RS Terdekat / Pulang Sementara</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* WHATSAPP AUTOMATION TOGGLE */}
               <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  
+                  <Phone className="h-4 w-4 text-emerald-800 shrink-0" />
                   <div>
-                    <div className="text-xs font-bold text-emerald-950">Kirim Notifikasi WhatsApp Resmi ke Wali Santri</div>
-                    <div className="text-[10px] text-emerald-700">Terkirim otomatis dari Nomor WhatsApp Pesantren</div>
+                    <div className="text-xs font-bold text-emerald-950">Kirim Notifikasi WhatsApp Otomatis ke Wali</div>
+                    <div className="text-[10px] text-emerald-700">Pemberitahuan resmi otomatis terkirim ke HP wali santri</div>
                   </div>
                 </div>
                 <input
@@ -2613,803 +2489,404 @@ export default function StaffDashboard({
                 />
               </div>
 
-              {/* Modal footer btns */}
-              <div className="flex gap-2 pt-4 border-t border-slate-100">
+              {/* ACTION BUTTONS */}
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setSelectedStudent(null);
-                  }}
-                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className={`flex-1 py-2 bg-gradient-to-r ${
-                    role === 'keamanan' ? 'from-emerald-800 to-emerald-950 hover:opacity-95' :
-                    role === 'ketertiban' ? 'from-indigo-800 to-indigo-950 hover:opacity-95' :
-                    'from-rose-800 to-rose-950 hover:opacity-95'
-                  } text-white rounded-lg text-xs font-bold shadow-md cursor-pointer`}
+                  disabled={!selectedStudentForInput}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold text-white shadow-md transition cursor-pointer ${
+                    !selectedStudentForInput 
+                      ? 'bg-slate-300 cursor-not-allowed' 
+                      : 'bg-emerald-800 hover:bg-emerald-900'
+                  }`}
                 >
-                  Simpan Catatan
+                  Simpan Catatan Resmi
                 </button>
               </div>
+
             </form>
           </div>
         </div>
       )}
 
-      {/* POPUP SLIP LAYOUTS FOR PRINTS */}
-
-      {/* 1. Slip Izin Pulang/Keluar */}
-      {printSecurityLog && (() => {
-        const studentInfo = students.find(s => s.id === printSecurityLog.studentId || s.fullName === printSecurityLog.studentName);
-        const config = getStaffConfig('ketertiban');
-        
-        let slipTitle = "SURAT IDZIN KELUAR TIDAK BERMALAM";
-        try {
-          const d1 = new Date(printSecurityLog.outDate.trim().replace(' ', 'T'));
-          const d2 = new Date(printSecurityLog.expectedReturnDate.trim().replace(' ', 'T'));
-          const diffMs = d2.getTime() - d1.getTime();
-          const diffDays = diffMs / (1000 * 60 * 60 * 24);
-          
-          const date1Str = printSecurityLog.outDate.split(' ')[0] || printSecurityLog.outDate;
-          const date2Str = printSecurityLog.expectedReturnDate.split(' ')[0] || printSecurityLog.expectedReturnDate;
-          const isOvernight = date1Str !== date2Str || diffDays >= 1.0;
-
-          if (isOvernight) {
-            slipTitle = "SURAT IDZIN KELUAR BERMALAM";
-          } else {
-            slipTitle = "SURAT IDZIN KELUAR TIDAK BERMALAM";
-          }
-        } catch (e) {
-          slipTitle = "SURAT IDZIN KELUAR TIDAK BERMALAM";
-        }
-
-        return (
+      {/* ========================================================================= */}
+      {/* POPUP SLIP CETAK: 1. SURAT IZIN KELUAR KEAMANAN                            */}
+      {/* ========================================================================= */}
+      {printSecurityTarget && (
+        <div 
+          onClick={() => setPrintSecurityTarget(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs"
+        >
           <div 
-            onClick={() => setPrintSecurityLog(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/70 backdrop-blur-sm cursor-pointer overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-emerald-100 relative max-h-[92vh] overflow-y-auto animate-fade-in text-xs"
           >
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-emerald-100 relative cursor-default my-auto max-h-[92vh] flex flex-col overflow-y-auto"
+            <button 
+              onClick={() => setPrintSecurityTarget(null)} 
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 p-1 rounded-full cursor-pointer print:hidden"
             >
-              <button 
-                onClick={() => setPrintSecurityLog(null)} 
-                className="absolute top-3 right-3 text-slate-400 hover:text-slate-650 hover:bg-slate-100 p-1 rounded-full cursor-pointer print:hidden transition"
-                title="Batal Print"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <div className="text-[10px] bg-amber-50 text-amber-900 border border-amber-200 p-2.5 rounded mb-4 font-sans flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <X className="h-4 w-4" />
+            </button>
+
+            {/* Printable Area */}
+            <div id="security-slip-print" className="p-4 bg-white text-left font-sans">
+              <div className="border-b-4 border-double border-slate-900 pb-3 mb-4 flex items-center">
+                {pesantrenSettings.logoUrl ? (
+                  <img src={pesantrenSettings.logoUrl} alt="Logo" className="h-14 w-14 object-contain mr-3 shrink-0" referrerPolicy="no-referrer" />
+                ) : null}
                 <div className="flex-1">
-                  Paragraf surat ini dapat diklik dan diedit langsung sebelum mencetak.
-                </div>
-                <button
-                  onClick={() => setPrintSecurityLog(null)}
-                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-black cursor-pointer shrink-0 transition"
-                >
-                  Kembali & Tutup </button>
-              </div>
-
-              {/* Printable Wrapper */}
-              <div id="security-letter-to-print" className="p-2 bg-white text-left font-sans">
-                {/* Kop Surat Resmi */}
-                <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 flex items-center">
-                  {pesantrenSettings.logoUrl ? (
-                    <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
-                  ) : null}
-                  <div className="flex-1">
-                    <h4 className="text-slate-900 font-black text-sm tracking-wide uppercase leading-tight">
-                      {pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}
-                    </h4>
-                    <p className="text-[10px] italic text-slate-500 font-bold tracking-wide uppercase">Biro Keamanan & Ketertiban Pengurus Pondok Pesantren</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">
-                      {pesantrenSettings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur"}
-                    </p>
-                    <p className="text-[9px] text-slate-500 font-medium">
-                      Telp: {pesantrenSettings.phone || "(0291) 438291"} | Email: {pesantrenSettings.email || "info@alasyariyah.sch.id"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-center mb-6">
-                  <h3 className="font-extrabold text-base tracking-wider underline uppercase text-slate-950" contentEditable={true} suppressContentEditableWarning={true}>
-                    {(() => {
-                      const isOvernight = printSecurityLog.permitType === 'Pulang (Keluarga)' || 
-                                          printSecurityLog.permitType?.toLowerCase().includes('bermalam') ||
-                                          (printSecurityLog.outDate && printSecurityLog.expectedReturnDate && 
-                                           (new Date(printSecurityLog.expectedReturnDate.replace(' ', 'T')).getTime() - new Date(printSecurityLog.outDate.replace(' ', 'T')).getTime() > 24 * 3600 * 1000));
-                      return isOvernight ? 'SURAT IZIN BERMALAM' : 'SURAT IZIN KELUAR (TIDAK BERMALAM)';
-                    })()}
-                  </h3>
-                  <p className="text-[10px] font-mono mt-0.5 text-slate-500">Nomor: {getLetterNumber(printSecurityLog.id, 'Surat Izin Keluar', 'KMT')}</p>
-                </div>
-
-                <div className="space-y-2 text-xs text-slate-900 leading-relaxed mb-6">
-                  <p contentEditable={true} suppressContentEditableWarning={true} className="cursor-text focus:bg-amber-50/30">{getStaffConfig('ketertiban').letterTemplate1}</p>
-                  
-                  <table className="w-full my-4 border-collapse text-[11px] font-sans">
-                    <tbody>
-                      <tr className="border-b border-slate-100">
-                        <td className="py-1.5 font-bold text-slate-500 w-1/3 uppercase">NIS</td>
-                        <td className="py-1.5 text-slate-900 font-mono font-bold">{studentInfo?.nis || '-'}</td>
-                      </tr>
-                      <tr className="border-b border-slate-100">
-                        <td className="py-1.5 font-bold text-slate-500 uppercase">Nama Santri</td>
-                        <td className="py-1.5 text-slate-900 font-extrabold">{printSecurityLog.studentName}</td>
-                      </tr>
-                      <tr className="border-b border-slate-100">
-                        <td className="py-1.5 font-bold text-slate-500 uppercase">Kamar & Kelas</td>
-                        <td className="py-1.5 text-slate-900 font-semibold">{studentInfo?.kamar || '-'} (Kelas {studentInfo?.class || '-'})</td>
-                      </tr>
-                      <tr className="border-b border-slate-100">
-                        <td className="py-1.5 font-bold text-slate-500 uppercase">Waktu Keluar</td>
-                        <td className="py-1.5 text-emerald-950 font-mono font-extrabold">{printSecurityLog.outDate || '-'}</td>
-                      </tr>
-                      <tr className="border-b border-slate-100">
-                        <td className="py-1.5 font-bold text-slate-500 uppercase">Rencana Kembali</td>
-                        <td className="py-1.5 text-rose-950 font-mono font-extrabold">{printSecurityLog.expectedReturnDate || '-'}</td>
-                      </tr>
-                      <tr className="border-b border-slate-100">
-                        <td className="py-1.5 font-bold text-slate-500 uppercase">Tujuan Izin</td>
-                        <td className="py-1.5 text-slate-900 font-bold">
-                          {printSecurityLog.destinationCity || printSecurityLog.destination || (printSecurityLog.permitType === 'Pulang (Keluarga)' ? 'Rumah Wali / Keluarga' : 'Luar Lingkungan Pesantren')}
-                        </td>
-                      </tr>
-                      <tr className="border-b border-slate-100">
-                        <td className="py-1.5 font-bold text-slate-500 uppercase">Keperluan</td>
-                        <td className="py-1.5 text-slate-900 font-semibold">{printSecurityLog.description || '-'}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  
-                  <p contentEditable={true} suppressContentEditableWarning={true} className="text-[10px] italic mt-2 text-slate-500 leading-normal cursor-text focus:bg-amber-50/30">
-                    * Keterangan penting: Lembaran lapor ini wajib dibawa oleh santri dan diserahkan kembali ke pos penjagaan keamanan saat tiba kembali di pondok sesuai tenggat waktu yang tercatat. Keterlambatan akan dikenakan sanksi disiplin!
-                  </p>
-                </div>
-
-               {/* Signature Area: Sebelah kanan model rata kiri */}
-              <div className="border-t border-dashed border-slate-200 pt-4 flex justify-end text-left text-xs">
-                <div className="w-[280px] relative font-sans space-y-1">
-                  <p className="text-[11px] text-slate-600 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  <p className="text-xs text-slate-900 font-bold uppercase tracking-wide">
-                    {role === 'ketertiban' ? 'Mengetahui, Kepala Bidang Ketertiban & Keamanan' : role === 'keamanan' ? 'Mengetahui, Kepala Bidang Keamanan' : 'Mengetahui, Pengurus Pondok Pesantren'}
-                  </p>
-                  
-                  {/* TTD and overlapping Stempel */}
-                  <div className="min-h-[88px] w-full relative flex items-center justify-start select-none py-1">
-                    {/* Stempel on the LEFT */}
-                    <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
-                      {isImageUrl(config.seal) ? (
-                        <img src={config.seal} alt="Stempel Biro" className="h-24 w-24 object-contain select-none mix-blend-multiply rotate-[-6deg]" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="border border-indigo-600 border-double rounded h-16 w-16 flex items-center justify-center text-[7px] uppercase select-none font-bold text-indigo-800 rotate-[-6deg] leading-tight text-center bg-white/75">
-                          TTD
-                        </div>
-                      )}
-                    </div>
-
-                    {/* TTD in background */}
-                    <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
-                      {isImageUrl(config.signature) ? (
-                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'Syarifudin'}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-1">
-                    <p className="font-black text-slate-950 underline text-xs leading-none uppercase">{config.name || 'Ustadz Ahmad Syarifudin, S.H.I'}</p>
-                    <p className="text-[10px] text-slate-600 font-medium mt-0.5">Kepala Bidang Keamanan & Perizinan</p>
-                  </div>
+                  <h4 className="text-slate-900 font-black text-xs uppercase leading-tight">{pesantrenSettings.schoolName}</h4>
+                  <p className="text-[10px] italic text-slate-500 font-bold uppercase">Biro Keamanan & Ketertiban Pengurus Pondok Pesantren</p>
+                  <p className="text-[9px] text-slate-500">{pesantrenSettings.address}</p>
                 </div>
               </div>
-              </div>
 
-              <div className="mt-6 flex gap-2 font-sans">
-                {viewOnlyMode ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrintSecurityLog(null);
-                      setViewOnlyMode(false);
-                    }}
-                    className="w-full px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer text-center"
-                  >
-                    Kembali & Tutup </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handlePrintLetter('security-letter-to-print', printSecurityLog.id, 'Surat Izin Keluar', 'KMT', printSecurityLog.studentName, printSecurityLog.permitType)}
-                      className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded cursor-pointer flex-1 text-center uppercase shadow-xs transition duration-150"
-                    >
-                      Print Surat ⎙
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPrintSecurityLog(null)}
-                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer flex-1 text-center"
-                    >
-                      Batal Print </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* 2. Slip Keputusan Sanksi Takzir */}
-      {printDisciplineLog && (() => {
-        const studentInfo = students.find(s => s.id === printDisciplineLog.studentId || s.fullName === printDisciplineLog.studentName);
-        const config = getStaffConfig('keamanan');
-
-        return (
-          <div 
-            onClick={() => setPrintDisciplineLog(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm cursor-pointer"
-          >
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-emerald-100 relative cursor-default my-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col overflow-y-auto"
-            >
-              <button 
-                onClick={() => setPrintDisciplineLog(null)} 
-                className="absolute top-3 right-3 text-slate-400 hover:text-slate-650 hover:bg-slate-100 p-1 rounded-full cursor-pointer print:hidden transition"
-                title="Batal Print"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <div className="text-[10px] bg-amber-50 text-amber-900 border border-amber-200 p-2.5 rounded mb-4 font-sans flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                <div className="flex-1">
-                  Paragraf surat ini dapat diklik dan diedit langsung sebelum mencetak.
-                </div>
-                <button
-                  onClick={() => setPrintDisciplineLog(null)}
-                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-black cursor-pointer shrink-0 transition"
-                >
-                  Kembali & Tutup </button>
-              </div>
-
-              {/* Printable Wrapper */}
-              <div id="discipline-letter-to-print" className="p-2 bg-white text-left font-sans">
-                {/* Kop Surat Resmi */}
-                <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 flex items-center">
-                  {pesantrenSettings.logoUrl ? (
-                    <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
-                  ) : null}
-                  <div className="flex-1">
-                    <h4 className="text-slate-900 font-black text-sm tracking-wide uppercase leading-tight">
-                      {pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}
-                    </h4>
-                    <p className="text-[10px] italic text-slate-500 font-bold tracking-wide uppercase">Lembaga Penegakan Disiplin Santri (LPD)</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">
-                      {pesantrenSettings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur"}
-                    </p>
-                    <p className="text-[9px] text-slate-500 font-medium">
-                      Telp: {pesantrenSettings.phone || "(0291) 438291"} | Email: {pesantrenSettings.email || "info@alasyariyah.sch.id"}
-                    </p>
-                  </div>
-                </div>
-
-              <div className="text-center mb-6">
-                <h3 className="font-bold text-sm tracking-wider underline uppercase text-slate-950" contentEditable={true} suppressContentEditableWarning={true}>Surat Keterangan Sanksi & Keputusan Takzir</h3>
-                <p className="text-[10px] font-mono mt-0.5 text-slate-500">Nomor: {getLetterNumber(printDisciplineLog.id, 'Surat Sanksi Takzir', 'KTT')}</p>
-              </div>
-
-              <div className="space-y-2 text-xs text-slate-900 leading-relaxed mb-6">
-                <p contentEditable={true} suppressContentEditableWarning={true} className="cursor-text focus:bg-amber-50/30">{getStaffConfig('keamanan').letterTemplate1}</p>
-                <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded border border-slate-150 font-sans text-[11px]" id="print-discipline-card">
-                  <span className="font-bold text-slate-500">NIS (4 Digit)</span>
-                  <span className="col-span-2 font-mono font-bold text-slate-800">: {studentInfo?.nis || '-'}</span>
-
-                  <span className="font-bold text-slate-500">Nama Santri</span>
-                  <span className="col-span-2 font-black text-slate-950">: {printDisciplineLog.studentName}</span>
-
-                  <span className="font-bold text-slate-500">Kelas Pagi Sore</span>
-                  <span className="col-span-2 font-semibold text-slate-800">: {studentInfo?.class || '-'}</span>
-
-                  <span className="font-bold text-slate-500">Bentuk Pelanggaran</span>
-                  <span className="col-span-2 font-bold text-red-900 focus:bg-amber-50/20" contentEditable={true} suppressContentEditableWarning={true}>: {printDisciplineLog.violationType}</span>
-                  
-                  <span className="font-bold text-slate-500">Tingkat Penilaian</span>
-                  <span className="col-span-2 font-bold text-amber-900">: {printDisciplineLog.level}</span>
-                  
-                  <span className="font-bold text-slate-500">Wajib Menjalankan</span>
-                  <span className="col-span-2 font-bold italic text-slate-900 focus:bg-amber-50/20" contentEditable={true} suppressContentEditableWarning={true}>: {printDisciplineLog.consequence}</span>
-                </div>
-                <p contentEditable={true} suppressContentEditableWarning={true} className="text-[10px] italic mt-2 text-slate-500 leading-normal cursor-text focus:bg-amber-50/30">
-                  {getStaffConfig('keamanan').letterTemplate2}
-                </p>
-              </div>
-
-               {/* Signature Area: Sebelah kanan model rata kiri */}
-              <div className="border-t border-dashed border-slate-200 pt-4 flex justify-end text-left text-xs">
-                <div className="w-[280px] relative font-sans space-y-1">
-                  <p className="text-[11px] text-slate-600 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  <p className="text-xs text-slate-900 font-bold uppercase tracking-wide">Mengetahui, Penguji Takzir & Ketertiban</p>
-                  
-                  {/* TTD and overlapping Stempel */}
-                  <div className="min-h-[88px] w-full relative flex items-center justify-start select-none py-1">
-                    {/* Stempel on the LEFT */}
-                    <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
-                      {isImageUrl(config.seal) ? (
-                        <img src={config.seal} alt="Stempel Biro" className="h-24 w-24 object-contain select-none mix-blend-multiply rotate-[-5deg]" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="border border-emerald-600 border-double rounded h-16 w-16 flex items-center justify-center text-[7px] uppercase select-none font-bold text-emerald-800 rotate-[-5deg] leading-tight text-center bg-white/75">
-                          TTD
-                        </div>
-                      )}
-                    </div>
-
-                    {/* TTD in background */}
-                    <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
-                      {isImageUrl(config.signature) ? (
-                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'M. Hasanuddin'}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-1">
-                    <p className="font-black text-slate-950 underline text-xs leading-none uppercase">{config.name || deptName || session?.fullName || 'Ustadz M. Hasanuddin, S.Pd'}</p>
-                    <p className="text-[10px] text-slate-600 font-medium mt-0.5">Pengurus Lembaga Penegakan Disiplin</p>
-                  </div>
-                </div>
-              </div>
-              </div>
-
-              <div className="mt-6 flex gap-2 font-sans">
-                {viewOnlyMode ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrintDisciplineLog(null);
-                      setViewOnlyMode(false);
-                    }}
-                    className="w-full px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer text-center"
-                  >
-                    Kembali & Tutup </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handlePrintLetter('discipline-letter-to-print', printDisciplineLog.id, 'Surat Sanksi Takzir', 'KTT', printDisciplineLog.studentName, printDisciplineLog.violationType)}
-                      className="px-3.5 py-1.5 bg-indigo-850 hover:bg-indigo-905 text-white text-xs font-bold rounded cursor-pointer flex-1 text-center uppercase animate-fade-in shadow-xs transition duration-150"
-                    >
-                      Print Surat ⎙
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPrintDisciplineLog(null)}
-                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer flex-1 text-center"
-                    >
-                      Batal Print </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {printHealthLog && (() => {
-        const studentInfo = students.find(s => s.id === printHealthLog.studentId || s.fullName === printHealthLog.studentName);
-        const config = getStaffConfig('kesehatan');
-
-        return (
-          <div 
-            onClick={() => setPrintHealthLog(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm cursor-pointer"
-          >
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-emerald-100 relative cursor-default my-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col overflow-y-auto"
-            >
-              <button 
-                onClick={() => setPrintHealthLog(null)} 
-                className="absolute top-3 right-3 text-slate-400 hover:text-slate-650 hover:bg-slate-100 p-1 rounded-full cursor-pointer print:hidden transition"
-                title="Batal Print"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <div className="text-[10px] bg-amber-50 text-amber-900 border border-amber-200 p-2.5 rounded mb-4 font-sans flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                <div className="flex-1">
-                  Paragraf surat ini dapat diklik dan diedit langsung sebelum mencetak.
-                </div>
-                <button
-                  onClick={() => setPrintHealthLog(null)}
-                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-black cursor-pointer shrink-0 transition"
-                >
-                  Kembali & Tutup </button>
-              </div>
-
-              {/* Printable Wrapper */}
-              <div id="health-letter-to-print" className="p-2 bg-white text-left font-sans">
-                {/* Kop Surat Resmi */}
-                <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 flex items-center">
-                  {pesantrenSettings.logoUrl ? (
-                    <img src={pesantrenSettings.logoUrl} alt="Logo Pesantren" className="h-14 w-14 object-contain mr-4 shrink-0" referrerPolicy="no-referrer" />
-                  ) : null}
-                  <div className="flex-1">
-                    <h4 className="text-slate-900 font-black text-sm tracking-wide uppercase leading-tight">
-                      {pesantrenSettings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}
-                    </h4>
-                    <p className="text-[10px] italic text-slate-500 font-bold tracking-wide uppercase">Pos Kesehatan Pesantren (Poskestren) Al-Asy'ariyah</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">
-                      {pesantrenSettings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur"}
-                    </p>
-                    <p className="text-[9px] text-slate-500 font-medium">
-                      Telp: {pesantrenSettings.phone || "(0291) 438291"} | Email: {pesantrenSettings.email || "info@alasyariyah.sch.id"}
-                    </p>
-                  </div>
-                </div>
-
-              <div className="text-center mb-6">
-                <h3 className="font-bold text-sm tracking-wider underline uppercase text-slate-900" contentEditable={true} suppressContentEditableWarning={true}>Surat Keterangan Rawat & Istirahat Sakit</h3>
-                <p className="text-[10px] font-mono mt-0.5 text-slate-500">Nomor: {getLetterNumber(printHealthLog.id, 'Surat Keterangan Sakit', 'KST')}</p>
-              </div>
-
-              <div className="space-y-2 text-xs text-slate-900 leading-relaxed mb-6">
-                <p contentEditable={true} suppressContentEditableWarning={true} className="cursor-text focus:bg-amber-50/30">{getStaffConfig('kesehatan').letterTemplate1}</p>
-                <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded border border-slate-150 font-sans text-[11px]" id="print-health-card">
-                  <span className="font-bold text-slate-500">NIS (4 Digit)</span>
-                  <span className="col-span-2 font-mono font-bold text-slate-800">: {studentInfo?.nis || '-'}</span>
-
-                  <span className="font-bold text-slate-500">Nama Santri</span>
-                  <span className="col-span-2 font-black">: {printHealthLog.studentName}</span>
-
-                  <span className="font-bold text-slate-500">Kelas Pagi Sore</span>
-                  <span className="col-span-2 font-semibold text-slate-800">: {studentInfo?.class || '-'}</span>
-
-                  <span className="font-bold text-slate-500">Keluhan Utama</span>
-                  <span className="col-span-2 font-bold text-red-900 focus:bg-amber-50/20" contentEditable={true} suppressContentEditableWarning={true}>: {printHealthLog.complaint}</span>
-                  
-                  <span className="font-bold text-slate-500">Diagnosis Medis</span>
-                  <span className="col-span-2 italic font-semibold focus:bg-amber-50/25" contentEditable={true} suppressContentEditableWarning={true}>: {printHealthLog.diagnosis}</span>
-                  
-                  <span className="font-bold text-slate-500">Tindakan / Terapi</span>
-                  <span className="col-span-2 font-bold text-emerald-950 focus:bg-amber-50/25" contentEditable={true} suppressContentEditableWarning={true}>: {printHealthLog.treatment}</span>
-                  
-                  <span className="font-bold text-slate-500">Status Perawatan</span>
-                  <span className="col-span-2 font-bold uppercase text-rose-800">: {printHealthLog.status}</span>
-                </div>
-                <p contentEditable={true} suppressContentEditableWarning={true} className="text-[10px] italic mt-2 text-slate-500 leading-normal cursor-text focus:bg-amber-50/30">
-                  {getStaffConfig('kesehatan').letterTemplate2}
-                </p>
-              </div>
-
-               {/* Signature Area: Sebelah kanan model rata kiri */}
-              <div className="border-t border-dashed border-slate-200 pt-4 flex justify-end text-left text-xs">
-                <div className="w-[280px] relative font-sans space-y-1">
-                  <p className="text-[11px] text-slate-600 font-medium">{getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  <p className="text-xs text-slate-900 font-bold uppercase tracking-wide">Mengetahui, Petugas Medis Poskestren</p>
-                  
-                  {/* TTD and overlapping Stempel */}
-                  <div className="min-h-[88px] w-full relative flex items-center justify-start select-none py-1">
-                    {/* Stempel on the LEFT */}
-                    <div className="z-20 absolute -left-8 sm:-left-10 top-0 pointer-events-none opacity-85">
-                      {isImageUrl(config.seal) ? (
-                        <img src={config.seal} alt="Stempel Biro" className="h-24 w-24 object-contain select-none mix-blend-multiply rotate-[-4deg]" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="border border-rose-600 border-double rounded h-16 w-16 flex items-center justify-center text-[7px] uppercase select-none font-bold text-rose-800 rotate-[-4deg] leading-tight text-center bg-white/75">
-                          TTD
-                        </div>
-                      )}
-                    </div>
-
-                    {/* TTD in background */}
-                    <div className="z-10 relative flex items-center justify-start pl-8 sm:pl-10">
-                      {isImageUrl(config.signature) ? (
-                        <img src={config.signature} alt="Tanda Tangan" className="h-20 max-w-[200px] object-contain select-none" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-sm font-serif italic text-slate-900 font-bold underline">{config.signature || 'dr. Fatimah'}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-1">
-                    <p className="font-black text-slate-950 underline text-xs leading-none uppercase">{config.name || 'Ustadzah dr. Fatimah Az-Zahra'}</p>
-                    <p className="text-[10px] text-slate-600 font-medium mt-0.5">Penanggung Jawab Medis Poskestren</p>
-                  </div>
-                </div>
-              </div>
-              </div>
-
-              <div className="mt-6 flex gap-2 font-sans">
-                {viewOnlyMode ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrintHealthLog(null);
-                      setViewOnlyMode(false);
-                    }}
-                    className="w-full px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer text-center"
-                  >
-                    Kembali & Tutup </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handlePrintLetter('health-letter-to-print', printHealthLog.id, 'Surat Keterangan Sakit', 'KST', printHealthLog.studentName, printHealthLog.complaint)}
-                      className="px-3.5 py-1.5 bg-rose-800 hover:bg-rose-900 text-white text-xs font-bold rounded cursor-pointer flex-1 text-center uppercase shadow-xs transition duration-150"
-                    >
-                      Print Surat ⎙
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPrintHealthLog(null)}
-                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded cursor-pointer flex-1 text-center"
-                    >
-                      Batal Print </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {editingLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm font-sans">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 flex flex-col my-auto max-h-[88vh] sm:max-h-[90vh] animate-fade-in text-xs">
-            <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
-              <div>
-                <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-2">
-                  Edit Isian Catatan ({editingLog.type === 'security' ? 'Keamanan' : editingLog.type === 'discipline' ? 'Ketertiban' : 'Kesehatan'})
+              <div className="text-center mb-4">
+                <h3 className="font-extrabold text-sm tracking-wider underline uppercase text-slate-950">
+                  {printSecurityTarget.permitType === 'Pulang (Keluarga)' ? 'SURAT IZIN KELUAR BERMALAM' : 'SURAT IZIN KELUAR (TIDAK BERMALAM)'}
                 </h3>
-                <p className="text-[10px] text-teal-100 font-mono mt-0.5">ID: {editingLog.id}</p>
+                <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                  Nomor: {getLetterNumber(printSecurityTarget.id, 'Surat Izin Keluar', 'KMN')}
+                </p>
               </div>
+
+              <p className="text-[11px] text-slate-800 leading-relaxed mb-3">
+                {letterTemplate1 || currentRoleInfo.letterTemplate1}
+              </p>
+
+              <table className="w-full my-3 border-collapse text-[11px] font-sans">
+                <tbody>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500 w-1/3">NAMA SANTRI</td>
+                    <td className="py-1 font-extrabold text-slate-900">: {printSecurityTarget.studentName}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">JENIS IZIN</td>
+                    <td className="py-1 font-bold text-emerald-900">: {printSecurityTarget.permitType}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">KEPERLUAN</td>
+                    <td className="py-1 text-slate-800">: {printSecurityTarget.description}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">WAKTU KELUAR</td>
+                    <td className="py-1 font-mono font-bold text-slate-900">: {printSecurityTarget.outDate}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">BATAS KEMBALI</td>
+                    <td className="py-1 font-mono font-black text-rose-800">: {printSecurityTarget.expectedReturnDate}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p className="text-[10px] italic text-slate-500 leading-normal mb-4">
+                {letterTemplate2 || currentRoleInfo.letterTemplate2}
+              </p>
+
+              <div className="pt-2 flex justify-end text-xs font-sans">
+                <div className="w-52 text-left space-y-1">
+                  <p className="text-[10px] text-slate-600">
+                    {getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="font-bold text-slate-900">{currentRoleInfo.deptLabel}</p>
+                  <div className="h-14 flex items-center justify-start">
+                    {deptSignature && isImageUrl(deptSignature) ? (
+                      <img src={deptSignature} alt="TTD" className="h-12 object-contain" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="font-serif italic font-bold text-sm text-slate-900 underline">{deptSignature || 'Syarifudin'}</span>
+                    )}
+                  </div>
+                  <p className="font-black text-slate-950 underline leading-none">{deptName || currentRoleInfo.defaultName}</p>
+                  <p className="text-[9px] text-slate-500">Petugas Pos Keamanan</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 flex gap-2 font-sans print:hidden">
               <button
                 type="button"
-                onClick={() => setEditingLog(null)}
-                className="text-teal-100 hover:text-white p-1 rounded-lg transition cursor-pointer font-bold"
+                onClick={() => handlePrintLetter('security-slip-print', printSecurityTarget.id, 'Surat Izin Keluar', 'KMN', printSecurityTarget.studentName, printSecurityTarget.permitType)}
+                className="flex-1 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
               >
-                </button>
+                <Printer className="h-4 w-4" />
+                <span>Cetak Slip Izin</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintSecurityTarget(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Tutup
+              </button>
             </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleEditLog(editingLog.id, editingLog.type, editingLog.values);
-                setEditingLog(null);
-              }}
-              className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-left"
-            >
-              {editingLog.type === 'security' && (
-                <>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Jenis Perizinan</label>
-                    <select
-                      value={editingLog.values.permitType || 'Keluar Lingkungan'}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, permitType: e.target.value }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-emerald-700 bg-white"
-                    >
-                      <option value="Keluar Lingkungan">Keluar Lingkungan</option>
-                      <option value="Pulang (Keluarga)">Pulang (Keluarga)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Alasan / Keterangan</label>
-                    <textarea
-                      rows={3}
-                      value={editingLog.values.description || ''}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, description: e.target.value }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tenggat Waktu Kembali</label>
-                    <input
-                      type="text"
-                      placeholder="YYYY-MM-DD HH:MM"
-                      value={editingLog.values.expectedReturnDate || ''}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, expectedReturnDate: e.target.value }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                </>
-              )}
-
-              {editingLog.type === 'discipline' && (
-                <>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Bentuk Pelanggaran</label>
-                    <input
-                      type="text"
-                      value={editingLog.values.violationType || ''}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, violationType: e.target.value }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-indigo-700 font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tingkat Penilaian</label>
-                    <select
-                      value={editingLog.values.level || 'Ringan'}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, level: e.target.value as any }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-indigo-700 bg-white"
-                    >
-                      <option value="Ringan">Ringan (Denda Diniyah)</option>
-                      <option value="Sedang">Sedang (Bakti Sosial)</option>
-                      <option value="Berat">Berat (Panggilan Wali / Skorsing)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sanksi / Wajib Menjalankan</label>
-                    <textarea
-                      rows={2}
-                      value={editingLog.values.consequence || ''}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, consequence: e.target.value }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-indigo-700 font-medium italic"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Status Sanksi (Pemutihan)</label>
-                    <select
-                      value={editingLog.values.status || 'Belum Diurus'}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, status: e.target.value as any }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-indigo-700 bg-white"
-                    >
-                      <option value="Belum Diurus">Belum Diurus</option>
-                      <option value="Sedang Mengurus">Sedang Mengurus</option>
-                      <option value="Selesai">Selesai (Sudah Diputihkan)</option>
-                    </select>
-                  </div>
-                </>
-              )}
-
-              {editingLog.type === 'health' && (
-                <>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Keluhan Utama</label>
-                    <input
-                      type="text"
-                      value={editingLog.values.complaint || ''}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, complaint: e.target.value }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-rose-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Diagnosis Medis</label>
-                    <input
-                      type="text"
-                      value={editingLog.values.diagnosis || ''}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, diagnosis: e.target.value }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-rose-700 italic font-semibold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tindakan / Terapi</label>
-                    <input
-                      type="text"
-                      value={editingLog.values.treatment || ''}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, treatment: e.target.value }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-rose-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Status Perawatan</label>
-                    <select
-                      value={editingLog.values.status || 'Rawat Jalan (Kamar)'}
-                      onChange={(e) => setEditingLog({
-                        ...editingLog,
-                        values: { ...editingLog.values, status: e.target.value as any }
-                      })}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-rose-700 bg-white font-semibold"
-                    >
-                      <option value="Rawat Jalan (Kamar)">Rawat Jalan (Kamar)</option>
-                      <option value="Nginap di Poskestren">Nginap di Poskestren</option>
-                      <option value="Dirujuk ke RS / Pulang">Dirujuk ke RS / Pulang</option>
-                    </select>
-                  </div>
-                </>
-              )}
-
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2 shrink-0 -mx-5 -mb-5 sm:-mx-6 sm:-mb-6 mt-4">
-                <button
-                  type="button"
-                  onClick={() => setEditingLog(null)}
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold transition cursor-pointer text-slate-600"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs cursor-pointer shadow-md transition"
-                >
-                  Simpan Perubahan </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
 
-      {/* Custom Confirmation Modal */}
-      {confirmDialog.isOpen && (
-        <div className="fixed inset-0 bg-emerald-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-55">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-emerald-100 text-center space-y-4 my-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 text-red-600">
+      {/* ========================================================================= */}
+      {/* POPUP SLIP CETAK: 2. SURAT KEPUTUSAN SANKSI TA'ZIR KETERTIBAN              */}
+      {/* ========================================================================= */}
+      {printDisciplineTarget && (
+        <div 
+          onClick={() => setPrintDisciplineTarget(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-indigo-100 relative max-h-[92vh] overflow-y-auto animate-fade-in text-xs"
+          >
+            <button 
+              onClick={() => setPrintDisciplineTarget(null)} 
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 p-1 rounded-full cursor-pointer print:hidden"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div id="discipline-slip-print" className="p-4 bg-white text-left font-sans">
+              <div className="border-b-4 border-double border-slate-900 pb-3 mb-4 flex items-center">
+                {pesantrenSettings.logoUrl ? (
+                  <img src={pesantrenSettings.logoUrl} alt="Logo" className="h-14 w-14 object-contain mr-3 shrink-0" referrerPolicy="no-referrer" />
+                ) : null}
+                <div className="flex-1">
+                  <h4 className="text-slate-900 font-black text-xs uppercase leading-tight">{pesantrenSettings.schoolName}</h4>
+                  <p className="text-[10px] italic text-slate-500 font-bold uppercase">Lembaga Penegakan Disiplin & Ta'zir Santri</p>
+                  <p className="text-[9px] text-slate-500">{pesantrenSettings.address}</p>
+                </div>
+              </div>
+
+              <div className="text-center mb-4">
+                <h3 className="font-extrabold text-sm tracking-wider underline uppercase text-slate-950">
+                  SURAT INSTRUKSI PEMBINAAN KEDISIPLINAN & TA'ZIR
+                </h3>
+                <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                  Nomor: {getLetterNumber(printDisciplineTarget.id, 'Surat Ta\'zir', 'KTT')}
+                </p>
+              </div>
+
+              <p className="text-[11px] text-slate-800 leading-relaxed mb-3">
+                {letterTemplate1 || currentRoleInfo.letterTemplate1}
+              </p>
+
+              <table className="w-full my-3 border-collapse text-[11px] font-sans">
+                <tbody>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500 w-1/3">NAMA SANTRI</td>
+                    <td className="py-1 font-extrabold text-slate-900">: {printDisciplineTarget.studentName}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">BENTUK PELANGGARAN</td>
+                    <td className="py-1 font-bold text-rose-800">: {printDisciplineTarget.violationType}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">TINGKAT & POIN</td>
+                    <td className="py-1 font-bold text-amber-800">: {printDisciplineTarget.level} ({printDisciplineTarget.points} Poin)</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">SANKSI WAJIB</td>
+                    <td className="py-1 font-semibold text-slate-900">: {printDisciplineTarget.consequence}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">TANGGAL</td>
+                    <td className="py-1 font-mono">: {printDisciplineTarget.date}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p className="text-[10px] italic text-slate-500 leading-normal mb-4">
+                {letterTemplate2 || currentRoleInfo.letterTemplate2}
+              </p>
+
+              <div className="pt-2 flex justify-end text-xs font-sans">
+                <div className="w-52 text-left space-y-1">
+                  <p className="text-[10px] text-slate-600">
+                    {getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="font-bold text-slate-900">{currentRoleInfo.deptLabel}</p>
+                  <div className="h-14 flex items-center justify-start">
+                    {deptSignature && isImageUrl(deptSignature) ? (
+                      <img src={deptSignature} alt="TTD" className="h-12 object-contain" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="font-serif italic font-bold text-sm text-slate-900 underline">{deptSignature || 'Abdul Somad'}</span>
+                    )}
+                  </div>
+                  <p className="font-black text-slate-950 underline leading-none">{deptName || currentRoleInfo.defaultName}</p>
+                  <p className="text-[9px] text-slate-500">Kepala Bidang Ketertiban</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 flex gap-2 font-sans print:hidden">
+              <button
+                type="button"
+                onClick={() => handlePrintLetter('discipline-slip-print', printDisciplineTarget.id, 'Surat Sanksi Ta\'zir', 'KTT', printDisciplineTarget.studentName, printDisciplineTarget.violationType)}
+                className="flex-1 py-2 bg-indigo-800 hover:bg-indigo-900 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Printer className="h-4 w-4" />
+                <span>Cetak Surat Sanksi Ta'zir</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintDisciplineTarget(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* POPUP SLIP CETAK: 3. SURAT KETERANGAN SAKIT POSKESTREN                    */}
+      {/* ========================================================================= */}
+      {printHealthTarget && (
+        <div 
+          onClick={() => setPrintHealthTarget(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-rose-100 relative max-h-[92vh] overflow-y-auto animate-fade-in text-xs"
+          >
+            <button 
+              onClick={() => setPrintHealthTarget(null)} 
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 p-1 rounded-full cursor-pointer print:hidden"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div id="health-slip-print" className="p-4 bg-white text-left font-sans">
+              <div className="border-b-4 border-double border-slate-900 pb-3 mb-4 flex items-center">
+                {pesantrenSettings.logoUrl ? (
+                  <img src={pesantrenSettings.logoUrl} alt="Logo" className="h-14 w-14 object-contain mr-3 shrink-0" referrerPolicy="no-referrer" />
+                ) : null}
+                <div className="flex-1">
+                  <h4 className="text-slate-900 font-black text-xs uppercase leading-tight">{pesantrenSettings.schoolName}</h4>
+                  <p className="text-[10px] italic text-slate-500 font-bold uppercase">Pos Kesehatan Pesantren (Poskestren) Al-Asy'ariyah</p>
+                  <p className="text-[9px] text-slate-500">{pesantrenSettings.address}</p>
+                </div>
+              </div>
+
+              <div className="text-center mb-4">
+                <h3 className="font-extrabold text-sm tracking-wider underline uppercase text-slate-950">
+                  SURAT KETERANGAN PEMERIKSAAN MEDIS & DISPENSASI
+                </h3>
+                <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                  Nomor: {getLetterNumber(printHealthTarget.id, 'Surat Keterangan Sakit', 'KST')}
+                </p>
+              </div>
+
+              <p className="text-[11px] text-slate-800 leading-relaxed mb-3">
+                {letterTemplate1 || currentRoleInfo.letterTemplate1}
+              </p>
+
+              <table className="w-full my-3 border-collapse text-[11px] font-sans">
+                <tbody>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500 w-1/3">NAMA SANTRI</td>
+                    <td className="py-1 font-extrabold text-slate-900">: {printHealthTarget.studentName}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">KELUHAN UTAMA</td>
+                    <td className="py-1 font-bold text-rose-800">: {printHealthTarget.complaint}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">DIAGNOSA MEDIS</td>
+                    <td className="py-1 font-semibold text-slate-900">: {printHealthTarget.diagnosis}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">TERAPI & OBAT</td>
+                    <td className="py-1 text-slate-800">: {printHealthTarget.treatment}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">STATUS RAWAT</td>
+                    <td className="py-1 font-bold text-amber-800">: {printHealthTarget.status}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1 font-bold text-slate-500">TANGGAL PERIKSA</td>
+                    <td className="py-1 font-mono">: {printHealthTarget.date}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p className="text-[10px] italic text-slate-500 leading-normal mb-4">
+                {letterTemplate2 || currentRoleInfo.letterTemplate2}
+              </p>
+
+              <div className="pt-2 flex justify-end text-xs font-sans">
+                <div className="w-52 text-left space-y-1">
+                  <p className="text-[10px] text-slate-600">
+                    {getCityFromAddress(pesantrenSettings.address)}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="font-bold text-slate-900">{currentRoleInfo.deptLabel}</p>
+                  <div className="h-14 flex items-center justify-start">
+                    {deptSignature && isImageUrl(deptSignature) ? (
+                      <img src={deptSignature} alt="TTD" className="h-12 object-contain" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="font-serif italic font-bold text-sm text-slate-900 underline">{deptSignature || 'dr. Fatimah'}</span>
+                    )}
+                  </div>
+                  <p className="font-black text-slate-950 underline leading-none">{deptName || currentRoleInfo.defaultName}</p>
+                  <p className="text-[9px] text-slate-500">Petugas Medis Poskestren</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 flex gap-2 font-sans print:hidden">
+              <button
+                type="button"
+                onClick={() => handlePrintLetter('health-slip-print', printHealthTarget.id, 'Surat Keterangan Sakit', 'KST', printHealthTarget.studentName, printHealthTarget.complaint)}
+                className="flex-1 py-2 bg-rose-800 hover:bg-rose-900 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Printer className="h-4 w-4" />
+                <span>Cetak Surat Sakit</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintHealthTarget(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODAL FOR DELETE */}
+      {deleteConfirmTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs font-sans">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200">
+            <div className="h-12 w-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 className="h-6 w-6" />
             </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-black text-slate-900">{confirmDialog.title}</h3>
-              <p className="text-xs text-slate-500 leading-relaxed font-semibold">{confirmDialog.message}</p>
+            <div>
+              <h4 className="text-sm font-black text-slate-900">Hapus Catatan Riwayat?</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Catatan ini akan dihapus permanen dari basis data santri dan server pesantren.
+              </p>
             </div>
-
-            {confirmDialog.requireInput && (
-              <div className="space-y-2 text-left bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                  Pengamanan Ganda: Masukkan Kata Kunci
-                </label>
-                <input
-                  type="text"
-                  value={confirmInputText}
-                  onChange={(e) => setConfirmInputText(e.target.value)}
-                  placeholder={`Ketik: ${confirmDialog.requireInput}`}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-center focus:outline-none focus:ring-2 focus:ring-red-600 uppercase"
-                />
-              </div>
-            )}
-
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-                className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl text-xs transition cursor-pointer"
+                onClick={() => setDeleteConfirmTarget(null)}
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
-                disabled={confirmDialog.requireInput ? confirmInputText.toUpperCase() !== confirmDialog.requireInput.toUpperCase() : false}
-                onClick={() => {
-                  confirmDialog.onConfirm();
-                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-                }}
-                className={`flex-1 px-4 py-2 text-white font-extrabold rounded-xl text-xs transition cursor-pointer shadow-sm ${
-                  confirmDialog.requireInput && confirmInputText.toUpperCase() !== confirmDialog.requireInput.toUpperCase()
-                    ? 'bg-slate-300 cursor-not-allowed text-slate-400'
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
+                onClick={executeDeleteLog}
+                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs cursor-pointer"
               >
-                Hapus
+                Hapus Permanen
               </button>
             </div>
           </div>

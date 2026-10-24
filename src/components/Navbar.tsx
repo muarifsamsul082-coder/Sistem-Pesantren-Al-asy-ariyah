@@ -20,10 +20,9 @@ interface NavbarProps {
   ppdbStartDate?: string;
   ppdbEndDate?: string;
   
-  // Dashboard tab states for unified top-right hamburger menu
-  adminTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus';
+  adminTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log';
   setAdminTab?: (tab: any) => void;
-  staffTab?: 'students' | 'history' | 'profile' | 'skck' | 'takzir_letter';
+  staffTab?: 'students' | 'history' | 'profile' | 'skck' | 'takzir_letter' | 'letters';
   setStaffTab?: (tab: any) => void;
   santriTab?: 'tagihan' | 'pelanggaran' | 'kesehatan' | 'pengumuman' | 'perizinan';
   setSantriTab?: (tab: any) => void;
@@ -1047,6 +1046,20 @@ export default function Navbar({
                   </button>
                   <button
                     type="button"
+                    onClick={() => handleAdminTabClick('staff_activity_log')}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between ${
+                      adminTab === 'staff_activity_log' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span>Log Aksi & Audit Pengurus</span>
+                    </span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-900 font-mono font-black px-1.5 py-0.5 rounded-full">
+                      Transparansi
+                    </span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleAdminTabClick('settings')}
                     className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
                       adminTab === 'settings' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -1070,7 +1083,7 @@ export default function Navbar({
                       staffTab === 'students' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
-                    Layanan Input & Data
+                    Dashboard & Input Santri
                   </button>
                   <button
                     type="button"
@@ -1079,30 +1092,17 @@ export default function Navbar({
                       staffTab === 'history' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
-                    Riwayat Log & Surat
+                    Riwayat & Laporan Bulanan
                   </button>
-                  {session.role === 'keamanan' && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleStaffTabClick('skck')}
-                        className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
-                          staffTab === 'skck' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        Cetak Surat SKCK
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleStaffTabClick('takzir_letter')}
-                        className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
-                          staffTab === 'takzir_letter' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        Rekam Jejak Takzir
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleStaffTabClick('letters')}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
+                      (staffTab === 'letters' || staffTab === 'skck' || staffTab === 'takzir_letter') && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Penerbitan & Draf Surat
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleStaffTabClick('profile')}
@@ -1110,7 +1110,7 @@ export default function Navbar({
                       staffTab === 'profile' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
-                    Pengaturan Profil & Draf Surat
+                    Profil & Tanda Tangan
                   </button>
                 </div>
               )}

@@ -87,14 +87,29 @@ interface AdminDashboardProps {
   settings: PortalSettings;
   setSettings: (settings: PortalSettings) => void;
   onLogout?: () => void;
-  activeTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus';
-  setActiveTab?: (tab: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus') => void;
+  activeTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log';
+  setActiveTab?: (tab: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log') => void;
   session?: UserSession;
   availableFormalClasses?: string[];
   setAvailableFormalClasses?: React.Dispatch<React.SetStateAction<string[]>>;
   availableMadrasahClasses?: string[];
   setAvailableMadrasahClasses?: React.Dispatch<React.SetStateAction<string[]>>;
 }
+
+const INDONESIAN_MONTHS = [
+  { value: '01', name: 'Januari' },
+  { value: '02', name: 'Februari' },
+  { value: '03', name: 'Maret' },
+  { value: '04', name: 'April' },
+  { value: '05', name: 'Mei' },
+  { value: '06', name: 'Juni' },
+  { value: '07', name: 'Juli' },
+  { value: '08', name: 'Agustus' },
+  { value: '09', name: 'September' },
+  { value: '10', name: 'Oktober' },
+  { value: '11', name: 'November' },
+  { value: '12', name: 'Desember' }
+];
 
 const getCityFromAddress = (addr: string) => {
   if (!addr) return 'Jawa Tengah';
@@ -279,7 +294,7 @@ export default function AdminDashboard({
   ],
   setAvailableMadrasahClasses = () => {}
 }: AdminDashboardProps) {
-  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus'>(() => {
+  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log'>(() => {
     try {
       const saved = localStorage.getItem('pesantren_admin_active_tab');
       if (saved) return saved as any;
@@ -1143,6 +1158,23 @@ export default function AdminDashboard({
   const [ppdbSearch, setPpdbSearch] = React.useState('');
   const [ppdbStatusFilter, setPpdbStatusFilter] = React.useState('Semua');
   const [ppdbGenderFilter, setPpdbGenderFilter] = React.useState('Semua');
+  
+  // PPDB Monthly Focus & Archive Report Filter (Defaults to current active month)
+  const currentMonthNumStr = String(new Date().getMonth() + 1).padStart(2, '0');
+  const currentYearNumStr = String(new Date().getFullYear());
+  const [ppdbMonthFilter, setPpdbMonthFilter] = React.useState<string>(currentMonthNumStr);
+  const [ppdbYearFilter, setPpdbYearFilter] = React.useState<string>(currentYearNumStr);
+
+  // New Student Fee Settings save indicator state
+  const [isSavingFeeSettings, setIsSavingFeeSettings] = React.useState(false);
+
+  // Staff Activity Log audit filter states
+  const [staffLogSearch, setStaffLogSearch] = React.useState('');
+  const [staffLogRoleFilter, setStaffLogRoleFilter] = React.useState('semua');
+  const [staffLogActionFilter, setStaffLogActionFilter] = React.useState('semua');
+  const [staffLogMonthFilter, setStaffLogMonthFilter] = React.useState('semua');
+  const [staffLogYearFilter, setStaffLogYearFilter] = React.useState(currentYearNumStr);
+  const [selectedStaffLogDetail, setSelectedStaffLogDetail] = React.useState<any | null>(null);
 
   const [billSearch, setBillSearch] = React.useState('');
   const [billFilter, setBillFilter] = React.useState<'Semua' | 'Lunas' | 'Belum Lunas' | 'Konfirmasi Pembayaran'>('Semua');
@@ -4416,8 +4448,34 @@ export default function AdminDashboard({
     const matchesSearch = pName.includes(q) || pParent.includes(q);
     const matchesStatus = ppdbStatusFilter === 'Semua' || p.status === ppdbStatusFilter;
     const matchesGender = ppdbGenderFilter === 'Semua' || p.gender === ppdbGenderFilter;
+
+    // Filter by registration month & year (Defaults to current active month)
+    let matchesMonth = true;
+    if (ppdbMonthFilter !== 'Semua') {
+      const regDate = p.registrationDate || '';
+      let m = '';
+      let y = '';
+      const matchYmd = regDate.match(/^(\d{4})[-/](\d{1,2})/);
+      if (matchYmd) {
+        y = matchYmd[1];
+        m = matchYmd[2].padStart(2, '0');
+      } else {
+        const matchDmy = regDate.match(/^\d{1,2}[-/](\d{1,2})[-/](\d{4})/);
+        if (matchDmy) {
+          y = matchDmy[2];
+          m = matchDmy[1].padStart(2, '0');
+        } else {
+          const parsed = new Date(regDate);
+          if (!isNaN(parsed.getTime())) {
+            y = String(parsed.getFullYear());
+            m = String(parsed.getMonth() + 1).padStart(2, '0');
+          }
+        }
+      }
+      matchesMonth = m === ppdbMonthFilter && (ppdbYearFilter === 'Semua' || y === ppdbYearFilter);
+    }
     
-    return matchesSearch && matchesStatus && matchesGender;
+    return matchesSearch && matchesStatus && matchesGender && matchesMonth;
   });
 
   const filteredBills = (bills || []).filter(b => {
@@ -4428,6 +4486,42 @@ export default function AdminDashboard({
     const matchesSearch = bName.includes(q) || bTitle.includes(q);
     const matchesFilter = billFilter === 'Semua' || b.status === billFilter;
     return matchesSearch && matchesFilter;
+  });
+
+  const filteredStaffLogs = (activityLogs || []).filter((log: any) => {
+    if (!log) return false;
+    const actor = (log.actorName || log.adminName || '').toLowerCase();
+    const email = (log.email || '').toLowerCase();
+    const action = (log.actionType || log.actionTitle || '').toLowerCase();
+    const desc = (log.description || '').toLowerCase();
+    const target = (log.targetName || log.targetId || '').toLowerCase();
+    const q = (staffLogSearch || '').toLowerCase();
+
+    const matchesSearch = !q || actor.includes(q) || email.includes(q) || action.includes(q) || desc.includes(q) || target.includes(q);
+
+    const role = (log.actorRole || log.role || 'admin').toLowerCase();
+    const matchesRole = staffLogRoleFilter === 'semua' || role === staffLogRoleFilter.toLowerCase();
+
+    let matchesAction = true;
+    if (staffLogActionFilter !== 'semua') {
+      const actUpper = (log.actionType || log.actionTitle || '').toUpperCase();
+      matchesAction = actUpper.includes(staffLogActionFilter.toUpperCase());
+    }
+
+    let matchesMonth = true;
+    let matchesYear = true;
+    if (staffLogMonthFilter !== 'semua' || staffLogYearFilter !== 'Semua') {
+      const dateStr = log.createdAt || log.timestamp || '';
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const y = String(d.getFullYear());
+        if (staffLogMonthFilter !== 'semua') matchesMonth = m === staffLogMonthFilter;
+        if (staffLogYearFilter !== 'Semua') matchesYear = y === staffLogYearFilter;
+      }
+    }
+
+    return matchesSearch && matchesRole && matchesAction && matchesMonth && matchesYear;
   });
 
   // Agenda states and handlers
@@ -5735,55 +5829,108 @@ export default function AdminDashboard({
                 <p className="text-xs text-gray-500">Mengkaji berkas dan status calon santri baru.</p>
               </div>
               
-              <div className="flex flex-wrap items-center gap-2 max-w-md w-full sm:justify-end">
+              <div className="flex flex-wrap items-center gap-2 max-w-xl w-full sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const monthLabel = ppdbMonthFilter === 'Semua' ? 'Semua_Bulan' : `Bulan_${ppdbMonthFilter}`;
+                    downloadPrintableHTML('pcsb-monthly-report-printable', `Laporan_Bulanan_PCSB_${monthLabel}_${ppdbYearFilter}`);
+                  }}
+                  className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  title="Cetak Laporan Bulanan Pendaftar Calon Santri Baru (A4)"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Cetak Laporan Bulanan (A4)</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={exportPpdbToExcel}
                   className="px-3 py-1.5 bg-gradient-to-r from-emerald-800 to-teal-900 hover:from-emerald-750 hover:to-teal-850 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                   title="Unduh seluruh database PCSB dalam format Excel (XLS)"
                 >
-                  Ekspor ke Excel
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Ekspor Excel</span>
                 </button>
                 
-                <div className="relative max-w-[180px] w-full">
+                <div className="relative max-w-[160px] w-full">
                   <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Cari pendaftar..."
                     value={ppdbSearch}
                     onChange={(e) => setPpdbSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs focus:ring-1 focus:ring-emerald-700 focus:outline-none"
+                    className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs focus:ring-1 focus:ring-emerald-700 focus:outline-none bg-white"
                   />
                 </div>
               </div>
             </div>
 
-            {/* PPDB Filter controls */}
-            <div className="grid grid-cols-2 gap-3 bg-emerald-50/20 p-2.5 rounded-xl border border-emerald-100/30 text-[11px] max-w-sm">
+            {/* PPDB Comprehensive Monthly & Demographic Filter controls */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-emerald-50/25 p-3 rounded-xl border border-emerald-100 text-xs">
               <div>
-                <label className="text-gray-400 font-bold block mb-1">Status Verifikasi</label>
+                <label className="text-emerald-950 font-bold block mb-1 text-[11px]">Bulan Pendaftaran</label>
+                <select
+                  value={ppdbMonthFilter}
+                  onChange={(e) => setPpdbMonthFilter(e.target.value)}
+                  className="w-full bg-white border border-emerald-200 rounded-lg px-2.5 py-1 text-xs font-bold text-emerald-950 focus:ring-1 focus:ring-emerald-700"
+                >
+                  <option value={currentMonthNumStr}>⭐ Bulan Ini ({INDONESIAN_MONTHS.find(m => m.value === currentMonthNumStr)?.name || 'Bulan Ini'})</option>
+                  <option value="Semua">Semua Bulan (Arsip Lengkap)</option>
+                  <option value="01">Januari</option>
+                  <option value="02">Februari</option>
+                  <option value="03">Maret</option>
+                  <option value="04">April</option>
+                  <option value="05">Mei</option>
+                  <option value="06">Juni</option>
+                  <option value="07">Juli</option>
+                  <option value="08">Agustus</option>
+                  <option value="09">September</option>
+                  <option value="10">Oktober</option>
+                  <option value="11">November</option>
+                  <option value="12">Desember</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-emerald-950 font-bold block mb-1 text-[11px]">Tahun Pendaftaran</label>
+                <select
+                  value={ppdbYearFilter}
+                  onChange={(e) => setPpdbYearFilter(e.target.value)}
+                  className="w-full bg-white border border-emerald-200 rounded-lg px-2.5 py-1 text-xs font-bold text-emerald-950 focus:ring-1 focus:ring-emerald-700 font-mono"
+                >
+                  <option value="Semua">Semua Tahun</option>
+                  <option value="2024">2024</option>
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                  <option value="2027">2027</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-slate-600 font-bold block mb-1 text-[11px]">Status Verifikasi</label>
                 <select
                   value={ppdbStatusFilter}
                   onChange={(e) => setPpdbStatusFilter(e.target.value)}
-                  className="w-full bg-white border border-emerald-100 rounded px-2 py-1 text-[11px] font-medium focus:ring-1 focus:ring-emerald-700"
+                  className="w-full bg-white border border-emerald-100 rounded-lg px-2.5 py-1 text-xs font-medium focus:ring-1 focus:ring-emerald-700"
                 >
                   <option value="Semua">Semua Status</option>
-                  <option value="Pending">Pending</option>
+                  <option value="Pending">Pending (Menunggu)</option>
                   <option value="Diterima">Diterima (Lulus)</option>
                   <option value="Ditolak">Ditolak</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-gray-400 font-bold block mb-1">Gender Calon</label>
+                <label className="text-slate-600 font-bold block mb-1 text-[11px]">Gender Calon</label>
                 <select
                   value={ppdbGenderFilter}
                   onChange={(e) => setPpdbGenderFilter(e.target.value)}
-                  className="w-full bg-white border border-emerald-100 rounded px-2 py-1 text-[11px] font-medium focus:ring-1 focus:ring-emerald-700"
+                  className="w-full bg-white border border-emerald-100 rounded-lg px-2.5 py-1 text-xs font-medium focus:ring-1 focus:ring-emerald-700"
                 >
                   <option value="Semua">Semua Gender</option>
-                  <option value="Laki-laki">Laki-laki</option>
-                  <option value="Perempuan">Perempuan</option>
+                  <option value="Laki-laki">Laki-laki (Putra)</option>
+                  <option value="Perempuan">Perempuan (Putri)</option>
                 </select>
               </div>
             </div>
@@ -5791,7 +5938,28 @@ export default function AdminDashboard({
 
           <div className="space-y-4">
             {filteredPpdb.length === 0 ? (
-              <p className="text-center py-8 text-xs text-gray-400 bg-gray-50 rounded-xl">Tidak ada data pendaftaran yang cocok.</p>
+              <div className="text-center py-12 px-4 bg-slate-50/70 border border-dashed border-slate-200 rounded-2xl space-y-2">
+                <div className="w-10 h-10 mx-auto rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-lg">
+                  📅
+                </div>
+                <h4 className="font-extrabold text-slate-800 text-sm">
+                  Tidak Ada Pendaftar Pada Bulan Ini
+                </h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  {ppdbMonthFilter !== 'Semua' 
+                    ? `Data pendaftar dikosongkan karena tidak ada santri baru yang mendaftar pada ${INDONESIAN_MONTHS.find(m => m.value === ppdbMonthFilter)?.name || ppdbMonthFilter} ${ppdbYearFilter}. Silakan pilih bulan lain pada filter di atas untuk menampilkan pendaftar periode tersebut.` 
+                    : 'Tidak ada data pendaftaran yang cocok dengan kriteria pencarian.'}
+                </p>
+                {ppdbMonthFilter !== 'Semua' && (
+                  <button
+                    type="button"
+                    onClick={() => { setPpdbMonthFilter('Semua'); setPpdbYearFilter('Semua'); }}
+                    className="mt-2 px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer shadow-xs"
+                  >
+                    Tampilkan Semua Bulan (Arsip Lengkap)
+                  </button>
+                )}
+              </div>
             ) : (
               filteredPpdb.map((reg, idx) => (
                 <div key={reg.id} className="p-4 bg-emerald-50/20 border border-emerald-100/60 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-4 text-xs">
@@ -8097,24 +8265,78 @@ export default function AdminDashboard({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    const commitSettings: PortalSettings = {
-                      ...settings,
-                      pcsbFeePendaftaran: Number(getFeeInputValue('pcsbFeePendaftaran', 150000)),
-                      pcsbFeeSarpras: Number(getFeeInputValue('pcsbFeeSarpras', 1500000)),
-                      pcsbFeeSeragam: Number(getFeeInputValue('pcsbFeeSeragam', 750000)),
-                      pcsbFeeKitab: Number(getFeeInputValue('pcsbFeeKitab', 450000)),
-                      pcsbFeeKesehatan: Number(getFeeInputValue('pcsbFeeKesehatan', 350000)),
-                      pcsbFeeSyahriyah: Number(getFeeInputValue('pcsbFeeSyahriyah', 200000)),
-                    };
-                    updateAndPersistSettings(commitSettings);
-                    setFeeSaveFeedback('✓ Berhasil Disimpan Permanen!');
-                    setTimeout(() => setFeeSaveFeedback(null), 3000);
+                  disabled={isSavingFeeSettings}
+                  onClick={async () => {
+                    setIsSavingFeeSettings(true);
+                    try {
+                      let currentStored: Partial<PortalSettings> = {};
+                      try {
+                        const saved = localStorage.getItem('pesantren_settings');
+                        if (saved) currentStored = JSON.parse(saved);
+                      } catch (e) {}
+
+                      const feePendaftaran = Number(pcsbFeeDraft.pcsbFeePendaftaran !== undefined ? pcsbFeeDraft.pcsbFeePendaftaran : (settings.pcsbFeePendaftaran ?? 150000));
+                      const feeSarpras = Number(pcsbFeeDraft.pcsbFeeSarpras !== undefined ? pcsbFeeDraft.pcsbFeeSarpras : (settings.pcsbFeeSarpras ?? 1500000));
+                      const feeSeragam = Number(pcsbFeeDraft.pcsbFeeSeragam !== undefined ? pcsbFeeDraft.pcsbFeeSeragam : (settings.pcsbFeeSeragam ?? 750000));
+                      const feeKitab = Number(pcsbFeeDraft.pcsbFeeKitab !== undefined ? pcsbFeeDraft.pcsbFeeKitab : (settings.pcsbFeeKitab ?? 450000));
+                      const feeKesehatan = Number(pcsbFeeDraft.pcsbFeeKesehatan !== undefined ? pcsbFeeDraft.pcsbFeeKesehatan : (settings.pcsbFeeKesehatan ?? 350000));
+                      const feeSyahriyah = Number(pcsbFeeDraft.pcsbFeeSyahriyah !== undefined ? pcsbFeeDraft.pcsbFeeSyahriyah : (settings.pcsbFeeSyahriyah ?? 200000));
+
+                      const commitSettings: PortalSettings = {
+                        ...currentStored,
+                        ...settings,
+                        ...editSettings,
+                        pcsbFeePendaftaran: isNaN(feePendaftaran) ? 150000 : feePendaftaran,
+                        pcsbFeeSarpras: isNaN(feeSarpras) ? 1500000 : feeSarpras,
+                        pcsbFeeSeragam: isNaN(feeSeragam) ? 750000 : feeSeragam,
+                        pcsbFeeKitab: isNaN(feeKitab) ? 450000 : feeKitab,
+                        pcsbFeeKesehatan: isNaN(feeKesehatan) ? 350000 : feeKesehatan,
+                        pcsbFeeSyahriyah: isNaN(feeSyahriyah) ? 200000 : feeSyahriyah,
+                        pcsbEnablePendaftaran: settings.pcsbEnablePendaftaran !== false,
+                        pcsbEnableSarpras: settings.pcsbEnableSarpras !== false,
+                        pcsbEnableSeragam: settings.pcsbEnableSeragam !== false,
+                        pcsbEnableKitab: settings.pcsbEnableKitab !== false,
+                        pcsbEnableKesehatan: settings.pcsbEnableKesehatan !== false,
+                        pcsbEnableSyahriyah: settings.pcsbEnableSyahriyah !== false
+                      };
+
+                      updateAndPersistSettings(commitSettings);
+                      setPcsbFeeDraft({});
+                      logAdminActivity(
+                        'PENGATURAN_PEMBAYARAN_PCSB',
+                        `Memperbarui aturan nominal penagihan santri baru: Pendaftaran: Rp ${feePendaftaran.toLocaleString('id-ID')}, Sarpras: Rp ${feeSarpras.toLocaleString('id-ID')}, Seragam: Rp ${feeSeragam.toLocaleString('id-ID')}, Kitab: Rp ${feeKitab.toLocaleString('id-ID')}, Kesehatan: Rp ${feeKesehatan.toLocaleString('id-ID')}, Syahriyah: Rp ${feeSyahriyah.toLocaleString('id-ID')}`
+                      );
+                      setFeeSaveFeedback('✓ Berhasil Disimpan Permanen!');
+                      showAlert('success', '✓ Pengaturan Pembayaran Santri Baru Berhasil Disimpan Permanen!');
+                    } catch (err: any) {
+                      showAlert('danger', `Gagal menyimpan pengaturan: ${err?.message || err}`);
+                    } finally {
+                      setIsSavingFeeSettings(false);
+                      setTimeout(() => setFeeSaveFeedback(null), 3500);
+                    }
                   }}
-                  className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                  className={`w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm cursor-pointer ${
+                    feeSaveFeedback 
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                      : 'bg-emerald-800 hover:bg-emerald-900 text-white'
+                  }`}
                 >
-                  <Save className="h-3.5 w-3.5" />
-                  Simpan Pengaturan Tagihan Santri Baru
+                  {isSavingFeeSettings ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Menyimpan Pengaturan...</span>
+                    </>
+                  ) : feeSaveFeedback ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-200" />
+                      <span>{feeSaveFeedback}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-3.5 w-3.5" />
+                      <span>Simpan Pengaturan Pembayaran Santri Baru</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -8188,131 +8410,155 @@ export default function AdminDashboard({
               )}
 
               <div className="space-y-2 max-h-[450px] overflow-y-auto pr-1">
-                {filteredBills.map((b, idx) => (
-                  <div key={b.id} className="p-2.5 bg-gray-50 rounded-xl border border-gray-150 text-xs flex justify-between items-center gap-2">
-                    <div className="flex gap-2 items-start min-w-0">
-                      <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-950 font-mono font-black text-[10px] shrink-0 mt-0.5">
-                        #{idx + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <strong className="block text-gray-900 leading-tight text-sm font-extrabold truncate">{b.studentName}</strong>
-                          {alumniList.some(a => a.id === b.studentId || (a.nis && b.nis && a.nis === b.nis) || (a.fullName && b.studentName && a.fullName.toLowerCase() === b.studentName.toLowerCase())) && (
-                            <span className="px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded text-[9px] font-black uppercase tracking-wider border border-purple-200">
-                              🎓 Alumni
-                            </span>
+                {filteredBills.map((b, idx) => {
+                  const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
+                  const isAlumni = alumniList.some(a => a.id === b.studentId || (a.nis && b.nis && a.nis === b.nis) || (a.fullName && b.studentName && a.fullName.toLowerCase() === b.studentName.toLowerCase()));
+
+                  return (
+                    <div key={b.id} className="p-3 bg-white hover:bg-emerald-50/20 rounded-xl border border-gray-200 transition shadow-2xs space-y-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        {/* Left: Identity & Title */}
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                          <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-950 font-mono font-black text-[10px] shrink-0 mt-0.5">
+                            #{idx + 1}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <strong className="text-sm font-extrabold text-slate-900 truncate">{b.studentName}</strong>
+                              {b.nis && <span className="text-[10px] text-slate-500 font-mono font-semibold">({b.nis})</span>}
+                              {isAlumni && (
+                                <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 rounded text-[9px] font-black uppercase tracking-wider border border-purple-200">
+                                  🎓 Alumni
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5 flex-wrap">
+                              <span className="font-semibold text-slate-700">{b.title}</span>
+                              <span>•</span>
+                              <span className="text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded text-[10px] font-medium">{b.category || 'Syahriyah'}</span>
+                              <span>•</span>
+                              <span className="text-[10px] font-mono text-slate-500">Jatuh Tempo: {b.dueDate || '-'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Amount Badge */}
+                        <div className="sm:text-right shrink-0">
+                          <div className="text-sm sm:text-base font-black text-emerald-950 font-mono">
+                            Rp {breakdown.finalAmount.toLocaleString('id-ID')}
+                          </div>
+                          {breakdown.uniqueCode > 0 && (
+                            <div className="text-[9px] text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 font-mono font-medium inline-block mt-0.5">
+                              Pokok Rp {breakdown.baseAmount.toLocaleString('id-ID')} + {breakdown.uniqueCode}
+                            </div>
                           )}
                         </div>
-                        <span className="text-gray-500 text-[10px] block mt-0.5 truncate">{b.title} ({b.category || 'Lain-lain'})</span>
-                        {(() => {
-                          const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
-                          return (
-                            <div className="mt-1 flex items-center flex-wrap gap-1.5">
-                              <span className="text-emerald-850 font-black text-xs font-mono block">
-                                Rp {breakdown.finalAmount.toLocaleString('id-ID')}
-                              </span>
-                              <span className="text-[9px] text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 font-mono font-bold">
-                                Pokok: Rp {breakdown.baseAmount.toLocaleString('id-ID')} + {breakdown.uniqueCode}
-                              </span>
-                            </div>
-                          );
-                        })()}
+                      </div>
+
+                      {/* Streamlined Action Bar */}
+                      <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                        {/* Status Toggle / View Receipt */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (b.status === 'Konfirmasi Pembayaran' || b.paymentProofUrl) {
+                                setSelectedBillForLogs(b);
+                              } else {
+                                toggleBillStatus(b.id, b.status === 'Lunas' ? 'Belum Lunas' : 'Lunas');
+                              }
+                            }}
+                            className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider transition cursor-pointer shadow-2xs ${
+                              b.status === 'Lunas' 
+                                ? 'bg-emerald-100 text-emerald-850 border border-emerald-300 hover:bg-emerald-200' 
+                                : b.status === 'Konfirmasi Pembayaran' 
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse hover:bg-amber-200' 
+                                : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                            }`}
+                          >
+                            {b.status === 'Lunas' ? '✓ Lunas' : b.status === 'Konfirmasi Pembayaran' ? '🔍 Periksa Resi' : 'Belum Lunas'}
+                          </button>
+
+                          {b.paymentProofUrl && b.status !== 'Konfirmasi Pembayaran' && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBillForLogs(b)}
+                              className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                            >
+                              Lihat Bukti
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Action Buttons: Kwitansi, Rekap A4, WA, Edit, Hapus */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {b.status === 'Lunas' && (
+                            <button
+                              type="button"
+                              onClick={() => setReceiptBill(b)}
+                              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                              title="Cetak Kwitansi Pembayaran Resmi"
+                            >
+                              <Printer className="h-3 w-3" />
+                              <span>Cetak Kwitansi</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const allCombined = [...students, ...(alumniList || [])];
+                              const target = allCombined.find(s => s.id === b.studentId || (s.nis && b.nis && s.nis === b.nis) || (s.fullName && b.studentName && s.fullName.toLowerCase() === b.studentName.toLowerCase())) || null;
+                              openStudentBillingReceipt(target || ({ id: b.studentId || 'temp', fullName: b.studentName, nis: b.nis || '-' } as any));
+                            }}
+                            className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer"
+                            title="Cetak Rekapitulasi Tagihan Santri (Format A4 PDF)"
+                          >
+                            <FileText className="h-3 w-3 text-amber-700" />
+                            <span>Rekap A4</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const res = await dispatchWhatsAppBillNotification(b, undefined, true);
+                              if (!res.success) {
+                                showAlert('danger', res.reason || 'Nomor WhatsApp wali tidak ditemukan.');
+                              } else if (res.mode === 'gateway') {
+                                showAlert('success', `Rincian tagihan terkirim via WhatsApp ke wali ${b.studentName}!`);
+                              } else {
+                                showAlert('success', `Membuka WhatsApp untuk mengirim rincian tagihan ke wali ${b.studentName}...`);
+                              }
+                            }}
+                            className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer"
+                            title="Kirim ke WhatsApp Wali Santri"
+                          >
+                            <Send className="h-3 w-3" />
+                            <span className="hidden sm:inline">WA</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setEditingBill(b)}
+                            className="p-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg transition cursor-pointer"
+                            title="Edit Data Tagihan"
+                          >
+                            <Edit className="h-3.5 w-3.5 text-amber-700" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBill(b.id, b.studentName, Number(b.amount) || 0)}
+                            className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer"
+                            title="Hapus Tagihan"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <button
-                        onClick={() => {
-                          if (b.status === 'Konfirmasi Pembayaran' || b.paymentProofUrl) {
-                            setSelectedBillForLogs(b);
-                          } else {
-                            toggleBillStatus(b.id, b.status === 'Lunas' ? 'Belum Lunas' : 'Lunas');
-                          }
-                        }}
-                        className={`px-2 py-1 text-[10px] font-bold rounded-md block text-center uppercase min-w-[75px] cursor-pointer ${
-                          b.status === 'Lunas' ? 'bg-emerald-100 text-emerald-800' : 
-                          b.status === 'Konfirmasi Pembayaran' ? 'bg-amber-100 text-amber-800 animate-pulse border border-amber-300' :
-                          'bg-amber-50 text-amber-900 border border-amber-200'
-                        }`}
-                      >
-                        {b.status === 'Lunas' ? 'Lunas' : b.status === 'Konfirmasi Pembayaran' ? '🔍 Periksa Resi' : 'Belum Lunas'}
-                      </button>
-
-                      {b.paymentProofUrl && b.status !== 'Konfirmasi Pembayaran' && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedBillForLogs(b)}
-                          className="text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[9px] font-bold block text-center mt-1 w-full py-0.5 px-1 rounded cursor-pointer transition"
-                        >
-                          Lihat Resi Bayar
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setEditingBill(b)}
-                        className="text-amber-700 hover:underline text-[9px] font-bold block text-center mt-1 w-full cursor-pointer"
-                      >
-                        Edit Data Tagihan️
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const res = await dispatchWhatsAppBillNotification(b, undefined, true);
-                          if (!res.success) {
-                            showAlert('danger', res.reason || 'Nomor WhatsApp wali tidak ditemukan.');
-                          } else if (res.mode === 'gateway') {
-                            showAlert('success', `Rincian tagihan berhasil terkirim via WhatsApp Gateway ke wali ${b.studentName} (${res.phone})!`);
-                          } else {
-                            showAlert('success', `Membuka WhatsApp untuk mengirim rincian tagihan ke wali ${b.studentName}...`);
-                          }
-                        }}
-                        className="text-emerald-800 hover:text-emerald-950 font-bold text-[9px] flex items-center justify-center gap-1 mt-1 w-full cursor-pointer bg-emerald-50 hover:bg-emerald-100 py-0.5 px-1.5 rounded border border-emerald-200"
-                        title="Kirim Rincian Tagihan ke WhatsApp Wali Santri"
-                      >
-                        WA Wali
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const allCombined = [...students, ...(alumniList || [])];
-                          const target = allCombined.find(s => s.id === b.studentId || (s.nis && b.nis && s.nis === b.nis) || (s.fullName && b.studentName && s.fullName.toLowerCase() === b.studentName.toLowerCase())) || null;
-                          openStudentBillingReceipt(target || ({ id: b.studentId || 'temp', fullName: b.studentName, nis: b.nis || '-' } as any));
-                        }}
-                        className="text-amber-800 hover:text-amber-950 font-bold text-[9px] flex items-center justify-center gap-1 mt-1 w-full cursor-pointer bg-amber-50 hover:bg-amber-100 py-0.5 px-1 rounded border border-amber-200"
-                        title="Cetak lembar rekapitulasi semua tagihan santri ini (A4 PDF)"
-                      >
-                        Rekap Santri A4 ⎙
-                      </button>
-
-                      {b.status === 'Lunas' && (
-                        <button
-                          type="button"
-                          onClick={() => setReceiptBill(b)}
-                          className="text-emerald-700 hover:underline text-[9px] font-bold block text-center mt-1 w-full cursor-pointer"
-                        >
-                          Cetak Kwitansi ⎙
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedBillForLogs(b)}
-                        className="text-violet-700 hover:underline text-[9px] font-bold block text-center mt-1 w-full cursor-pointer"
-                      >
-                        Detail & Log AI </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteBill(b.id, b.studentName, Number(b.amount) || 0)}
-                        className="text-red-500 hover:text-red-700 hover:underline text-[9px] font-bold block text-center mt-1 w-full cursor-pointer py-0.5"
-                      >
-                        Hapus Tagihan
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {filteredBills.length === 0 && (
                   <p className="text-center py-6 text-gray-400 text-[10px]">Tidak ada data tagihan yang cocok.</p>
@@ -13136,6 +13382,398 @@ export default function AdminDashboard({
         </div>
       )}
 
+      {/* Tab: Staff Activity & Audit Logs */}
+      {activeTab === 'staff_activity_log' && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 space-y-6">
+          {(() => {
+            const countKeamanan = (activityLogs || []).filter((l: any) => (l.actorRole || l.role || '').toLowerCase().includes('keamanan')).length;
+            const countKetertiban = (activityLogs || []).filter((l: any) => (l.actorRole || l.role || '').toLowerCase().includes('ketertiban')).length;
+            const countKesehatan = (activityLogs || []).filter((l: any) => (l.actorRole || l.role || '').toLowerCase().includes('kesehatan')).length;
+            const countAdmin = (activityLogs || []).filter((l: any) => (l.actorRole || l.role || 'admin').toLowerCase().includes('admin')).length;
+
+            const getRoleBadge = (role: string) => {
+              const r = (role || 'admin').toLowerCase();
+              if (r.includes('keamanan')) {
+                return <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200">Keamanan</span>;
+              }
+              if (r.includes('ketertiban')) {
+                return <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200">Ketertiban</span>;
+              }
+              if (r.includes('kesehatan')) {
+                return <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">Kesehatan</span>;
+              }
+              return <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">Admin Utama</span>;
+            };
+
+            const getActionBadge = (action: string) => {
+              const a = (action || '').toUpperCase();
+              if (a.includes('IZIN') || a.includes('KEPULANGAN')) {
+                return <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Perizinan</span>;
+              }
+              if (a.includes('PELANGGARAN') || a.includes('TAZIR') || a.includes('DISIPLIN')) {
+                return <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-200">Pelanggaran</span>;
+              }
+              if (a.includes('MEDIS') || a.includes('RAWAT') || a.includes('KESEHATAN')) {
+                return <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-50 text-teal-700 border border-teal-200">Kesehatan</span>;
+              }
+              if (a.includes('SURAT')) {
+                return <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">Surat Resmi</span>;
+              }
+              if (a.includes('PROFIL') || a.includes('TTD') || a.includes('PENGURUS')) {
+                return <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">Profil & TTD</span>;
+              }
+              if (a.includes('HAPUS')) {
+                return <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-800 border border-red-300">Hapus Data</span>;
+              }
+              if (a.includes('TAGIHAN') || a.includes('PEMBAYARAN') || a.includes('BIAYA')) {
+                return <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">Keuangan</span>;
+              }
+              return <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 border border-slate-200">{action || 'Aktivitas'}</span>;
+            };
+
+            return (
+              <>
+                {/* Header & Controls */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-lg text-emerald-950">
+                          Buku Register Log Aksi & Audit Pengurus
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Riwayat transparansi seluruh tindakan pengurus: siapa mengedit apa, target data, dan waktu perubahan secara real-time.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadPrintableHTML('staff-audit-log-printable', `Laporan_Audit_Aksi_Pengurus_${new Date().toISOString().split('T')[0]}`);
+                      }}
+                      className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      title="Cetak Laporan Audit Lengkap (A4)"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      <span>Cetak Laporan Audit (A4)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/activity-logs');
+                          if (res.ok) {
+                            const json = await res.json();
+                            if (json && json.success && Array.isArray(json.logs)) {
+                              setActivityLogs(json.logs);
+                              localStorage.setItem('pesantren_admin_activity_logs', JSON.stringify(json.logs));
+                              showAlert('success', `Berhasil memuat ${json.logs.length} log terbaru.`);
+                              return;
+                            }
+                          }
+                          showAlert('info', 'Log data sudah terbarui.');
+                        } catch (e) {
+                          showAlert('danger', 'Gagal menyinkronkan log dari server.');
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      title="Sinkronkan Ulang Log dari Server"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      <span>Segarkan</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerConfirm(
+                          'Bersihkan Riwayat Audit Log',
+                          'Apakah Anda yakin ingin mengosongkan seluruh riwayat log audit pengurus? Tindakan ini tidak dapat dibatalkan.',
+                          async () => {
+                            try {
+                              localStorage.removeItem('pesantren_admin_activity_logs');
+                              setActivityLogs([]);
+                              await fetch('/api/activity-logs', { method: 'DELETE' }).catch(() => {});
+                              showAlert('success', 'Seluruh riwayat log audit berhasil dibersihkan.');
+                            } catch (e) {
+                              showAlert('danger', 'Gagal membersihkan log audit.');
+                            }
+                          }
+                        );
+                      }}
+                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      title="Hapus riwayat log aktivitas"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Bersihkan Log</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stat Summary Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Total Tindakan</span>
+                    <span className="text-xl font-black text-slate-900 mt-0.5 block">{activityLogs.length}</span>
+                  </div>
+                  <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-3 text-center">
+                    <span className="text-[10px] font-bold uppercase text-blue-600 block">Biro Keamanan</span>
+                    <span className="text-xl font-black text-blue-900 mt-0.5 block">{countKeamanan}</span>
+                  </div>
+                  <div className="bg-rose-50/60 border border-rose-200 rounded-xl p-3 text-center">
+                    <span className="text-[10px] font-bold uppercase text-rose-600 block">Biro Ketertiban</span>
+                    <span className="text-xl font-black text-rose-900 mt-0.5 block">{countKetertiban}</span>
+                  </div>
+                  <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3 text-center">
+                    <span className="text-[10px] font-bold uppercase text-emerald-600 block">Biro Kesehatan</span>
+                    <span className="text-xl font-black text-emerald-900 mt-0.5 block">{countKesehatan}</span>
+                  </div>
+                  <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-3 text-center col-span-2 sm:col-span-1">
+                    <span className="text-[10px] font-bold uppercase text-amber-700 block">Administrator</span>
+                    <span className="text-xl font-black text-amber-900 mt-0.5 block">{countAdmin}</span>
+                  </div>
+                </div>
+
+                {/* Search & Filter Toolbar */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari pengurus, santri, aksi..."
+                      value={staffLogSearch}
+                      onChange={(e) => setStaffLogSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-700 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <select
+                      value={staffLogRoleFilter}
+                      onChange={(e) => setStaffLogRoleFilter(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-emerald-700"
+                    >
+                      <option value="semua">Semua Bidang / Biro</option>
+                      <option value="keamanan">Biro Keamanan (Perizinan)</option>
+                      <option value="ketertiban">Biro Ketertiban (Disiplin)</option>
+                      <option value="kesehatan">Biro Kesehatan (Poskestren)</option>
+                      <option value="admin">Administrator Utama</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <select
+                      value={staffLogActionFilter}
+                      onChange={(e) => setStaffLogActionFilter(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-emerald-700"
+                    >
+                      <option value="semua">Semua Jenis Aksi</option>
+                      <option value="IZIN">Izin Keluar / Kembali</option>
+                      <option value="PELANGGARAN">Pelanggaran & Takzir</option>
+                      <option value="MEDIS">Rekam Medis & Sakit</option>
+                      <option value="SURAT">Penerbitan Surat Resmi</option>
+                      <option value="PROFIL">Profil & Spesimen TTD</option>
+                      <option value="TAGIHAN">Tagihan & Keuangan</option>
+                      <option value="HAPUS">Penghapusan Data</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <select
+                      value={staffLogMonthFilter}
+                      onChange={(e) => setStaffLogMonthFilter(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-emerald-700"
+                    >
+                      <option value="semua">Semua Bulan</option>
+                      {INDONESIAN_MONTHS.map(m => (
+                        <option key={m.value} value={m.value}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <select
+                      value={staffLogYearFilter}
+                      onChange={(e) => setStaffLogYearFilter(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-emerald-700 font-mono"
+                    >
+                      <option value="Semua">Semua Tahun</option>
+                      <option value="2024">2024</option>
+                      <option value="2025">2025</option>
+                      <option value="2026">2026</option>
+                      <option value="2027">2027</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Audit Logs Table */}
+                <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="bg-emerald-50 text-emerald-950 border-b border-gray-200">
+                      <tr>
+                        <th className="p-3 font-extrabold text-[10px] uppercase w-12 text-center">No</th>
+                        <th className="p-3 font-extrabold text-[10px] uppercase w-36">Waktu Kejadian</th>
+                        <th className="p-3 font-extrabold text-[10px] uppercase w-48">Pengurus Pelaksana</th>
+                        <th className="p-3 font-extrabold text-[10px] uppercase w-32">Biro / Bidang</th>
+                        <th className="p-3 font-extrabold text-[10px] uppercase w-28">Kategori</th>
+                        <th className="p-3 font-extrabold text-[10px] uppercase w-44">Target Santri/Objek</th>
+                        <th className="p-3 font-extrabold text-[10px] uppercase">Rincian Perubahan Data</th>
+                        <th className="p-3 font-extrabold text-[10px] uppercase w-20 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredStaffLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-10 text-center text-gray-400 font-medium">
+                            <Clock className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            Tidak ada log aksi pengurus yang sesuai dengan filter pencarian.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredStaffLogs.map((log: any, idx: number) => {
+                          const actor = log.actorName || log.adminName || 'Pengurus';
+                          const role = log.actorRole || log.role || 'admin';
+                          const action = log.actionType || log.actionTitle || 'Aktivitas';
+                          const target = log.targetName || log.targetId || '-';
+                          const desc = log.description || '-';
+                          const time = log.timestamp || log.createdAt || '-';
+
+                          return (
+                            <tr key={log.id || `log-${idx}`} className="hover:bg-slate-50/70 transition">
+                              <td className="p-3 text-center font-mono text-gray-400 font-bold">{idx + 1}</td>
+                              <td className="p-3 font-mono text-[11px] text-slate-700 whitespace-nowrap">
+                                {time}
+                              </td>
+                              <td className="p-3">
+                                <div className="font-bold text-slate-900">{actor}</div>
+                                {log.email && (
+                                  <div className="font-mono text-[10px] text-slate-500 truncate max-w-[160px]">
+                                    {log.email}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                {getRoleBadge(role)}
+                              </td>
+                              <td className="p-3">
+                                {getActionBadge(action)}
+                              </td>
+                              <td className="p-3">
+                                <span className="font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[11px] inline-block max-w-[160px] truncate" title={target}>
+                                  {target}
+                                </span>
+                              </td>
+                              <td className="p-3 text-slate-700 leading-relaxed font-medium">
+                                {desc}
+                              </td>
+                              <td className="p-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedStaffLogDetail(log)}
+                                  className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-bold text-[10px] transition cursor-pointer"
+                                >
+                                  Detail
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* MODAL: DETAIL LOG AUDIT PENGURUS */}
+      {selectedStaffLogDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-emerald-100 transform transition-all">
+            <div className="bg-gradient-to-r from-emerald-800 to-teal-950 p-4 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-300" />
+                <div>
+                  <h3 className="font-extrabold text-sm uppercase tracking-wider text-amber-300">Detail Audit Log Pengurus</h3>
+                  <p className="text-[10px] text-emerald-100">Informasi autentikasi & rekaman perubahan data</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedStaffLogDetail(null)}
+                className="p-1 hover:bg-emerald-700/50 rounded-lg text-white/80 hover:text-white transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                  <span className="text-gray-500 font-semibold text-[11px]">Log ID:</span>
+                  <span className="font-mono text-[10px] text-slate-700">{selectedStaffLogDetail.id}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                  <span className="text-gray-500 font-semibold text-[11px]">Waktu Pencatatan:</span>
+                  <span className="font-mono font-bold text-slate-800 text-[11px]">{selectedStaffLogDetail.timestamp || selectedStaffLogDetail.createdAt}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                  <span className="text-gray-500 font-semibold text-[11px]">Nama Pengurus:</span>
+                  <span className="font-bold text-slate-900">{selectedStaffLogDetail.actorName || selectedStaffLogDetail.adminName || 'Pengurus'}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                  <span className="text-gray-500 font-semibold text-[11px]">Bidang / Biro:</span>
+                  <span className="font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[10px]">
+                    {selectedStaffLogDetail.actorRole || selectedStaffLogDetail.role || 'Admin'}
+                  </span>
+                </div>
+                {selectedStaffLogDetail.email && (
+                  <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                    <span className="text-gray-500 font-semibold text-[11px]">Akun Email:</span>
+                    <span className="font-mono text-slate-700">{selectedStaffLogDetail.email}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                  <span className="text-gray-500 font-semibold text-[11px]">Kategori Aksi:</span>
+                  <span className="font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded text-[10px]">
+                    {selectedStaffLogDetail.actionType || selectedStaffLogDetail.actionTitle}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                  <span className="text-gray-500 font-semibold text-[11px]">Target Santri / Objek:</span>
+                  <span className="font-bold text-slate-800">{selectedStaffLogDetail.targetName || selectedStaffLogDetail.targetId || '-'}</span>
+                </div>
+                <div className="pt-1">
+                  <span className="text-gray-500 font-semibold text-[11px] block mb-1">Rincian Perubahan Lengkap:</span>
+                  <p className="p-3 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium leading-relaxed">
+                    {selectedStaffLogDetail.description}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedStaffLogDetail(null)}
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: EDIT DATA SANTRI / ALUMNI */}
       {editingStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/70 backdrop-blur-sm overflow-y-auto">
@@ -17224,6 +17862,197 @@ export default function AdminDashboard({
           </div>
         </div>
       )}
+
+      {/* PRINTABLE TEMPLATE: LAPORAN BULANAN PENDAFTAR PCSB */}
+      <div id="pcsb-monthly-report-printable" className="hidden">
+        <div style={{ fontFamily: 'Inter, sans-serif', color: '#0f172a', padding: '10px' }}>
+          {/* KOP RESMI */}
+          <div style={{ borderBottom: '3px double #064e3b', paddingBottom: '12px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo" style={{ height: '70px', width: '70px', objectFit: 'contain' }} />
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#475569', letterSpacing: '1px' }}>{settings.namaYayasan || "YAYASAN AL-ASY'ARIYAH"}</div>
+              <div style={{ fontSize: '18px', fontWeight: '900', textTransform: 'uppercase', color: '#064e3b', margin: '2px 0' }}>{settings.schoolName || "PONDOK PESANTREN AL-ASY'ARIYAH"}</div>
+              <div style={{ fontSize: '10px', fontStyle: 'italic', fontWeight: 'bold', color: '#b45309' }}>{settings.tagline || "Mencetak Generasi Qur'ani, Berakhlakul Karimah, Unggul, dan Mandiri"}</div>
+              <div style={{ fontSize: '9px', color: '#64748b', marginTop: '4px' }}>
+                Sekretariat: {settings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur"} • Telp: {settings.phone || "(0291) 438291"} • Website: www.alasyariyah.org
+              </div>
+            </div>
+          </div>
+
+          {/* JUDUL LAPORAN */}
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '14px', fontWeight: '900', textTransform: 'uppercase', margin: 0, color: '#064e3b' }}>
+              LAPORAN BULANAN PENDAFTARAN CALON SANTRI BARU (PCSB)
+            </h2>
+            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', margin: '4px 0 0' }}>
+              Periode Pendaftaran: {ppdbMonthFilter !== 'Semua' ? `${INDONESIAN_MONTHS.find(m => m.value === ppdbMonthFilter)?.name || ppdbMonthFilter} ${ppdbYearFilter}` : `Semua Periode Tahun ${ppdbYearFilter}`}
+            </p>
+          </div>
+
+          {/* RINGKASAN DATA */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px', textAlign: 'center', fontSize: '10px' }}>
+            <div style={{ border: '1px solid #cbd5e1', padding: '6px', borderRadius: '6px', background: '#f8fafc' }}>
+              <span style={{ color: '#64748b', display: 'block', fontWeight: 'bold' }}>TOTAL PENDAFTAR</span>
+              <strong style={{ fontSize: '14px', color: '#0f172a' }}>{filteredPpdb.length} Santri</strong>
+            </div>
+            <div style={{ border: '1px solid #cbd5e1', padding: '6px', borderRadius: '6px', background: '#f0fdf4' }}>
+              <span style={{ color: '#166534', display: 'block', fontWeight: 'bold' }}>DITERIMA (LULUS)</span>
+              <strong style={{ fontSize: '14px', color: '#15803d' }}>{filteredPpdb.filter(p => p.status === 'Diterima').length} Santri</strong>
+            </div>
+            <div style={{ border: '1px solid #cbd5e1', padding: '6px', borderRadius: '6px', background: '#fefce8' }}>
+              <span style={{ color: '#854d0e', display: 'block', fontWeight: 'bold' }}>PENDING (VERIFIKASI)</span>
+              <strong style={{ fontSize: '14px', color: '#b45309' }}>{filteredPpdb.filter(p => p.status === 'Pending').length} Santri</strong>
+            </div>
+            <div style={{ border: '1px solid #cbd5e1', padding: '6px', borderRadius: '6px', background: '#f8fafc' }}>
+              <span style={{ color: '#64748b', display: 'block', fontWeight: 'bold' }}>PUTRA / PUTRI</span>
+              <strong style={{ fontSize: '14px', color: '#0f172a' }}>
+                L: {filteredPpdb.filter(p => p.gender === 'Laki-laki').length} | P: {filteredPpdb.filter(p => p.gender === 'Perempuan').length}
+              </strong>
+            </div>
+          </div>
+
+          {/* TABEL DATA */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: '20px' }}>
+            <thead>
+              <tr style={{ background: '#064e3b', color: '#ffffff', textTransform: 'uppercase' }}>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '25px', textAlign: 'center' }}>No</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '70px' }}>No. Registrasi</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '65px' }}>Tgl Daftar</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px' }}>Nama Lengkap</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '30px', textAlign: 'center' }}>L/P</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px' }}>Tempat, Tgl Lahir</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px' }}>Asal Sekolah</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px' }}>Wali & No. HP</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '60px', textAlign: 'center' }}>Skema Biaya</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '60px', textAlign: 'center' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPpdb.length === 0 ? (
+                <tr>
+                  <td colSpan={10} style={{ border: '1px solid #cbd5e1', padding: '16px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
+                    Tidak ada pendaftar baru pada periode bulan ini.
+                  </td>
+                </tr>
+              ) : (
+                filteredPpdb.map((reg, idx) => (
+                  <tr key={reg.id || idx} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', textAlign: 'center' }}>{idx + 1}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', fontFamily: 'monospace', fontWeight: 'bold' }}>{reg.id}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px' }}>{reg.registrationDate || '-'}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', fontWeight: 'bold' }}>{reg.fullName}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', textAlign: 'center' }}>{reg.gender === 'Laki-laki' ? 'L' : 'P'}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px' }}>{reg.birthPlace || '-'}, {reg.birthDate || '-'}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px' }}>{reg.previousSchool || '-'}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px' }}>{reg.parentName || '-'}<br/><span style={{ fontSize: '8px', color: '#64748b' }}>{reg.parentPhone || '-'}</span></td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', textAlign: 'center' }}>{reg.paymentType || 'Mandiri'}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', color: reg.status === 'Diterima' ? '#15803d' : reg.status === 'Ditolak' ? '#b91c1c' : '#b45309' }}>
+                      {reg.status || 'Pending'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+
+          {/* TANDA TANGAN */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', fontSize: '10px' }}>
+            <div style={{ textAlign: 'center', width: '200px' }}>
+              <p style={{ margin: '0 0 45px' }}>Ketua Panitia PCSB,</p>
+              <p style={{ fontWeight: 'bold', margin: '0 0 2px', textDecoration: 'underline' }}>{settings.namaKetuaPcsb || "Ust. H. Ahmad Fauzi, S.Pd.I"}</p>
+              <p style={{ margin: 0, fontSize: '9px', color: '#64748b' }}>NIP: 19820712.201001.1.002</p>
+            </div>
+            <div style={{ textAlign: 'center', width: '220px' }}>
+              <p style={{ margin: '0 0 4px', color: '#64748b' }}>Ditetapkan di Bangkalan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              <p style={{ margin: '0 0 45px' }}>Pengasuh Pondok Pesantren,</p>
+              <p style={{ fontWeight: 'bold', margin: '0 0 2px', textDecoration: 'underline' }}>{settings.namaPengasuh || "KH. M. Syamsul Arifin, Lc."}</p>
+              <p style={{ margin: 0, fontSize: '9px', color: '#64748b' }}>Pimpinan Majelis Pengasuh</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PRINTABLE TEMPLATE: BUKU REGISTER AUDIT & LOG AKSI PENGURUS */}
+      <div id="staff-audit-log-printable" className="hidden">
+        <div style={{ fontFamily: 'Inter, sans-serif', color: '#0f172a', padding: '10px' }}>
+          {/* KOP RESMI */}
+          <div style={{ borderBottom: '3px double #064e3b', paddingBottom: '12px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <img src={settings.logoUrl || '/pesantren_logo.jpg'} alt="Logo" style={{ height: '70px', width: '70px', objectFit: 'contain' }} />
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#475569', letterSpacing: '1px' }}>{settings.namaYayasan || "YAYASAN AL-ASY'ARIYAH"}</div>
+              <div style={{ fontSize: '18px', fontWeight: '900', textTransform: 'uppercase', color: '#064e3b', margin: '2px 0' }}>{settings.schoolName || "PONDOK PESANTREN AL-ASY'ARIYAH"}</div>
+              <div style={{ fontSize: '10px', fontStyle: 'italic', fontWeight: 'bold', color: '#b45309' }}>{settings.tagline || "Mencetak Generasi Qur'ani, Berakhlakul Karimah, Unggul, dan Mandiri"}</div>
+              <div style={{ fontSize: '9px', color: '#64748b', marginTop: '4px' }}>
+                Sekretariat: {settings.address || "Jl. Raya Modung, Langpanggang, Modung, Bangkalan, Jawa Timur"} • Telp: {settings.phone || "(0291) 438291"} • Website: www.alasyariyah.org
+              </div>
+            </div>
+          </div>
+
+          {/* JUDUL LAPORAN */}
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '14px', fontWeight: '900', textTransform: 'uppercase', margin: 0, color: '#064e3b' }}>
+              BUKU REGISTER & LOG AUDIT AKTIVITAS PENGURUS PESANTREN
+            </h2>
+            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', margin: '4px 0 0' }}>
+              Laporan Transparansi Tindakan & Perubahan Data Sistem oleh Seluruh Akun Pengurus
+            </p>
+            <p style={{ fontSize: '9px', color: '#64748b', margin: '2px 0 0' }}>
+              Dicetak pada: {new Date().toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' })} • Filter Biro: {staffLogRoleFilter.toUpperCase()} • Filter Aksi: {staffLogActionFilter.toUpperCase()}
+            </p>
+          </div>
+
+          {/* TABEL AUDIT */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: '20px' }}>
+            <thead>
+              <tr style={{ background: '#064e3b', color: '#ffffff', textTransform: 'uppercase' }}>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '25px', textAlign: 'center' }}>No</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '95px' }}>Waktu</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '110px' }}>Pengurus</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '75px', textAlign: 'center' }}>Biro / Bidang</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '80px', textAlign: 'center' }}>Kategori Aksi</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px', width: '110px' }}>Target Objek</th>
+                <th style={{ border: '1px solid #94a3b8', padding: '6px 4px' }}>Deskripsi Tindakan & Perubahan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStaffLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ border: '1px solid #cbd5e1', padding: '16px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
+                    Tidak ada catatan aktivitas pengurus pada kriteria ini.
+                  </td>
+                </tr>
+              ) : (
+                filteredStaffLogs.map((log: any, idx: number) => (
+                  <tr key={log.id || idx} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', textAlign: 'center' }}>{idx + 1}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', fontFamily: 'monospace' }}>{log.timestamp || log.createdAt}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', fontWeight: 'bold' }}>{log.actorName || log.adminName || 'Pengurus'}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold' }}>{log.actorRole || log.role || 'Admin'}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px', textAlign: 'center', fontWeight: 'bold' }}>{log.actionType || log.actionTitle}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px' }}>{log.targetName || log.targetId || '-'}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 4px' }}>{log.description}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+
+          {/* TANDA TANGAN */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', fontSize: '10px' }}>
+            <div style={{ textAlign: 'center', width: '200px' }}>
+              <p style={{ margin: '0 0 45px' }}>Administrator Utama / IT,</p>
+              <p style={{ fontWeight: 'bold', margin: '0 0 2px', textDecoration: 'underline' }}>{currentAdminName || 'Ustadz Samsul'}</p>
+              <p style={{ margin: 0, fontSize: '9px', color: '#64748b' }}>Admin Portal Pesantren</p>
+            </div>
+            <div style={{ textAlign: 'center', width: '220px' }}>
+              <p style={{ margin: '0 0 4px', color: '#64748b' }}>Bangkalan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              <p style={{ margin: '0 0 45px' }}>Mengetahui, Pengasuh Pesantren</p>
+              <p style={{ fontWeight: 'bold', margin: '0 0 2px', textDecoration: 'underline' }}>{settings.namaPengasuh || "KH. M. Syamsul Arifin, Lc."}</p>
+              <p style={{ margin: 0, fontSize: '9px', color: '#64748b' }}>Pimpinan Pondok Pesantren</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Staff Credential Notification Modal */}
       {staffCredentialNotification && (

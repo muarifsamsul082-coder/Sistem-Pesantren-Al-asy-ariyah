@@ -465,8 +465,14 @@ export interface SystemActivityLog {
   id: string;
   timestamp: string;
   adminName: string;
+  actorName?: string;
+  actorRole?: 'admin' | 'keamanan' | 'ketertiban' | 'kesehatan' | string;
+  role?: string;
+  email?: string;
   actionType: string;
+  actionTitle?: string;
   description: string;
   targetId?: string;
   targetName?: string;
+  createdAt?: string;
 }
