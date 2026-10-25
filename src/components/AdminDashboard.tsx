@@ -1731,6 +1731,8 @@ export default function AdminDashboard({
   const [paketSppAmount, setPaketSppAmount] = React.useState(200000);
   const [paketGedungChecked, setPaketGedungChecked] = React.useState(true);
   const [paketGedungAmount, setPaketGedungAmount] = React.useState(1000000);
+  const [showBillFormDrawer, setShowBillFormDrawer] = React.useState(false);
+  const [showFeeRulesDrawer, setShowFeeRulesDrawer] = React.useState(false);
 
   // Portal Settings Editable state
   const [editSettings, setEditSettings] = React.useState<PortalSettings>(() => {
@@ -1746,7 +1748,7 @@ export default function AdminDashboard({
   const [saveStatus, setSaveStatus] = React.useState<'saved' | 'saving' | 'idle'>('idle');
   const [isSettingsDirty, setIsSettingsDirty] = React.useState(false);
 
-  // Local draft state for PPDB Fee Settings in Bills tab to prevent bounce-back ("mental") while typing or toggling
+  // Local draft state for PPDB Fee Settings in Bills tab to ensure smooth typing and toggling
   const [pcsbFeeDraft, setPcsbFeeDraft] = React.useState<Record<string, number | string>>({});
   const [feeSaveFeedback, setFeeSaveFeedback] = React.useState<string | null>(null);
 
@@ -1936,16 +1938,71 @@ export default function AdminDashboard({
 
   React.useEffect(() => {
     const handleSync = () => {
-      const saved = localStorage.getItem('pesantren_staff_users');
-      if (saved) {
-        try { setStaffUsers(JSON.parse(saved)); } catch (e) {}
+      const savedStaff = localStorage.getItem('pesantren_staff_users');
+      const savedSettings = localStorage.getItem('pesantren_settings');
+      let parsedStaff: any[] = [];
+      let parsedSettings: Partial<PortalSettings> = {};
+
+      if (savedStaff) {
+        try {
+          parsedStaff = JSON.parse(savedStaff);
+          if (Array.isArray(parsedStaff)) {
+            setStaffUsers(parsedStaff);
+          }
+        } catch (e) {}
       }
+
+      if (savedSettings) {
+        try {
+          parsedSettings = JSON.parse(savedSettings);
+        } catch (e) {}
+      }
+
+      // Auto-update editSettings so "Daftar Pengurus" menu always matches the account names
+      setEditSettings(prev => {
+        const next = { ...prev, ...parsedSettings };
+        if (Array.isArray(parsedStaff)) {
+          parsedStaff.forEach((u: any) => {
+            const r = (u.role || '').toLowerCase().trim();
+            const uName = (u.fullName || u.name || '').trim();
+            if (!uName) return;
+            if (r === 'admin') {
+              next.namaPengasuh = uName;
+              next.namaPengurus = uName;
+            } else if (r === 'keamanan' || r.includes('kamtib')) {
+              next.namaKeamanan = uName;
+            } else if (r === 'ketertiban') {
+              next.namaKetertiban = uName;
+            } else if (r === 'kesehatan' || r.includes('poskestren')) {
+              next.namaKesehatan = uName;
+            } else if (r.includes('bendahara')) {
+              next.namaBendaharaPutra = uName;
+              next.namaBendahara = uName;
+            } else if (r.includes('sekretaris')) {
+              next.namaSekretarisPutra = uName;
+            } else if (r.includes('pcsb') || r.includes('ppdb')) {
+              next.namaKetuaPcsb = uName;
+            } else if (r.includes('akademik')) {
+              next.namaAkademik = uName;
+            }
+          });
+        }
+        return next;
+      });
     };
+
+    // Run once on mount to ensure initial match
+    handleSync();
+
     window.addEventListener('pesantren_staff_users_updated', handleSync);
     window.addEventListener('pesantren_admin_name_updated', handleSync);
+    window.addEventListener('pesantren_settings_updated', handleSync);
+    window.addEventListener('staff_configs_updated', handleSync);
     return () => {
       window.removeEventListener('pesantren_staff_users_updated', handleSync);
       window.removeEventListener('pesantren_admin_name_updated', handleSync);
+      window.removeEventListener('pesantren_settings_updated', handleSync);
+      window.removeEventListener('staff_configs_updated', handleSync);
     };
   }, []);
 
@@ -2085,7 +2142,7 @@ export default function AdminDashboard({
     setTimeout(() => setSaveStatus('idle'), 3000);
   };
 
-  // Dedicated immediate handler for PPDB Start Date & End Date changes (prevents date bouncing/mental)
+  // Dedicated immediate handler for PPDB Start Date & End Date changes (with instant persistence)
   const handleUpdatePpdbDate = async (field: 'ppdbStartDate' | 'ppdbEndDate', rawVal: string) => {
     const val = rawVal ? normalizeDateToYMD(rawVal) : '';
     const updated: PortalSettings = {
@@ -7685,76 +7742,146 @@ export default function AdminDashboard({
 
       {/* Tab: Tuition Bills Management */}
       {activeTab === 'bills' && (
-        <div className="space-y-6 text-left">
-          {/* REKAPAN KEUANGAN & PEMBAYARAN */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-2xl shadow-sm border border-emerald-800">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] bg-amber-400 text-emerald-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
-                  MENU BARU
-                </span>
-                <h4 className="font-extrabold text-sm text-white">Laporan Keuangan & Kas Bendahara (Putra vs Putri)</h4>
+        <div className="space-y-5 text-left">
+          {/* Header & Quick Action Bar */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-50 text-emerald-800 rounded-xl">
+                <CreditCard className="h-5 w-5" />
               </div>
-              <p className="text-xs text-emerald-200 mt-1 leading-relaxed">
-                Akses buku kas terpisah untuk memantau pendapatan SPP putra/putri dan pengeluaran operasional bendahara putra maupun bendahara putri.
-              </p>
+              <div>
+                <h3 className="font-extrabold text-base text-slate-900">Rekap & Manajemen Tagihan Santri</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Pusat kontrol tagihan syahriyah, paket santri baru, kwitansi, dan verifikasi resi.
+                </p>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBillFormDrawer(!showBillFormDrawer);
+                  if (showFeeRulesDrawer) setShowFeeRulesDrawer(false);
+                }}
+                className={`px-3.5 py-2 font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 ${
+                  showBillFormDrawer 
+                    ? 'bg-emerald-900 text-white ring-2 ring-emerald-500' 
+                    : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                }`}
+              >
+                <Plus className="h-4 w-4" />
+                <span>{showBillFormDrawer ? 'Tutup Form Tagihan' : 'Buat Tagihan Baru'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFeeRulesDrawer(!showFeeRulesDrawer);
+                  if (showBillFormDrawer) setShowBillFormDrawer(false);
+                }}
+                className={`px-3.5 py-2 font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 border ${
+                  showFeeRulesDrawer 
+                    ? 'bg-slate-900 text-white border-slate-900' 
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200'
+                }`}
+              >
+                <Settings className="h-3.5 w-3.5 text-slate-600" />
+                <span>{showFeeRulesDrawer ? 'Tutup Aturan Biaya' : 'Aturan Biaya PCSB'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => openStudentBillingReceipt(null)}
-                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold rounded-xl text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 border border-emerald-400"
-                title="Cetak lembar A4 rekapitulasi tagihan dan pembayaran santri"
+                className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                title="Cetak lembar A4 rekapitulasi tagihan santri"
               >
-                <Printer className="h-4 w-4 text-amber-300" />
-                <span>Cetak Rekap Tagihan Santri (A4 PDF) ⎙</span>
+                <Printer className="h-3.5 w-3.5 text-amber-600" />
+                <span>Cetak Rekap A4</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setActiveTab('laporan_keuangan')}
-                className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-extrabold rounded-xl text-xs transition cursor-pointer shadow-md flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
               >
-                <span>Buka Menu Laporan Keuangan ↗</span>
+                <span>Kas Bendahara ↗</span>
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-200">
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
-              <CreditCard className="h-5 w-5 text-emerald-800 mx-auto" />
-              <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Total Tagihan Dibuat</div>
-              <div className="text-sm font-black text-slate-950 mt-0.5">Rp {filteredBills.reduce((sum, b) => sum + getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount).finalAmount, 0).toLocaleString('id-ID')}</div>
-              <div className="text-[9px] text-slate-400 mt-0.5 font-bold">({filteredBills.length} Tagihan)</div>
+          {/* Metric Summary Bar - Clean & Spacious */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
+              <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl">
+                <CreditCard className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Total Tagihan</div>
+                <div className="text-base font-black text-slate-900 truncate">
+                  Rp {filteredBills.reduce((sum, b) => sum + getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount).finalAmount, 0).toLocaleString('id-ID')}
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium">{filteredBills.length} tagihan terdaftar</div>
+              </div>
             </div>
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 mx-auto" />
-              <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Total SPP Lunas</div>
-              <div className="text-sm font-black text-emerald-700 mt-0.5">Rp {filteredBills.filter(b => b.status === 'Lunas').reduce((sum, b) => sum + getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount).finalAmount, 0).toLocaleString('id-ID')}</div>
-              <div className="text-[9px] text-emerald-600 mt-0.5 font-extrabold">({filteredBills.filter(b => b.status === 'Lunas').length} Transaksi)</div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-xl">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Total Lunas</div>
+                <div className="text-base font-black text-emerald-700 truncate">
+                  Rp {filteredBills.filter(b => b.status === 'Lunas').reduce((sum, b) => sum + getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount).finalAmount, 0).toLocaleString('id-ID')}
+                </div>
+                <div className="text-[10px] text-emerald-600 font-medium">{filteredBills.filter(b => b.status === 'Lunas').length} transaksi lunas</div>
+              </div>
             </div>
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
-              <AlertCircle className="h-5 w-5 text-rose-600 mx-auto" />
-              <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Tunggakan Belum Lunas</div>
-              <div className="text-sm font-black text-rose-600 mt-0.5">Rp {filteredBills.filter(b => b.status === 'Belum Lunas').reduce((sum, b) => sum + getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount).finalAmount, 0).toLocaleString('id-ID')}</div>
-              <div className="text-[9px] text-rose-500 mt-0.5 font-extrabold">({filteredBills.filter(b => b.status === 'Belum Lunas').length} Menunggu)</div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
+              <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] text-rose-600 font-bold uppercase tracking-wider">Tunggakan</div>
+                <div className="text-base font-black text-rose-600 truncate">
+                  Rp {filteredBills.filter(b => b.status === 'Belum Lunas').reduce((sum, b) => sum + getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount).finalAmount, 0).toLocaleString('id-ID')}
+                </div>
+                <div className="text-[10px] text-rose-500 font-medium">{filteredBills.filter(b => b.status === 'Belum Lunas').length} santri menunggu</div>
+              </div>
             </div>
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs text-center text-slate-900">
-              <Clock className="h-5 w-5 text-amber-600 mx-auto" />
-              <div className="text-[10px] text-slate-500 font-bold uppercase mt-1.5">Verifikasi Pembayaran</div>
-              <div className="text-sm font-black text-amber-600 mt-0.5">{filteredBills.filter(b => b.status === 'Konfirmasi Pembayaran').length} Santri</div>
-              <div className="text-[9px] text-amber-500 mt-0.5 font-extrabold">Menunggu Konfirmasi</div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
+              <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+                <Clock className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Verifikasi Resi</div>
+                <div className="text-base font-black text-amber-600">
+                  {filteredBills.filter(b => b.status === 'Konfirmasi Pembayaran').length} Santri
+                </div>
+                <div className="text-[10px] text-amber-700 font-medium">Perlu cek bukti transfer</div>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4">
-          
-          {/* Create bill left column (lg:col-span-1) */}
-          <div className="lg:col-span-1 space-y-6 animate-fade-in">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 space-y-4">
-            <h3 className="font-bold text-lg text-emerald-950 flex items-center gap-1.5 border-b border-gray-100 pb-2">
-              <DollarSign className="h-5 w-5 text-emerald-700" />
-              Kelola Tagihan Santri
-            </h3>
+          {/* Drawer 1: Form Penerbitan Tagihan */}
+          {showBillFormDrawer && (
+            <div className="bg-white p-6 rounded-2xl border-2 border-emerald-500/40 shadow-sm animate-fade-in space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="font-extrabold text-base text-emerald-950 flex items-center gap-1.5">
+                  <DollarSign className="h-5 w-5 text-emerald-700" />
+                  Form Penerbitan Tagihan Santri
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowBillFormDrawer(false)}
+                  className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                  title="Tutup Form Tagihan"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
 
             <form onSubmit={handleAddBill} className="space-y-3 bg-slate-50 p-4 border border-slate-200 rounded-xl text-xs">
               <div className="flex items-center justify-between">
@@ -8052,19 +8179,31 @@ export default function AdminDashboard({
               )}
             </form>
           </div>
+          )}
 
-            {/* Aturan Penagihan Santri Baru Card */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 space-y-4">
+          {/* Drawer 2: Aturan Penagihan Santri Baru */}
+          {showFeeRulesDrawer && (
+            <div className="bg-white p-6 rounded-2xl border-2 border-slate-300 shadow-sm animate-fade-in space-y-4">
               <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                 <h3 className="font-bold text-base text-emerald-950 flex items-center gap-1.5">
                   <Settings className="h-4.5 w-4.5 text-emerald-700" />
-                  Aturan Penagihan Santri Baru
+                  Aturan Penagihan Santri Baru (PCSB)
                 </h3>
-                {feeSaveFeedback && (
-                  <span className="text-[10px] font-mono font-black text-emerald-900 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full animate-fade-in">
-                    {feeSaveFeedback}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {feeSaveFeedback && (
+                    <span className="text-[10px] font-mono font-black text-emerald-900 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full animate-fade-in">
+                      {feeSaveFeedback}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowFeeRulesDrawer(false)}
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                    title="Tutup Aturan Biaya"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
               
               <p className="text-[10px] text-gray-500 leading-normal">
@@ -8340,125 +8479,148 @@ export default function AdminDashboard({
                 </button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Billings list history right column (lg:col-span-2) */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 space-y-4 animate-fade-in">
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-[11px] uppercase font-bold text-gray-400 block tracking-wider">Histori Tagihan ({filteredBills.length})</span>
+          {/* Verification Banner if any */}
+          {bills.filter(b => b && b.status === 'Konfirmasi Pembayaran').length > 0 && (
+            <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Clock className="h-5 w-5 text-amber-700 shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-extrabold text-amber-950 block">
+                    {bills.filter(b => b && b.status === 'Konfirmasi Pembayaran').length} Resi Pembayaran Menunggu Konfirmasi Admin
+                  </span>
+                  <span className="text-[11px] text-amber-800">
+                    Santri/wali telah mengunggah bukti transfer. Silakan periksa resi untuk memvalidasi status lunas.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBillFilter('Konfirmasi Pembayaran')}
+                className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white font-extrabold rounded-xl text-xs shrink-0 cursor-pointer shadow-xs transition"
+              >
+                Tampilkan Antrean
+              </button>
+            </div>
+          )}
+
+          {/* Full-Width Spacious Bills Table Container */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            {/* Filter and Search Bar */}
+            <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-md">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Cari nama santri, NIS, atau nama tagihan..."
+                  value={billSearch}
+                  onChange={(e) => setBillSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl bg-slate-50/50 text-xs focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(['Semua', 'Belum Lunas', 'Konfirmasi Pembayaran', 'Lunas'] as const).map(f => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setBillFilter(f)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      billFilter === f 
+                        ? 'bg-emerald-800 text-white shadow-xs' 
+                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+
                 {(billSearch || billFilter !== 'Semua') && (
                   <button 
                     type="button" 
                     onClick={() => { setBillSearch(''); setBillFilter('Semua'); }} 
-                    className="text-[9px] text-rose-600 font-bold hover:underline cursor-pointer"
+                    className="text-xs text-rose-600 font-bold hover:underline cursor-pointer px-2 py-1"
                   >
-                    Reset Filter
+                    Reset
                   </button>
                 )}
               </div>
+            </div>
 
-              {/* Advanced search and filter controls */}
-              <div className="space-y-2 bg-emerald-50/20 p-2.5 rounded-xl border border-emerald-100/55">
-                <input
-                  type="text"
-                  placeholder="Cari nama santri / tagihan..."
-                  value={billSearch}
-                  onChange={(e) => setBillSearch(e.target.value)}
-                  className="w-full px-2 py-1.5 border border-emerald-100 rounded bg-white text-xs focus:ring-1 focus:ring-emerald-700 focus:outline-none"
-                />
-                <div className="flex flex-wrap gap-1">
-                  {(['Semua', 'Belum Lunas', 'Konfirmasi Pembayaran', 'Lunas'] as const).map(f => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setBillFilter(f)}
-                      className={`px-2.5 py-1 rounded text-[9px] font-bold transition cursor-pointer ${
-                        billFilter === f 
-                          ? 'bg-emerald-800 text-white' 
-                          : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'
-                      }`}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {/* Spacious Table for Desktop */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold text-[11px] uppercase tracking-wider">
+                    <th className="py-3 px-4 w-12 text-center">No</th>
+                    <th className="py-3 px-4">Santri</th>
+                    <th className="py-3 px-4">Pos Tagihan</th>
+                    <th className="py-3 px-4">Kategori</th>
+                    <th className="py-3 px-4 text-right">Nominal</th>
+                    <th className="py-3 px-4 text-center">Jatuh Tempo</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredBills.map((b, idx) => {
+                    const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
+                    const isAlumni = alumniList.some(a => a.id === b.studentId || (a.nis && b.nis && a.nis === b.nis) || (a.fullName && b.studentName && a.fullName.toLowerCase() === b.studentName.toLowerCase()));
 
-              {/* Banner Notifikasi Antrean Bukti Pembayaran Manual */}
-              {bills.filter(b => b && b.status === 'Konfirmasi Pembayaran').length > 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Clock className="h-4 w-4 text-amber-700 shrink-0" />
-                    <div className="min-w-0">
-                      <span className="font-extrabold text-amber-950 block truncate">
-                        {bills.filter(b => b && b.status === 'Konfirmasi Pembayaran').length} Bukti Transfer Perlu Diverifikasi Manual
-                      </span>
-                      <span className="text-[10px] text-amber-800 line-clamp-1">
-                        Santri/wali telah mengunggah struk bukti transfer. Klik untuk memeriksa resi dan memvalidasi status lunas.
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setBillFilter('Konfirmasi Pembayaran')}
-                    className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white font-extrabold rounded-lg text-[10px] shrink-0 cursor-pointer shadow-xs transition"
-                  >
-                    Buka Antrean
-                  </button>
-                </div>
-              )}
+                    return (
+                      <tr key={b.id} className="hover:bg-slate-50/70 transition">
+                        {/* No */}
+                        <td className="py-3 px-4 text-center text-slate-400 font-mono text-[11px]">
+                          {idx + 1}
+                        </td>
 
-              <div className="space-y-2 max-h-[450px] overflow-y-auto pr-1">
-                {filteredBills.map((b, idx) => {
-                  const breakdown = getBillAmountBreakdown(b.amount, b.id, b.uniqueCode, b.baseAmount);
-                  const isAlumni = alumniList.some(a => a.id === b.studentId || (a.nis && b.nis && a.nis === b.nis) || (a.fullName && b.studentName && a.fullName.toLowerCase() === b.studentName.toLowerCase()));
-
-                  return (
-                    <div key={b.id} className="p-3 bg-white hover:bg-emerald-50/20 rounded-xl border border-gray-200 transition shadow-2xs space-y-2">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        {/* Left: Identity & Title */}
-                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                          <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-950 font-mono font-black text-[10px] shrink-0 mt-0.5">
-                            #{idx + 1}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <strong className="text-sm font-extrabold text-slate-900 truncate">{b.studentName}</strong>
-                              {b.nis && <span className="text-[10px] text-slate-500 font-mono font-semibold">({b.nis})</span>}
-                              {isAlumni && (
-                                <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 rounded text-[9px] font-black uppercase tracking-wider border border-purple-200">
-                                  🎓 Alumni
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5 flex-wrap">
-                              <span className="font-semibold text-slate-700">{b.title}</span>
-                              <span>•</span>
-                              <span className="text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded text-[10px] font-medium">{b.category || 'Syahriyah'}</span>
-                              <span>•</span>
-                              <span className="text-[10px] font-mono text-slate-500">Jatuh Tempo: {b.dueDate || '-'}</span>
-                            </div>
+                        {/* Santri & NIS */}
+                        <td className="py-3 px-4">
+                          <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                            <span>{b.studentName}</span>
+                            {isAlumni && (
+                              <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 rounded text-[9px] font-black uppercase tracking-wider border border-purple-200">
+                                Alumni
+                              </span>
+                            )}
                           </div>
-                        </div>
+                          {b.nis && (
+                            <span className="text-[10px] text-slate-400 font-mono">NIS: {b.nis}</span>
+                          )}
+                        </td>
 
-                        {/* Amount Badge */}
-                        <div className="sm:text-right shrink-0">
-                          <div className="text-sm sm:text-base font-black text-emerald-950 font-mono">
+                        {/* Pos Tagihan */}
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-slate-800">{b.title}</span>
+                        </td>
+
+                        {/* Kategori */}
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                            {b.category || 'Syahriyah'}
+                          </span>
+                        </td>
+
+                        {/* Nominal */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="font-mono font-extrabold text-slate-900 text-sm">
                             Rp {breakdown.finalAmount.toLocaleString('id-ID')}
                           </div>
                           {breakdown.uniqueCode > 0 && (
-                            <div className="text-[9px] text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 font-mono font-medium inline-block mt-0.5">
-                              Pokok Rp {breakdown.baseAmount.toLocaleString('id-ID')} + {breakdown.uniqueCode}
-                            </div>
+                            <span className="text-[9px] text-amber-800 font-mono">
+                              +{breakdown.uniqueCode}
+                            </span>
                           )}
-                        </div>
-                      </div>
+                        </td>
 
-                      {/* Streamlined Action Bar */}
-                      <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5 text-xs">
-                        {/* Status Toggle / View Receipt */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Jatuh Tempo */}
+                        <td className="py-3 px-4 text-center font-mono text-slate-500 text-[11px]">
+                          {b.dueDate || '-'}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-4 text-center">
                           <button
                             type="button"
                             onClick={() => {
@@ -8468,106 +8630,100 @@ export default function AdminDashboard({
                                 toggleBillStatus(b.id, b.status === 'Lunas' ? 'Belum Lunas' : 'Lunas');
                               }
                             }}
-                            className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider transition cursor-pointer shadow-2xs ${
+                            className={`px-3 py-1 text-[10.5px] font-extrabold rounded-full transition cursor-pointer shadow-2xs inline-flex items-center gap-1 ${
                               b.status === 'Lunas' 
-                                ? 'bg-emerald-100 text-emerald-850 border border-emerald-300 hover:bg-emerald-200' 
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200' 
                                 : b.status === 'Konfirmasi Pembayaran' 
                                 ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse hover:bg-amber-200' 
                                 : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
                             }`}
+                            title="Klik untuk mengubah status pembayaran atau periksa resi"
                           >
                             {b.status === 'Lunas' ? '✓ Lunas' : b.status === 'Konfirmasi Pembayaran' ? '🔍 Periksa Resi' : 'Belum Lunas'}
                           </button>
+                        </td>
 
-                          {b.paymentProofUrl && b.status !== 'Konfirmasi Pembayaran' && (
+                        {/* Actions */}
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {b.status === 'Lunas' && (
+                              <button
+                                type="button"
+                                onClick={() => setReceiptBill(b)}
+                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                                title="Cetak Kwitansi Pembayaran Resmi"
+                              >
+                                <Printer className="h-3 w-3" />
+                                <span>Kwitansi</span>
+                              </button>
+                            )}
+
                             <button
                               type="button"
-                              onClick={() => setSelectedBillForLogs(b)}
-                              className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                              onClick={() => {
+                                const allCombined = [...students, ...(alumniList || [])];
+                                const target = allCombined.find(s => s.id === b.studentId || (s.nis && b.nis && s.nis === b.nis) || (s.fullName && b.studentName && s.fullName.toLowerCase() === b.studentName.toLowerCase())) || null;
+                                openStudentBillingReceipt(target || ({ id: b.studentId || 'temp', fullName: b.studentName, nis: b.nis || '-' } as any));
+                              }}
+                              className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                              title="Cetak Rekapitulasi Tagihan Santri (Format A4 PDF)"
                             >
-                              Lihat Bukti
+                              <FileText className="h-3 w-3 text-slate-600" />
+                              <span>Rekap A4</span>
                             </button>
-                          )}
-                        </div>
 
-                        {/* Action Buttons: Kwitansi, Rekap A4, WA, Edit, Hapus */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {b.status === 'Lunas' && (
                             <button
                               type="button"
-                              onClick={() => setReceiptBill(b)}
-                              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
-                              title="Cetak Kwitansi Pembayaran Resmi"
+                              onClick={async () => {
+                                const res = await dispatchWhatsAppBillNotification(b, undefined, true);
+                                if (!res.success) {
+                                  showAlert('danger', res.reason || 'Nomor WhatsApp wali tidak ditemukan.');
+                                } else if (res.mode === 'gateway') {
+                                  showAlert('success', `Rincian tagihan terkirim via WhatsApp ke wali ${b.studentName}!`);
+                                } else {
+                                  showAlert('success', `Membuka WhatsApp untuk mengirim rincian tagihan ke wali ${b.studentName}...`);
+                                }
+                              }}
+                              className="p-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg transition cursor-pointer"
+                              title="Kirim ke WhatsApp Wali Santri"
                             >
-                              <Printer className="h-3 w-3" />
-                              <span>Cetak Kwitansi</span>
+                              <Send className="h-3.5 w-3.5" />
                             </button>
-                          )}
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const allCombined = [...students, ...(alumniList || [])];
-                              const target = allCombined.find(s => s.id === b.studentId || (s.nis && b.nis && s.nis === b.nis) || (s.fullName && b.studentName && s.fullName.toLowerCase() === b.studentName.toLowerCase())) || null;
-                              openStudentBillingReceipt(target || ({ id: b.studentId || 'temp', fullName: b.studentName, nis: b.nis || '-' } as any));
-                            }}
-                            className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer"
-                            title="Cetak Rekapitulasi Tagihan Santri (Format A4 PDF)"
-                          >
-                            <FileText className="h-3 w-3 text-amber-700" />
-                            <span>Rekap A4</span>
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingBill(b)}
+                              className="p-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg transition cursor-pointer"
+                              title="Edit Data Tagihan"
+                            >
+                              <Edit className="h-3.5 w-3.5 text-amber-700" />
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const res = await dispatchWhatsAppBillNotification(b, undefined, true);
-                              if (!res.success) {
-                                showAlert('danger', res.reason || 'Nomor WhatsApp wali tidak ditemukan.');
-                              } else if (res.mode === 'gateway') {
-                                showAlert('success', `Rincian tagihan terkirim via WhatsApp ke wali ${b.studentName}!`);
-                              } else {
-                                showAlert('success', `Membuka WhatsApp untuk mengirim rincian tagihan ke wali ${b.studentName}...`);
-                              }
-                            }}
-                            className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer"
-                            title="Kirim ke WhatsApp Wali Santri"
-                          >
-                            <Send className="h-3 w-3" />
-                            <span className="hidden sm:inline">WA</span>
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBill(b.id, b.studentName, Number(b.amount) || 0)}
+                              className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer"
+                              title="Hapus Tagihan"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
 
-                          <button
-                            type="button"
-                            onClick={() => setEditingBill(b)}
-                            className="p-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg transition cursor-pointer"
-                            title="Edit Data Tagihan"
-                          >
-                            <Edit className="h-3.5 w-3.5 text-amber-700" />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteBill(b.id, b.studentName, Number(b.amount) || 0)}
-                            className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer"
-                            title="Hapus Tagihan"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {filteredBills.length === 0 && (
-                  <p className="text-center py-6 text-gray-400 text-[10px]">Tidak ada data tagihan yang cocok.</p>
-                )}
-              </div>
+              {filteredBills.length === 0 && (
+                <div className="py-12 text-center text-slate-400">
+                  <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs font-bold">Tidak ada data tagihan yang sesuai kriteria pencarian.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* Tab: Laporan Keuangan */}
@@ -9975,7 +10131,7 @@ export default function AdminDashboard({
                   {isSettingsDirty ? '️ Ada perubahan pengaturan portal yang belum disimpan.' : '️ Semua pengaturan portal telah tersimpan.'}
                 </p>
                 <p className="text-[11px] text-gray-500 mt-0.5">
-                  Klik tombol simpan untuk menerapkan seluruh perubahan secara permanen agar data tidak kembali lagi (mental).
+                  Klik tombol simpan untuk menerapkan seluruh perubahan secara permanen ke server dan penyimpanan lokal.
                 </p>
               </div>
               <button
@@ -17955,18 +18111,14 @@ export default function AdminDashboard({
             </tbody>
           </table>
 
-          {/* TANDA TANGAN */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', fontSize: '10px' }}>
-            <div style={{ textAlign: 'center', width: '200px' }}>
-              <p style={{ margin: '0 0 45px' }}>Ketua Panitia PCSB,</p>
-              <p style={{ fontWeight: 'bold', margin: '0 0 2px', textDecoration: 'underline' }}>{settings.namaKetuaPcsb || "Ust. H. Ahmad Fauzi, S.Pd.I"}</p>
-              <p style={{ margin: 0, fontSize: '9px', color: '#64748b' }}>NIP: 19820712.201001.1.002</p>
-            </div>
-            <div style={{ textAlign: 'center', width: '220px' }}>
+          {/* TANDA TANGAN: HANYA PANITIA SANTRI BARU (TANPA PENGASUH) */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px', fontSize: '10px' }}>
+            <div style={{ textAlign: 'center', width: '250px' }}>
               <p style={{ margin: '0 0 4px', color: '#64748b' }}>Ditetapkan di Bangkalan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-              <p style={{ margin: '0 0 45px' }}>Pengasuh Pondok Pesantren,</p>
-              <p style={{ fontWeight: 'bold', margin: '0 0 2px', textDecoration: 'underline' }}>{settings.namaPengasuh || "KH. M. Syamsul Arifin, Lc."}</p>
-              <p style={{ margin: 0, fontSize: '9px', color: '#64748b' }}>Pimpinan Majelis Pengasuh</p>
+              <p style={{ margin: '0 0 4px', fontWeight: 'bold', color: '#064e3b' }}>PANITIA PENERIMAAN SANTRI BARU (PCSB)</p>
+              <p style={{ margin: '0 0 42px', fontSize: '9px', color: '#64748b' }}>Ketua Panitia Pelaksana,</p>
+              <p style={{ fontWeight: 'bold', margin: '0 0 2px', textDecoration: 'underline' }}>{settings.namaKetuaPcsb || "Ust. H. Ahmad Fauzi, S.Pd.I"}</p>
+              <p style={{ margin: 0, fontSize: '9px', color: '#64748b' }}>NIP / Reg: 19820712.201001.1.002</p>
             </div>
           </div>
         </div>

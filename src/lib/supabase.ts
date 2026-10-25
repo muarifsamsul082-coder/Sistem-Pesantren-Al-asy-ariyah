@@ -2091,7 +2091,7 @@ export interface HardDeleteResult {
 /**
  * Operasi HARD DELETE permanen ke database Supabase Cloud.
  * Memastikan bahwa setelah sebuah data dihapus di aplikasi, item tersebut
- * langsung dieksekusi dengan DELETE sql query di Supabase dan tidak akan mental lagi.
+ * langsung dieksekusi dengan DELETE sql query di Supabase secara permanen.
  */
 export async function hardDeleteFromSupabase(
   entityOrTable: string,

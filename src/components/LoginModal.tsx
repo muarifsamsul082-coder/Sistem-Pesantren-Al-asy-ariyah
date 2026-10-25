@@ -346,27 +346,38 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/70 backdrop-blur-sm animate-fade-in font-sans">
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-emerald-100 flex flex-col max-h-[90vh]">
         
-        {/* Header decoration */}
-        <div className="bg-gradient-to-r from-emerald-800 to-teal-900 px-6 py-6 text-white relative shrink-0">
+        {/* Header with authentic pesantren photography & dark emerald gradient overlay */}
+        <div className="relative h-36 px-6 py-5 text-white overflow-hidden shrink-0 flex flex-col justify-end">
+          {/* Background Photo */}
+          <img 
+            src="https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=800&q=80" 
+            alt="Pesantren" 
+            className="absolute inset-0 w-full h-full object-cover object-center filter brightness-50"
+          />
+          {/* Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-900/80 to-teal-950/70" />
+
           <button 
             type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 text-emerald-100 hover:text-white hover:bg-emerald-700/50 p-1.5 rounded-full transition cursor-pointer"
+            className="absolute top-3.5 right-3.5 text-white/80 hover:text-white bg-black/30 hover:bg-black/50 p-1.5 rounded-full transition cursor-pointer backdrop-blur-xs z-10"
             title="Tutup Modal"
           >
             <X className="h-5 w-5" />
           </button>
           
-          <div className="flex items-center gap-3">
-            <div className="bg-amber-400 p-2.5 rounded-xl text-emerald-950 shadow-md">
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="bg-amber-400 p-2.5 rounded-2xl text-emerald-950 shadow-md ring-2 ring-amber-300/50 shrink-0">
               <Sparkles className="h-6 w-6" />
             </div>
-            <div>
-              <h3 className="font-bold text-xl leading-tight">Portal Al-Asy'ariyah</h3>
-              <p className="text-emerald-100 text-xs">
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-lg sm:text-xl leading-tight text-white drop-shadow-sm truncate">
+                Portal Al-Asy'ariyah
+              </h3>
+              <p className="text-emerald-200 text-xs font-medium drop-shadow-xs">
                 {isDaftarStaff 
-                  ? 'Pendaftaran Akun Pengurus' 
-                  : 'Silakan masuk ke akun Anda'}
+                  ? 'Pendaftaran Akun Pengurus Pesantren' 
+                  : 'Silakan masuk ke akun pengurus / walisantri'}
               </p>
             </div>
           </div>

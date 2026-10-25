@@ -110,10 +110,134 @@ import {
   syncExpensesWithSupabase
 } from './lib/supabase';
 
+// Helper: parse URL hash into view & tab states
+const parseUrlHash = (hashStr: string) => {
+  const clean = hashStr.replace(/^#\/?/, '').trim();
+  if (!clean || clean === 'home') return { view: 'home' };
+  if (clean === 'profile' || clean === 'profil') return { view: 'profile' };
+  if (clean === 'news' || clean === 'berita') return { view: 'news' };
+  if (clean === 'announcements' || clean === 'pengumuman') return { view: 'announcements' };
+  if (clean === 'ppdb' || clean === 'pcsb') return { view: 'ppdb' };
+
+  if (clean.startsWith('admin')) {
+    const sub = clean.split('/')[1] || 'overview';
+    const tabMap: Record<string, string> = {
+      overview: 'overview',
+      berita: 'news_ann',
+      news_ann: 'news_ann',
+      ppdb: 'ppdb',
+      santri: 'students',
+      students: 'students',
+      kamar: 'kamar',
+      alumni: 'alumni',
+      tagihan: 'bills',
+      bills: 'bills',
+      keuangan: 'laporan_keuangan',
+      laporan_keuangan: 'laporan_keuangan',
+      rekening: 'rekening',
+      reports: 'reports',
+      laporan: 'reports',
+      outbox_log: 'outbox_log',
+      'surat-keluar': 'outbox_log',
+      whatsapp: 'whatsapp',
+      input_mandiri: 'input_mandiri',
+      'input-mandiri': 'input_mandiri',
+      kelas: 'kelas_sekolah',
+      kelas_sekolah: 'kelas_sekolah',
+      pengurus: 'pengurus',
+      akun_pengurus: 'akun_pengurus',
+      'akun-pengurus': 'akun_pengurus',
+      audit: 'staff_activity_log',
+      'audit-log': 'staff_activity_log',
+      staff_activity_log: 'staff_activity_log',
+      settings: 'settings',
+      pengaturan: 'settings'
+    };
+    return { view: 'admin-dashboard', adminTab: tabMap[sub] || 'overview' };
+  }
+
+  if (clean.startsWith('staff')) {
+    const sub = clean.split('/')[1] || 'students';
+    const tabMap: Record<string, string> = {
+      students: 'students',
+      santri: 'students',
+      history: 'history',
+      riwayat: 'history',
+      letters: 'letters',
+      surat: 'letters',
+      profile: 'profile',
+      profil: 'profile'
+    };
+    return { view: 'staff-dashboard', staffTab: tabMap[sub] || 'students' };
+  }
+
+  if (clean.startsWith('santri') || clean.startsWith('walisantri')) {
+    const sub = clean.split('/')[1] || 'tagihan';
+    const tabMap: Record<string, string> = {
+      tagihan: 'tagihan',
+      pelanggaran: 'pelanggaran',
+      kesehatan: 'kesehatan',
+      perizinan: 'perizinan',
+      kartu: 'kartu'
+    };
+    if (sub === 'kartu') {
+      return { view: 'santri-dashboard', santriTab: 'tagihan', showCard: true };
+    }
+    return { view: 'santri-dashboard', santriTab: tabMap[sub] || 'tagihan' };
+  }
+
+  return null;
+};
+
+const getHashFromState = (view: string, adminTab?: string, staffTab?: string, santriTab?: string) => {
+  if (view === 'admin-dashboard') {
+    const reverseAdmin: Record<string, string> = {
+      overview: 'overview',
+      news_ann: 'berita',
+      ppdb: 'ppdb',
+      students: 'santri',
+      kamar: 'kamar',
+      alumni: 'alumni',
+      bills: 'tagihan',
+      laporan_keuangan: 'keuangan',
+      rekening: 'rekening',
+      reports: 'reports',
+      outbox_log: 'surat-keluar',
+      whatsapp: 'whatsapp',
+      input_mandiri: 'input-mandiri',
+      kelas_sekolah: 'kelas',
+      pengurus: 'pengurus',
+      akun_pengurus: 'akun-pengurus',
+      staff_activity_log: 'audit-log',
+      settings: 'settings'
+    };
+    return `admin/${reverseAdmin[adminTab || 'overview'] || adminTab || 'overview'}`;
+  }
+  if (view === 'staff-dashboard') {
+    const reverseStaff: Record<string, string> = {
+      students: 'santri',
+      history: 'riwayat',
+      letters: 'surat',
+      profile: 'profil'
+    };
+    return `staff/${reverseStaff[staffTab || 'students'] || staffTab || 'santri'}`;
+  }
+  if (view === 'santri-dashboard') {
+    return `santri/${santriTab || 'tagihan'}`;
+  }
+  if (view === 'news') return 'berita';
+  if (view === 'announcements') return 'pengumuman';
+  if (view === 'ppdb') return 'ppdb';
+  if (view === 'profile') return 'profil';
+  return 'home';
+};
+
 export default function App() {
+  const initialHashRoute = typeof window !== 'undefined' ? parseUrlHash(window.location.hash) : null;
+
   const [currentView, setViewState] = React.useState<string>(() => {
+    if (initialHashRoute?.view) return initialHashRoute.view;
     try {
-      // Restore view on refresh within same tab session, or default to home on fresh visit
       const saved = sessionStorage.getItem('pesantren_current_view');
       if (saved) return saved;
     } catch (e) {}
@@ -132,7 +256,6 @@ export default function App() {
   const [isAccountOpen, setIsAccountOpen] = React.useState(false);
 
   // Note: Account sidebar is not auto-opened on initial load to keep entry view clean and safe
-
 
   const [viewArticleId, setViewArticleId] = React.useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -175,7 +298,6 @@ export default function App() {
       try { 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // If saved list doesn't have MI classes, merge them in
           const miClasses = ['1A MI Diniyah', '1B MI Diniyah', '2A MI Diniyah', '2B MI Diniyah', '3A MI Diniyah', '4A MI Diniyah', '5A MI Diniyah', '6A MI Diniyah'];
           const hasMi = parsed.some(c => c && c.includes('MI'));
           if (!hasMi) {
@@ -207,6 +329,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = React.useState('');
 
   const [adminTab, setAdminTabState] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log'>(() => {
+    if (initialHashRoute?.adminTab) return initialHashRoute.adminTab as any;
     try {
       const saved = sessionStorage.getItem('pesantren_admin_active_tab') || localStorage.getItem('pesantren_admin_active_tab');
       if (saved) return saved as any;
@@ -223,6 +346,7 @@ export default function App() {
   };
 
   const [staffTab, setStaffTabState] = React.useState<'students' | 'history' | 'profile' | 'skck' | 'takzir_letter' | 'letters'>(() => {
+    if (initialHashRoute?.staffTab) return initialHashRoute.staffTab as any;
     try {
       const saved = sessionStorage.getItem('pesantren_staff_active_tab') || localStorage.getItem('pesantren_staff_active_tab');
       if (saved) return saved as any;
@@ -239,6 +363,7 @@ export default function App() {
   };
 
   const [santriTab, setSantriTabState] = React.useState<'tagihan' | 'pelanggaran' | 'kesehatan' | 'pengumuman' | 'perizinan'>(() => {
+    if (initialHashRoute?.santriTab) return initialHashRoute.santriTab as any;
     try {
       const saved = sessionStorage.getItem('pesantren_santri_active_tab') || localStorage.getItem('pesantren_santri_active_tab');
       if (saved) return saved as any;
@@ -254,7 +379,47 @@ export default function App() {
     } catch (e) {}
   };
 
-  const [showStudentCard, setShowStudentCard] = React.useState(false);
+  const [showStudentCard, setShowStudentCard] = React.useState(Boolean(initialHashRoute?.showCard));
+
+  // Sync state to URL hash
+  React.useEffect(() => {
+    const nextHash = getHashFromState(currentView, adminTab, staffTab, santriTab);
+    const fullHash = showStudentCard && currentView === 'santri-dashboard' ? 'santri/kartu' : nextHash;
+    const currentHash = window.location.hash.replace(/^#\/?/, '').trim();
+    if (currentHash !== fullHash) {
+      try {
+        window.history.replaceState(null, '', '#' + fullHash);
+      } catch (e) {
+        window.location.hash = fullHash;
+      }
+    }
+  }, [currentView, adminTab, staffTab, santriTab, showStudentCard]);
+
+  // Listen to hash changes (back/forward or user clicking a direct hash link)
+  React.useEffect(() => {
+    const handleHashChange = () => {
+      const parsed = parseUrlHash(window.location.hash);
+      if (!parsed) return;
+      if (parsed.view && parsed.view !== currentView) {
+        setViewState(parsed.view);
+      }
+      if (parsed.adminTab) {
+        setAdminTabState(parsed.adminTab as any);
+      }
+      if (parsed.staffTab) {
+        setStaffTabState(parsed.staffTab as any);
+      }
+      if (parsed.santriTab) {
+        setSantriTabState(parsed.santriTab as any);
+      }
+      if (parsed.showCard !== undefined) {
+        setShowStudentCard(parsed.showCard);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentView]);
+
   // Auto scroll to top whenever navigating to home/dashboard or switching tabs
   React.useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });

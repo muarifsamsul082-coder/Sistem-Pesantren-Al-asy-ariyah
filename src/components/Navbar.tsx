@@ -445,6 +445,32 @@ export default function Navbar({
         }
       } catch (e) {}
 
+      // Synchronize directly with pesantren_settings so admin "Daftar Pengurus" updates immediately
+      try {
+        const curSettings = JSON.parse(localStorage.getItem('pesantren_settings') || '{}');
+        const updatedSettings = { ...curSettings };
+        if (session.role === 'keamanan') updatedSettings.namaKeamanan = newName;
+        else if (session.role === 'ketertiban') updatedSettings.namaKetertiban = newName;
+        else if (session.role === 'kesehatan') updatedSettings.namaKesehatan = newName;
+        else if (session.role.includes('bendahara')) {
+          updatedSettings.namaBendaharaPutra = newName;
+          updatedSettings.namaBendahara = newName;
+        } else if (session.role.includes('sekretaris')) {
+          updatedSettings.namaSekretarisPutra = newName;
+        }
+
+        localStorage.setItem('pesantren_settings', JSON.stringify(updatedSettings));
+        window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: updatedSettings }));
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedSettings)
+        }).catch(() => {});
+        if (isSupabaseConfigured()) {
+          pushSettingsToSupabase(updatedSettings).catch(() => {});
+        }
+      } catch (e) {}
+
       try {
         const cfgKey = `${session.role}_config`;
         const stored = localStorage.getItem(cfgKey);
@@ -759,72 +785,78 @@ export default function Navbar({
             <div className="py-1">
               {!session ? (
                 // Public Menu Items
-                menuItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleNavClick(item.id)}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
-                      currentView === item.id 
-                        ? 'bg-emerald-800 text-amber-300' 
-                        : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    {item.highlight && (
-                      <span className="bg-amber-400 text-emerald-950 text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-wide">
-                        Baru
-                      </span>
-                    )}
-                  </button>
-                ))
+                menuItems.map((item) => {
+                  const hrefHash = item.id === 'home' ? '#home' : item.id === 'profile' ? '#profil' : item.id === 'news' ? '#berita' : item.id === 'announcements' ? '#pengumuman' : '#ppdb';
+                  return (
+                    <a
+                      key={item.id}
+                      href={hrefHash}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleNavClick(item.id);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                        currentView === item.id 
+                          ? 'bg-emerald-800 text-amber-300' 
+                          : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {item.highlight && (
+                        <span className="bg-amber-400 text-emerald-950 text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-wide">
+                          Baru
+                        </span>
+                      )}
+                    </a>
+                  );
+                })
               ) : (
                 // Santri / Walisantri Menu Items
                 <div className="space-y-0.5">
-                  <button
-                    type="button"
-                    onClick={() => { handleSantriTabClick('tagihan'); setIsNavOpen(false); }}
+                  <a
+                    href="#santri/tagihan"
+                    onClick={(e) => { e.preventDefault(); handleSantriTabClick('tagihan'); setIsNavOpen(false); }}
                     className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       santriTab === 'tagihan' && currentView === 'santri-dashboard' ? 'bg-emerald-800 text-amber-300' : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
                     }`}
                   >
                     <span>Tagihan & Pembayaran</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { handleSantriTabClick('pelanggaran'); setIsNavOpen(false); }}
+                  </a>
+                  <a
+                    href="#santri/pelanggaran"
+                    onClick={(e) => { e.preventDefault(); handleSantriTabClick('pelanggaran'); setIsNavOpen(false); }}
                     className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       santriTab === 'pelanggaran' && currentView === 'santri-dashboard' ? 'bg-emerald-800 text-amber-300' : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
                     }`}
                   >
                     <span>Pelanggaran & Takzir</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { handleSantriTabClick('kesehatan'); setIsNavOpen(false); }}
+                  </a>
+                  <a
+                    href="#santri/kesehatan"
+                    onClick={(e) => { e.preventDefault(); handleSantriTabClick('kesehatan'); setIsNavOpen(false); }}
                     className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       santriTab === 'kesehatan' && currentView === 'santri-dashboard' ? 'bg-emerald-800 text-amber-300' : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
                     }`}
                   >
                     <span>Riwayat Medis Sakit</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { handleSantriTabClick('perizinan'); setIsNavOpen(false); }}
+                  </a>
+                  <a
+                    href="#santri/perizinan"
+                    onClick={(e) => { e.preventDefault(); handleSantriTabClick('perizinan'); setIsNavOpen(false); }}
                     className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       santriTab === 'perizinan' && currentView === 'santri-dashboard' ? 'bg-emerald-800 text-amber-300' : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
                     }`}
                   >
                     <span>Pengajuan Izin Keluar</span>
-                  </button>
+                  </a>
                   {showStudentCard && (
-                    <button
-                      type="button"
-                      onClick={() => { triggerStudentCard(); setIsNavOpen(false); }}
+                    <a
+                      href="#santri/kartu"
+                      onClick={(e) => { e.preventDefault(); triggerStudentCard(); setIsNavOpen(false); }}
                       className="w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 text-emerald-100 hover:bg-emerald-900/60 hover:text-white cursor-pointer"
                     >
                       <span>Kartu Santri Digital</span>
-                    </button>
+                    </a>
                   )}
                   
                   <div className="border-t border-emerald-800/60 pt-2 pb-1 px-3">
@@ -888,73 +920,73 @@ export default function Navbar({
                   <div className="px-4 py-1 text-[9px] uppercase font-mono font-bold text-slate-400">
                     Layanan Utama
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('overview')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  <a
+                    href="#admin/overview"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('overview'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'overview' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Statistik Utama (Grafik)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('news_ann')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/berita"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('news_ann'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'news_ann' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Berita & Pengumuman
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('ppdb')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/ppdb"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('ppdb'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'ppdb' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Pendaftar PCSB Baru
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('students')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/santri"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('students'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'students' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Manajemen Data Santri
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('kamar')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/kamar"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('kamar'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'kamar' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Manajemen Kamar & Quota
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('alumni')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/alumni"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('alumni'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'alumni' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Database Alumni Pesantren
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('bills')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/tagihan"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('bills'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'bills' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Tagihan & Keuangan SPP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('laporan_keuangan')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between ${
+                  </a>
+                  <a
+                    href="#admin/keuangan"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('laporan_keuangan'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
                       adminTab === 'laporan_keuangan' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
@@ -962,76 +994,76 @@ export default function Navbar({
                     <span className="text-[9px] bg-amber-400 text-emerald-950 font-black px-1.5 py-0.5 rounded-full font-mono">
                       PUTRA/I
                     </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('rekening')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/rekening"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('rekening'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'rekening' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Rekening Pesantren
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('reports')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/reports"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('reports'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'reports' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Rekapan Laporan Terpadu
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('outbox_log')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/surat-keluar"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('outbox_log'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'outbox_log' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Register Log Surat Keluar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('whatsapp')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/whatsapp"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('whatsapp'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'whatsapp' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Broadcast WhatsApp
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('input_mandiri')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/input-mandiri"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('input_mandiri'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'input_mandiri' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Pendaftaran Offline Santri
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('kelas_sekolah')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/kelas"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('kelas_sekolah'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'kelas_sekolah' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Input Kelas & Sekolah
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('pengurus')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between ${
+                  </a>
+                  <a
+                    href="#admin/pengurus"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('pengurus'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
                       adminTab === 'pengurus' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     <span className="flex items-center gap-1.5">
                       <span>Daftar Pengurus & Tanda Tangan</span>
                     </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('akun_pengurus')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between ${
+                  </a>
+                  <a
+                    href="#admin/akun-pengurus"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('akun_pengurus'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
                       adminTab === 'akun_pengurus' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
@@ -1043,11 +1075,11 @@ export default function Navbar({
                         {pendingStaffCount} Menunggu
                       </span>
                     )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('staff_activity_log')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between ${
+                  </a>
+                  <a
+                    href="#admin/audit-log"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('staff_activity_log'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
                       adminTab === 'staff_activity_log' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
@@ -1057,16 +1089,16 @@ export default function Navbar({
                     <span className="text-[9px] bg-emerald-100 text-emerald-900 font-mono font-black px-1.5 py-0.5 rounded-full">
                       Transparansi
                     </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAdminTabClick('settings')}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#admin/settings"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('settings'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       adminTab === 'settings' && currentView === 'admin-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Pengaturan Portal
-                  </button>
+                  </a>
                 </div>
               )}
 
@@ -1076,42 +1108,42 @@ export default function Navbar({
                   <div className="px-4 py-1 text-[9px] uppercase font-mono font-bold text-slate-400">
                     Biro {session.role.toUpperCase()}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleStaffTabClick('students')}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
+                  <a
+                    href="#staff/santri"
+                    onClick={(e) => { e.preventDefault(); handleStaffTabClick('students'); }}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       staffTab === 'students' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Dashboard & Input Santri
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleStaffTabClick('history')}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#staff/riwayat"
+                    onClick={(e) => { e.preventDefault(); handleStaffTabClick('history'); }}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       staffTab === 'history' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Riwayat & Laporan Bulanan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleStaffTabClick('letters')}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#staff/surat"
+                    onClick={(e) => { e.preventDefault(); handleStaffTabClick('letters'); }}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       (staffTab === 'letters' || staffTab === 'skck' || staffTab === 'takzir_letter') && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Penerbitan & Draf Surat
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleStaffTabClick('profile')}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 ${
+                  </a>
+                  <a
+                    href="#staff/profil"
+                    onClick={(e) => { e.preventDefault(); handleStaffTabClick('profile'); }}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                       staffTab === 'profile' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     Profil & Tanda Tangan
-                  </button>
+                  </a>
                 </div>
               )}
             </div>

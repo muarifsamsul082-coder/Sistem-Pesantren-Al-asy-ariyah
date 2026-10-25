@@ -399,130 +399,95 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
               )}
             </div>
 
-            {/* 3. BIODATA SANTRI (GRID INFORMASI) */}
-            <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 mb-6">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            {/* 3. BIODATA SANTRI (CLEAN & SPACIOUS) */}
+            <div className="border-t border-b border-slate-200 py-3.5 mb-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-4 text-xs">
                 <div>
-                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nama Santri</span>
-                  <strong className="block text-sm font-black text-emerald-950 mt-0.5">{activeStudent.fullName}</strong>
+                  <span className="block text-[9.5px] font-bold text-gray-500 uppercase tracking-wider">Nama Santri</span>
+                  <strong className="block text-sm font-black text-slate-900 mt-0.5">{activeStudent.fullName}</strong>
                 </div>
 
                 <div>
-                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">NIS (No. Induk)</span>
-                  <span className="block font-mono font-extrabold text-emerald-800 text-xs mt-0.5">{activeStudent.nis || '-'}</span>
+                  <span className="block text-[9.5px] font-bold text-gray-500 uppercase tracking-wider">NIS (No. Induk)</span>
+                  <span className="block font-mono font-bold text-slate-800 text-xs mt-0.5">{activeStudent.nis || '-'}</span>
                 </div>
 
                 <div>
-                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Kelas / Pendidikan</span>
+                  <span className="block text-[9.5px] font-bold text-gray-500 uppercase tracking-wider">Kelas / Pendidikan</span>
                   <span className="block font-semibold text-gray-800 text-xs mt-0.5">
                     {activeStudent.class || `${activeStudent.classFormal || '-'} • ${activeStudent.classMadrasah || '-'}`}
                   </span>
                 </div>
 
                 <div>
-                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Kamar Asrama</span>
-                  <span className="block font-bold text-emerald-900 text-xs mt-0.5">
+                  <span className="block text-[9.5px] font-bold text-gray-500 uppercase tracking-wider">Kamar Asrama</span>
+                  <span className="block font-bold text-slate-800 text-xs mt-0.5">
                     {activeStudent.kamar ? `Kamar ${activeStudent.kamar}` : 'Luar Pondok (Non-Asrama)'}
                   </span>
                 </div>
 
                 <div>
-                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nama Wali / Orang Tua</span>
+                  <span className="block text-[9.5px] font-bold text-gray-500 uppercase tracking-wider">Nama Wali</span>
                   <span className="block font-medium text-gray-800 text-xs mt-0.5">{activeStudent.parentName || '-'}</span>
                 </div>
 
                 <div>
-                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Kontak HP Wali</span>
+                  <span className="block text-[9.5px] font-bold text-gray-500 uppercase tracking-wider">Kontak HP Wali</span>
                   <span className="block font-mono text-gray-800 text-xs mt-0.5">{activeStudent.parentPhone || '-'}</span>
                 </div>
 
                 <div>
-                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Jenis Kelamin</span>
+                  <span className="block text-[9.5px] font-bold text-gray-500 uppercase tracking-wider">Jenis Kelamin</span>
                   <span className="block font-medium text-gray-800 text-xs mt-0.5">{activeStudent.gender}</span>
                 </div>
 
                 <div>
-                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Alamat Asal</span>
+                  <span className="block text-[9.5px] font-bold text-gray-500 uppercase tracking-wider">Alamat Asal</span>
                   <span className="block text-gray-700 text-xs mt-0.5 truncate" title={activeStudent.address}>{activeStudent.address || '-'}</span>
                 </div>
               </div>
             </div>
 
-            {/* 4. RINGKASAN REKAPITULASI BIAYA (SUMMARY OF PAID VS UNPAID FEES) */}
-            <div className="mb-6">
-              <h4 className="text-xs font-black text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <DollarSign className="h-4 w-4 text-emerald-700" />
-                Ringkasan Pelunasan Tagihan (Paid vs Unpaid Summary)
-              </h4>
+            {/* 4. RINGKASAN REKAPITULASI BIAYA (CLEAN METRIC ROW WITHOUT HEAVY BOXES) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 py-2.5 px-3.5 bg-slate-50 border border-slate-200 rounded-lg mb-5 text-xs">
+              <div className="flex items-center gap-1.5 min-w-[120px]">
+                <span className="text-[10px] uppercase font-bold text-slate-500">Total:</span>
+                <span className="font-mono font-black text-slate-900 text-sm">Rp {totalAmount.toLocaleString('id-ID')}</span>
+                <span className="text-[9px] text-slate-400">({studentBills.length} Pos)</span>
+              </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {/* Total Kewajiban */}
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Tagihan</span>
-                  <strong className="text-sm sm:text-base font-black text-slate-900 block mt-0.5 font-mono">
-                    Rp {totalAmount.toLocaleString('id-ID')}
-                  </strong>
-                  <span className="text-[9px] text-slate-500 font-medium mt-0.5 block">
-                    {studentBills.length} Pos Biaya Terdaftar
-                  </span>
-                </div>
+              <div className="flex items-center gap-1.5 min-w-[130px]">
+                <span className="text-[10px] uppercase font-bold text-emerald-700">Terbayar:</span>
+                <span className="font-mono font-black text-emerald-800 text-sm">Rp {paidAmount.toLocaleString('id-ID')}</span>
+                <span className="text-[9px] text-emerald-600 font-bold">({paymentPercentage}%)</span>
+              </div>
 
-                {/* Total Lunas (Paid) */}
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-left">
-                  <span className="text-[10px] uppercase font-bold text-emerald-700 block">Sudah Dibayar (Lunas)</span>
-                  <strong className="text-sm sm:text-base font-black text-emerald-800 block mt-0.5 font-mono">
-                    Rp {paidAmount.toLocaleString('id-ID')}
-                  </strong>
-                  <span className="text-[9px] text-emerald-600 font-bold mt-0.5 block">
-                    ✓ {paidBills.length} Tagihan Terbayar ({paymentPercentage}%)
-                  </span>
-                </div>
+              <div className="flex items-center gap-1.5 min-w-[130px]">
+                <span className={`text-[10px] uppercase font-bold ${unpaidAmount > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>Sisa Tunggakan:</span>
+                <span className={`font-mono font-black text-sm ${unpaidAmount > 0 ? 'text-rose-700' : 'text-emerald-800'}`}>
+                  Rp {unpaidAmount.toLocaleString('id-ID')}
+                </span>
+              </div>
 
-                {/* Total Tunggakan (Unpaid) */}
-                <div className={`p-3 rounded-xl text-left border ${unpaidAmount > 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50/60 border-emerald-200'}`}>
-                  <span className={`text-[10px] uppercase font-bold block ${unpaidAmount > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                    Sisa Belum Dibayar
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase font-bold text-slate-500">Status:</span>
+                {hasNoObligations ? (
+                  <span className="px-2 py-0.5 bg-emerald-700 text-white font-black text-[9.5px] rounded uppercase tracking-wider font-mono">
+                    BEBAS TANGGUNGAN
                   </span>
-                  <strong className={`text-sm sm:text-base font-black block mt-0.5 font-mono ${unpaidAmount > 0 ? 'text-rose-700' : 'text-emerald-800'}`}>
-                    Rp {unpaidAmount.toLocaleString('id-ID')}
-                  </strong>
-                  <span className={`text-[9px] font-bold mt-0.5 block ${unpaidAmount > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                    {unpaidAmount > 0 ? `⚠ ${unpaidBills.length} Tagihan Tertunggak` : '✓ Nihil Tunggakan (Bebas Biaya)'}
+                ) : isFullyPaid ? (
+                  <span className="px-2 py-0.5 bg-emerald-600 text-white font-black text-[9.5px] rounded uppercase tracking-wider font-mono">
+                    LUNAS 100%
                   </span>
-                </div>
-
-                {/* Status Keuangan Keseluruhan */}
-                <div className={`p-3 rounded-xl text-left border ${unpaidAmount > 0 ? 'bg-amber-50/70 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
-                  <span className={`text-[10px] uppercase font-bold block ${unpaidAmount > 0 ? 'text-amber-800' : 'text-emerald-750'}`}>Status Pelunasan</span>
-                  <div className="mt-1 flex items-center gap-1.5">
-                    {hasNoObligations ? (
-                      <span className="px-2.5 py-0.5 bg-emerald-700 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
-                        BEBAS TANGGUNGAN
-                      </span>
-                    ) : isFullyPaid ? (
-                      <span className="px-2.5 py-0.5 bg-emerald-600 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
-                        LUNAS 100%
-                      </span>
-                    ) : isPendingVerification ? (
-                      <span className="px-2.5 py-0.5 bg-amber-600 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
-                        VERIFIKASI DIAJUKAN
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 bg-rose-600 text-white font-black text-[10px] rounded uppercase tracking-wider font-mono">
-                        BELUM LUNAS
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[9px] text-gray-600 font-medium mt-1 block">
-                    {hasNoObligations
-                      ? 'Santri tidak memiliki beban biaya atau tanggungan aktif.'
-                      : isFullyPaid
-                      ? 'Bebas dari semua beban biaya (Semua tagihan lunas).'
-                      : isPendingVerification
-                      ? 'Bukti pembayaran sedang diverifikasi bendahara.'
-                      : `Tersisa kewajiban Rp ${unpaidAmount.toLocaleString('id-ID')}`}
+                ) : isPendingVerification ? (
+                  <span className="px-2 py-0.5 bg-amber-600 text-white font-black text-[9.5px] rounded uppercase tracking-wider font-mono">
+                    VERIFIKASI
                   </span>
-                </div>
+                ) : (
+                  <span className="px-2 py-0.5 bg-rose-600 text-white font-black text-[9.5px] rounded uppercase tracking-wider font-mono">
+                    BELUM LUNAS
+                  </span>
+                )}
               </div>
             </div>
 
@@ -627,26 +592,22 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
               </div>
             </div>
 
-            {/* 6. CATATAN & REKENING RESMI PEMBAYARAN */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 mb-8 text-[11px] text-gray-600 space-y-1">
-              <strong className="text-slate-900 block font-bold">Catatan & Ketentuan Pembayaran:</strong>
+            {/* 6. CATATAN & REKENING RESMI PEMBAYARAN (CLEAN & MINIMAL) */}
+            <div className="border-t border-slate-200 pt-3 mb-6 text-[10.5px] text-gray-600 space-y-1">
               <p className="leading-relaxed">
-                1. Dokumen ini merupakan bukti rekapitulasi resmi tagihan dan pembayaran yang dikeluarkan oleh Bagian Keuangan/Bendahara {settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}.
-              </p>
-              <p className="leading-relaxed">
-                2. Untuk tagihan yang belum lunas, pembayaran dapat dilakukan secara tunai di kantor bendahara pesantren atau via transfer ke rekening resmi:
+                • <strong>Rekening Resmi:</strong>{' '}
                 {Array.isArray(settings.rekeningList) && settings.rekeningList.length > 0 ? (
-                  <strong className="text-emerald-900 block mt-0.5">
-                    {settings.rekeningList.map(r => `• ${r.bankName || (r as any).bank || 'Bank'}: ${r.accountNumber} a.n. ${r.accountName || (r as any).holderName || "Pesantren"}`).join(' | ')}
-                  </strong>
+                  <span className="text-emerald-950 font-bold">
+                    {settings.rekeningList.map(r => `${r.bankName || (r as any).bank || 'Bank'} ${r.accountNumber} a.n. ${r.accountName || (r as any).holderName || "Pesantren"}`).join(' | ')}
+                  </span>
                 ) : (
-                  <strong className="text-emerald-900 block mt-0.5">
-                    • {settings.pesantrenBankName || 'Bank Syariah Indonesia'}: {settings.pesantrenBankAccountNumber || '7182938491'} a.n. {settings.pesantrenBankAccountName || "Pondok Pesantren Al-Asy'ariyah"}
-                  </strong>
+                  <span className="text-emerald-950 font-bold">
+                    {settings.pesantrenBankName || 'Bank Syariah Indonesia'} {settings.pesantrenBankAccountNumber || '7182938491'} a.n. {settings.pesantrenBankAccountName || "Pondok Pesantren Al-Asy'ariyah"}
+                  </span>
                 )}
               </p>
-              <p className="leading-relaxed">
-                3. Harap konfirmasi bukti transfer melalui portal resmi santri atau kirimkan via WhatsApp ke Bendahara Pesantren.
+              <p className="text-[10px] text-gray-500 leading-relaxed">
+                • Dokumen ini merupakan bukti rekapitulasi sah administrasi keuangan pesantren. Konfirmasi transfer dapat dilakukan melalui portal santri atau via WhatsApp ke Bendahara.
               </p>
             </div>
 

@@ -656,7 +656,7 @@ export default function FinancialReportPanel({
     if (!expenseToDelete) return;
     const target = expenseToDelete;
 
-    // 1. Register tombstone to prevent resurrection / "mental"
+    // 1. Register tombstone to ensure permanent deletion
     markIdAsDeleted('expenses', target.id);
     markLocalDataChanged('expenses');
 
@@ -1817,7 +1817,7 @@ export default function FinancialReportPanel({
             </div>
 
             <p className="text-[11px] text-rose-700 font-semibold bg-rose-50/70 p-2.5 rounded-xl border border-rose-150">
-              ⚠️ Catatan pengeluaran kas ini akan dihapus permanen dari server lokal dan database Supabase agar tidak kembali lagi ("mental").
+              ⚠️ Catatan pengeluaran kas ini akan dihapus permanen dari server lokal dan database Supabase.
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

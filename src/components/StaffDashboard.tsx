@@ -44,6 +44,7 @@ import {
   pushAllStudentsToSupabase, 
   pushStaffConfigToSupabase, 
   pushAllStaffUsersToSupabase, 
+  pushSettingsToSupabase,
   markLocalDataChanged 
 } from '../lib/supabase';
 import { recordStaffAuditLog } from '../lib/auditLogger';
@@ -331,8 +332,38 @@ export default function StaffDashboard({
       }
     } catch (e) {}
 
+    // Also synchronize directly with pesantren_settings so "Daftar Pengurus" in admin matches 1:1
+    try {
+      const curSettings = JSON.parse(localStorage.getItem('pesantren_settings') || '{}');
+      const updatedSettings = { ...curSettings };
+      if (role === 'keamanan') {
+        updatedSettings.namaKeamanan = deptName;
+        if (deptSignature) updatedSettings.ttdKeamananUrl = deptSignature;
+        if (deptSeal) updatedSettings.stempelKeamananUrl = deptSeal;
+      } else if (role === 'ketertiban') {
+        updatedSettings.namaKetertiban = deptName;
+        if (deptSignature) updatedSettings.ttdKetertibanUrl = deptSignature;
+        if (deptSeal) updatedSettings.stempelKetertibanUrl = deptSeal;
+      } else if (role === 'kesehatan') {
+        updatedSettings.namaKesehatan = deptName;
+        if (deptSignature) updatedSettings.ttdKesehatanUrl = deptSignature;
+        if (deptSeal) updatedSettings.stempelKesehatanUrl = deptSeal;
+      }
+      localStorage.setItem('pesantren_settings', JSON.stringify(updatedSettings));
+      window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: updatedSettings }));
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedSettings)
+      }).catch(() => {});
+      if (isSupabaseConfigured()) {
+        pushSettingsToSupabase(updatedSettings).catch(() => {});
+      }
+    } catch (e) {}
+
     window.dispatchEvent(new Event('pesantren_staff_users_updated'));
     window.dispatchEvent(new Event('staff_configs_updated'));
+    window.dispatchEvent(new Event('pesantren_db_sync'));
     fetch('/api/staff-configs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
