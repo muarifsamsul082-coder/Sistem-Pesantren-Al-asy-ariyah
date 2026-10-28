@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, LogIn, LogOut, Shield, User, Menu, X, Landmark, GraduationCap, Users, Sun, Moon, CreditCard, Sparkles } from 'lucide-react';
+import { BookOpen, LogIn, LogOut, Shield, User, Menu, X, Landmark, GraduationCap, Users, Sun, Moon, CreditCard, Sparkles, Home, Search, HelpCircle } from 'lucide-react';
 import { UserSession, Student, PortalSettings } from '../types';
 import { isPpdbCurrentlyActive } from '../lib/dateUtils';
 import { isSupabaseConfigured, pushSettingsToSupabase, pushStaffConfigToSupabase, pushAllStaffUsersToSupabase } from '../lib/supabase';
@@ -688,26 +688,52 @@ export default function Navbar({
             {/* Public Links (Visible only when NOT logged in) */}
             {!session && (
               <div className="hidden md:flex items-center space-x-1.5">
-                {menuItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleNavClick(item.id)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      item.highlight
-                        ? 'bg-amber-400 text-emerald-950 hover:bg-amber-300 shadow-sm font-extrabold'
-                        : currentView === item.id
-                        ? 'bg-emerald-900/80 text-amber-300 border border-emerald-700/60 shadow-xs font-extrabold'
-                        : 'text-emerald-100 hover:bg-emerald-900/50 hover:text-amber-200'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+                {currentView === 'ppdb' ? (
+                  <>
+                    <button
+                      onClick={() => handleNavClick('home')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-emerald-100 hover:bg-emerald-900/50 hover:text-amber-250 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Home className="h-3.5 w-3.5 text-amber-300" />
+                      <span>Beranda</span>
+                    </button>
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('open_pcsb_panduan'))}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-emerald-100 hover:bg-emerald-900/50 hover:text-amber-250 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <BookOpen className="h-3.5 w-3.5 text-emerald-300" />
+                      <span>Panduan Pendaftaran</span>
+                    </button>
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('open_pcsb_check_status'))}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-emerald-100 hover:bg-emerald-900/50 hover:text-amber-250 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Search className="h-3.5 w-3.5 text-amber-300" />
+                      <span>Cek Status</span>
+                    </button>
+                  </>
+                ) : (
+                  menuItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleNavClick(item.id)}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
+                        item.highlight
+                          ? 'bg-amber-400 text-emerald-950 hover:bg-amber-300 shadow-sm font-extrabold'
+                          : currentView === item.id
+                          ? 'bg-emerald-900/80 text-amber-300 border border-emerald-700/60 shadow-xs font-extrabold'
+                          : 'text-emerald-100 hover:bg-emerald-900/50 hover:text-amber-200'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))
+                )}
               </div>
             )}
 
-            {/* Login / Masuk Button (Visible only when NOT logged in) */}
-            {!session && (
+            {/* Login / Masuk Button (Hidden when on ppdb registration form) */}
+            {!session && currentView !== 'ppdb' && (
               <button
                 onClick={onOpenLogin}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-400 text-emerald-950 rounded-lg text-xs font-extrabold hover:bg-amber-350 transition-all cursor-pointer shadow-sm border border-amber-350"
@@ -770,7 +796,7 @@ export default function Navbar({
           <div className="absolute right-4 top-14 w-64 bg-emerald-950/95 backdrop-blur-md rounded-2xl shadow-2xl border border-emerald-700/60 z-50 divide-y divide-emerald-800/60 py-1 max-h-[80vh] overflow-y-auto text-emerald-100 text-left animate-fade-in">
             <div className="px-4 py-3 bg-emerald-900/80 flex items-center justify-between border-b border-emerald-800/60">
               <span className="text-[10px] uppercase font-mono font-extrabold text-amber-300">
-                {!session ? 'Navigasi Portal' : 'Menu Walisantri'}
+                {!session ? (currentView === 'ppdb' ? 'Menu Pendaftaran' : 'Navigasi Portal') : 'Menu Walisantri'}
               </span>
               <button
                 type="button"
@@ -784,32 +810,81 @@ export default function Navbar({
             
             <div className="py-1">
               {!session ? (
-                // Public Menu Items
-                menuItems.map((item) => {
-                  const hrefHash = item.id === 'home' ? '#home' : item.id === 'profile' ? '#profil' : item.id === 'news' ? '#berita' : item.id === 'announcements' ? '#pengumuman' : '#ppdb';
-                  return (
-                    <a
-                      key={item.id}
-                      href={hrefHash}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNavClick(item.id);
+                currentView === 'ppdb' ? (
+                  // Focused PPDB Menu Items: Beranda, Panduan Pendaftaran, Cek Status, Bantuan Panitia
+                  <div className="space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleNavClick('home');
+                        setIsNavOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
-                        currentView === item.id 
-                          ? 'bg-emerald-800 text-amber-300' 
-                          : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
-                      }`}
+                      className="w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2.5 cursor-pointer text-emerald-100 hover:bg-emerald-900/60 hover:text-amber-300"
                     >
-                      <span>{item.label}</span>
-                      {item.highlight && (
-                        <span className="bg-amber-400 text-emerald-950 text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-wide">
-                          Baru
-                        </span>
-                      )}
+                      <Home className="h-4 w-4 text-amber-300" />
+                      <span>Beranda Portal</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('open_pcsb_panduan'));
+                        setIsNavOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2.5 cursor-pointer text-emerald-100 hover:bg-emerald-900/60 hover:text-amber-300"
+                    >
+                      <BookOpen className="h-4 w-4 text-emerald-300" />
+                      <span>Panduan Pendaftaran</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('open_pcsb_check_status'));
+                        setIsNavOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2.5 cursor-pointer text-emerald-100 hover:bg-emerald-900/60 hover:text-amber-300"
+                    >
+                      <Search className="h-4 w-4 text-amber-300" />
+                      <span>Cek Status Pendaftaran</span>
+                    </button>
+                    <a
+                      href="https://wa.me/6281234567890?text=Assalamu'alaikum%20Panitia%20PPDB%20Ponpes%20Al-Asy'ariyah,%20saya%20ingin%20bertanya%20tentang%20pendaftaran"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setIsNavOpen(false)}
+                      className="w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2.5 cursor-pointer text-emerald-100 hover:bg-emerald-900/60 hover:text-emerald-200"
+                    >
+                      <HelpCircle className="h-4 w-4 text-emerald-400" />
+                      <span>Bantuan Panitia (WA)</span>
                     </a>
-                  );
-                })
+                  </div>
+                ) : (
+                  // Public Menu Items
+                  menuItems.map((item) => {
+                    const hrefHash = item.id === 'home' ? '#home' : item.id === 'profile' ? '#profil' : item.id === 'news' ? '#berita' : item.id === 'announcements' ? '#pengumuman' : '#ppdb';
+                    return (
+                      <a
+                        key={item.id}
+                        href={hrefHash}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleNavClick(item.id);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                          currentView === item.id 
+                            ? 'bg-emerald-800 text-amber-300' 
+                            : 'text-emerald-100 hover:bg-emerald-900/60 hover:text-white'
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        {item.highlight && (
+                          <span className="bg-amber-400 text-emerald-950 text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-wide">
+                            Baru
+                          </span>
+                        )}
+                      </a>
+                    );
+                  })
+                )
               ) : (
                 // Santri / Walisantri Menu Items
                 <div className="space-y-0.5">

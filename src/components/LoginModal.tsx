@@ -347,15 +347,15 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-emerald-100 flex flex-col max-h-[90vh]">
         
         {/* Header with authentic pesantren photography & dark emerald gradient overlay */}
-        <div className="relative h-36 px-6 py-5 text-white overflow-hidden shrink-0 flex flex-col justify-end">
-          {/* Background Photo */}
+        <div className="relative h-44 px-6 py-5 text-white overflow-hidden shrink-0 flex flex-col justify-end">
+          {/* Background Photo: Official Pondok Pesantren Al-Asy'ariyah Gate */}
           <img 
-            src="https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=800&q=80" 
-            alt="Pesantren" 
-            className="absolute inset-0 w-full h-full object-cover object-center filter brightness-50"
+            src="/assets/aistudio/IMG_20260826_054619_658_fe99f9ad.jpg" 
+            alt="Pondok Pesantren Al-Asy'ariyah" 
+            className="absolute inset-0 w-full h-full object-cover object-[center_30%] filter brightness-75 contrast-105"
           />
-          {/* Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-900/80 to-teal-950/70" />
+          {/* Gradient Overlay for readable text */}
+          <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-950/60 to-black/30" />
 
           <button 
             type="button"

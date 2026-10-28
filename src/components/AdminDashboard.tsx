@@ -2373,8 +2373,8 @@ export default function AdminDashboard({
               <span class="col-span-4 font-semibold text-slate-600">7. Kamar Asrama</span>
               <span class="col-span-8 font-extrabold text-emerald-900">: ${s.kamar ? s.kamar : 'Belum Ditentukan'}</span>
 
-              <span class="col-span-4 font-semibold text-slate-600">8. Golongan Darah</span>
-              <span class="col-span-8 font-semibold text-slate-800">: ${s.bloodType || 'B'}</span>
+              <span class="col-span-4 font-semibold text-slate-600">8. Asal Sekolah</span>
+              <span class="col-span-8 font-semibold text-slate-800">: ${(s as any).previousSchool || 'MI / SD'}</span>
 
               <span class="col-span-4 font-semibold text-slate-600">9. Status Keaktifan</span>
               <span class="col-span-8 font-extrabold text-slate-900">: Aktif (Santri Mukim)</span>
@@ -3175,7 +3175,6 @@ export default function AdminDashboard({
               <th>No. Kartu Keluarga (KK)</th>
               <th>Tempat Lahir</th>
               <th>Tanggal Lahir</th>
-              <th>Golongan Darah</th>
               <th>Riwayat Kesehatan / Penyakit</th>
               <th>Asal Sekolah</th>
               <th>Nama Ayah Kandung</th>
@@ -3204,7 +3203,6 @@ export default function AdminDashboard({
           <td style="mso-number-format:'\\@';">${reg.kk || '-'}</td>
           <td>${reg.birthPlace || '-'}</td>
           <td>${reg.birthDate || '-'}</td>
-          <td class="text-center">${reg.bloodType || '-'}</td>
           <td>${reg.healthHistory || '-'}</td>
           <td>${reg.previousSchool || '-'}</td>
           <td>${reg.fatherName || '-'}</td>
@@ -3303,9 +3301,7 @@ export default function AdminDashboard({
               <th rowspan="2">No. Kartu Keluarga (KK)</th>
               <th rowspan="2">Tempat Lahir</th>
               <th rowspan="2">Tanggal Lahir</th>
-              <th rowspan="2" style="text-align: center;">Golongan Darah</th>
               <th rowspan="2">Riwayat Kesehatan / Penyakit</th>
-              <th rowspan="2">Total Hafalan Qur'an</th>
               <th rowspan="2">Nama Ayah Kandung</th>
               <th rowspan="2">Nama Ibu Kandung</th>
               <th rowspan="2">Nama Wali Santri</th>
@@ -3338,9 +3334,7 @@ export default function AdminDashboard({
           <td style="mso-number-format:'\\@';">${s.kk || '-'}</td>
           <td>${s.birthPlace || '-'}</td>
           <td>${s.birthDate || '-'}</td>
-          <td class="text-center">${s.bloodType || '-'}</td>
           <td>${s.healthHistory || '-'}</td>
-          <td class="text-bold">${s.currentHafalan || '-'}</td>
           <td>${s.fatherName || '-'}</td>
           <td>${s.motherName || '-'}</td>
           <td>${s.parentName || s.guardianName || '-'}</td>
@@ -3439,7 +3433,6 @@ export default function AdminDashboard({
               <th rowspan="2">No. WhatsApp / HP</th>
               <th rowspan="2">Alamat Lengkap</th>
               <th rowspan="2">Nama Orang Tua / Wali</th>
-              <th rowspan="2">Total Hafalan Qur'an</th>
             </tr>
             <tr>
               <th style="text-align: center; background-color: #78350f;">Formal</th>
@@ -3464,7 +3457,6 @@ export default function AdminDashboard({
           <td style="mso-number-format:'\\@';">${a.parentPhone || '-'}</td>
           <td>${a.address || '-'}</td>
           <td>${a.parentName || a.guardianName || a.fatherName || '-'}</td>
-          <td class="text-bold">${a.currentHafalan || '-'}</td>
         </tr>
       `;
     });
@@ -6791,7 +6783,7 @@ export default function AdminDashboard({
                     </div>
 
                     <div className="bg-emerald-50/80 p-3 rounded-xl border border-emerald-100 text-[10px] text-emerald-950 leading-relaxed font-medium">
-                      Kami mendoakan agar ilmu yang telah diserap selama membina akhlak dan hafalan di Pondok Pesantren senantiasa menjadi berkah dan pemandu kesuksesan dunia-akhirat. Amiin.
+                      Kami mendoakan agar ilmu yang telah diserap selama membina akhlak dan keilmuan di Pondok Pesantren senantiasa menjadi berkah dan pemandu kesuksesan dunia-akhirat. Amiin.
                     </div>
 
                     <div className="pt-2 flex flex-col gap-2 shrink-0 border-t border-slate-100">
@@ -14040,7 +14032,7 @@ export default function AdminDashboard({
               // Send automatic WhatsApp notice on status update (e.g. Alumni)
               if (originalStudent && originalStudent.status !== updatedStudent.status && updatedStudent.parentPhone) {
                 if (updatedStudent.status === 'Alumni') {
-                  const alumniMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${updatedStudent.fullName}* (NIS: ${updatedStudent.nis}),\n\nAlhamdulillah, status akademik ananda di *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}* telah resmi diperbarui menjadi *ALUMNI / LULUS*.\n\nSelamat atas kelulusan ananda. Semoga ilmu dan hafalan yang diperoleh selama di pesantren berkah, bermanfaat bagi agama, nusa, dan bangsa.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Pondok Pesantren_`;
+                  const alumniMsg = `Assalamu'alaikum Wr. Wb. Yth. Bapak/Ibu Wali dari *${updatedStudent.fullName}* (NIS: ${updatedStudent.nis}),\n\nAlhamdulillah, status akademik ananda di *${settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"}* telah resmi diperbarui menjadi *ALUMNI / LULUS*.\n\nSelamat atas kelulusan ananda. Semoga ilmu yang diperoleh selama di pesantren berkah, bermanfaat bagi agama, nusa, dan bangsa.\n\nWassalamu'alaikum Wr. Wb.\n_Pengurus Pondok Pesantren_`;
                   sendWhatsAppUniversal(updatedStudent.parentPhone, alumniMsg, 'Pembaruan Status Alumni', `Wali ${updatedStudent.fullName}`);
                 }
               }
@@ -15095,8 +15087,8 @@ export default function AdminDashboard({
                         <span className="col-span-4 font-semibold text-slate-600">7. Kamar Asrama</span>
                         <span className="col-span-8 font-extrabold text-emerald-900">: {s.kamar ? s.kamar : 'Belum Ditentukan'}</span>
 
-                        <span className="col-span-4 font-semibold text-slate-600">8. Golongan Darah</span>
-                        <span className="col-span-8 font-semibold text-slate-800">: {s.bloodType || 'B'}</span>
+                        <span className="col-span-4 font-semibold text-slate-600">8. Asal Sekolah</span>
+                        <span className="col-span-8 font-semibold text-slate-800">: {(s as any).previousSchool || 'MI / SD'}</span>
 
                         <span className="col-span-4 font-semibold text-slate-600">9. Status Keaktifan</span>
                         <span className="col-span-8 font-extrabold text-slate-900">: Aktif (Santri Mukim)</span>
