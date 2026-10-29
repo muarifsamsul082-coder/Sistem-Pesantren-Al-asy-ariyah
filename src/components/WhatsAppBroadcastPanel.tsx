@@ -11,7 +11,8 @@ import {
   RefreshCw, 
   CheckCircle2,
   AlertCircle,
-  X
+  X,
+  Copy
 } from 'lucide-react';
 import { Student, Bill, PortalSettings, Room } from '../types';
 import { formatIndonesianDate } from '../lib/dateUtils';
@@ -223,6 +224,17 @@ export default function WhatsAppBroadcastPanel({
   const [isDirectQueueOpen, setIsDirectQueueOpen] = useState(false);
   const [directQueueIndex, setDirectQueueIndex] = useState(0);
 
+  // Prevent background scroll when queue modal is open
+  React.useEffect(() => {
+    if (isDirectQueueOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev || '';
+      };
+    }
+  }, [isDirectQueueOpen]);
+
   // Helper format phone
   const cleanPhone = (phone: any): string => {
     let p = String(phone || '').replace(/[^0-9]/g, '');
@@ -422,6 +434,33 @@ export default function WhatsAppBroadcastPanel({
     window.open(waUrl, '_blank');
     saveWaLog(messageTitle || 'Pesan WhatsApp', phone, `${std.parentName || 'Wali'} (${std.fullName})`, textToSend);
     setSendStatuses(prev => ({ ...prev, [std.id]: 'sent' }));
+  };
+
+  // Salin seluruh nomor telepon wali terpilih (siap pakai untuk daftar siaran / broadcast group WA)
+  const handleCopyAllSelectedPhones = () => {
+    const validPhones = selectedStudentsList
+      .map(s => cleanPhone(s.parentPhone))
+      .filter(p => p && p.length >= 10);
+    
+    if (validPhones.length === 0) {
+      showAlert('danger', 'Tidak ada nomor WhatsApp wali yang valid pada santri yang dipilih.');
+      return;
+    }
+
+    const joined = validPhones.join(', ');
+    navigator.clipboard.writeText(joined);
+    showAlert('success', `Berhasil menyalin ${validPhones.length} nomor WhatsApp wali santri ke clipboard!`);
+  };
+
+  // Salin draf isi pesan WhatsApp
+  const handleCopyMessageText = () => {
+    const textToSend = messageBody.trim();
+    if (!textToSend) {
+      showAlert('danger', 'Isi pesan WhatsApp masih kosong!');
+      return;
+    }
+    navigator.clipboard.writeText(textToSend);
+    showAlert('success', 'Teks pesan berhasil disalin ke clipboard!');
   };
 
   // Eksekusi broadcast massal
@@ -746,25 +785,37 @@ export default function WhatsAppBroadcastPanel({
             />
           </div>
 
-          {/* Tombol Kirim Broadcast */}
-          <button
-            type="button"
-            disabled={isBroadcasting || selectedStudentsList.length === 0 || !messageBody.trim()}
-            onClick={handleBroadcast}
-            className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 active:scale-98 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
-          >
-            {isBroadcasting ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin text-amber-300" />
-                <span>Mengirim ({broadcastProgress.current}/{broadcastProgress.total})...</span>
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                <span>Kirim ke {selectedStudentsList.length} Wali Santri Terpilih</span>
-              </>
-            )}
-          </button>
+          {/* Tombol Kirim Broadcast & Salin */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              disabled={isBroadcasting || selectedStudentsList.length === 0 || !messageBody.trim()}
+              onClick={handleBroadcast}
+              className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 active:scale-98 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
+            >
+              {isBroadcasting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin text-amber-300" />
+                  <span>Mengirim ({broadcastProgress.current}/{broadcastProgress.total})...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span>Kirim ke {selectedStudentsList.length} Wali Santri Terpilih</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopyMessageText}
+              disabled={!messageBody.trim()}
+              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-40"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              <span>Salin Teks Pesan Ini</span>
+            </button>
+          </div>
         </div>
 
         {/* Kolom Kanan: Pilih Penerima Wali Santri (7 cols) */}
@@ -783,7 +834,7 @@ export default function WhatsAppBroadcastPanel({
                 />
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
                 <select
                   value={selectedClass}
                   onChange={(e) => setSelectedClass(e.target.value)}
@@ -812,6 +863,18 @@ export default function WhatsAppBroadcastPanel({
                     </>
                   )}
                 </button>
+
+                {selectedStudentsList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleCopyAllSelectedPhones}
+                    className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shrink-0 transition cursor-pointer shadow-2xs"
+                    title="Salin nomor WhatsApp seluruh santri terpilih untuk daftar siaran"
+                  >
+                    <Copy className="h-3 w-3" />
+                    <span>Salin {selectedStudentsList.length} No. WA</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1001,7 +1064,7 @@ export default function WhatsAppBroadcastPanel({
                           showAlert('success', 'Seluruh antrean pesan WhatsApp telah selesai dikirim!');
                         }
                       }}
-                      className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                      className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 active:scale-98 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
                     >
                       <ExternalLink className="h-4 w-4" />
                       <span>Buka Chat WhatsApp & Lanjut ({directQueueIndex + 1}/{selectedStudentsList.length})</span>
@@ -1014,9 +1077,10 @@ export default function WhatsAppBroadcastPanel({
                           navigator.clipboard.writeText(personalizedMsg);
                           showAlert('success', `Teks pesan untuk ${currentStd.fullName} berhasil disalin!`);
                         }}
-                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1"
                       >
-                        Salin Teks
+                        <Copy className="h-3 w-3" />
+                        <span>Salin Teks</span>
                       </button>
 
                       {directQueueIndex < selectedStudentsList.length - 1 ? (
@@ -1037,6 +1101,15 @@ export default function WhatsAppBroadcastPanel({
                         </button>
                       )}
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyAllSelectedPhones}
+                      className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Copy className="h-3.5 w-3.5 text-emerald-700" />
+                      <span>Salin Semua Nomor WA ({selectedStudentsList.length} Santri)</span>
+                    </button>
                   </div>
                 </div>
               );

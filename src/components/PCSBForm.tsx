@@ -146,7 +146,7 @@ export default function PCSBForm({
   const [formData, setFormData] = React.useState({
     fullName: '',
     gender: 'Laki-laki' as 'Laki-laki' | 'Perempuan',
-    jenjangPendidikan: 'MTs / SMP Formal' as 'MTs / SMP Formal' | 'MA / SMA Formal' | 'Madrasah Diniyah Salafiyah',
+    jenjangPendidikan: 'Madrasah Diniyah' as 'Madrasah Diniyah' | 'SMP' | 'SMA',
     birthPlace: '',
     birthDate: '',
     parentName: '',
@@ -175,23 +175,22 @@ export default function PCSBForm({
   const [currentLiveStatus, setCurrentLiveStatus] = React.useState<RegistrationStatusType>('Diproses');
   const [viewingSlip, setViewingSlip] = React.useState(false);
 
+  // Prevent background scrolling when any modal/popup is open
+  React.useEffect(() => {
+    if (viewingSlip || isGuideOpen || isCheckStatusOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev || '';
+      };
+    }
+  }, [viewingSlip, isGuideOpen, isCheckStatusOpen]);
+
   // Validate Step 1 before moving to Step 2
   const handleNextStep1 = () => {
     setStepError('');
     if (!formData.fullName.trim()) {
-      setStepError('Mohon isi Nama Lengkap Calon Santri.');
-      return;
-    }
-    if (!formData.nik.trim() || formData.nik.length < 10) {
-      setStepError('Mohon isi NIK Calon Santri dengan angka yang valid (minimal 10 digit).');
-      return;
-    }
-    if (!formData.birthPlace.trim() || !formData.birthDate) {
-      setStepError('Mohon lengkapi Tempat dan Tanggal Lahir.');
-      return;
-    }
-    if (!formData.previousSchool.trim()) {
-      setStepError('Mohon isi Sekolah Asal (SD/MI/SMP/MTs).');
+      setStepError('Mohon lengkapi Nama Lengkap Calon Santri untuk melanjutkan ke langkah berikutnya.');
       return;
     }
     setCurrentStep(2);
@@ -201,20 +200,8 @@ export default function PCSBForm({
   // Validate Step 2 before moving to Step 3
   const handleNextStep2 = () => {
     setStepError('');
-    if (!formData.fatherName.trim() && !formData.motherName.trim()) {
-      setStepError('Mohon isi Nama Ayah atau Nama Ibu Kandung.');
-      return;
-    }
-    if (!formData.parentPhone.trim() || formData.parentPhone.length < 9) {
-      setStepError('Mohon isi Nomor WhatsApp Wali aktif yang dapat dihubungi panitia.');
-      return;
-    }
-    if (!formData.kk.trim() || formData.kk.length < 10) {
-      setStepError('Mohon isi Nomor Kartu Keluarga (KK) yang valid.');
-      return;
-    }
-    if (!formData.address.trim()) {
-      setStepError('Mohon isi Alamat Lengkap Tempat Tinggal.');
+    if (!formData.parentPhone.trim()) {
+      setStepError('Mohon isi Nomor WhatsApp Wali aktif agar panitia dapat menghubungi.');
       return;
     }
     setCurrentStep(3);
@@ -264,7 +251,7 @@ export default function PCSBForm({
     setFormData({
       fullName: '',
       gender: 'Laki-laki',
-      jenjangPendidikan: 'MTs / SMP Formal',
+      jenjangPendidikan: 'Madrasah Diniyah',
       birthPlace: '',
       birthDate: '',
       parentName: '',
@@ -576,7 +563,7 @@ export default function PCSBForm({
                 <div className="space-y-2 text-xs">
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
                     <div className="col-span-4 text-slate-500 font-medium">Jenjang / Program:</div>
-                    <div className="col-span-8 text-emerald-900 font-bold">{formData.jenjangPendidikan || 'MTs / SMP Formal'}</div>
+                    <div className="col-span-8 text-emerald-900 font-bold">{formData.jenjangPendidikan || 'Madrasah Diniyah'}</div>
                   </div>
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
                     <div className="col-span-4 text-slate-500 font-medium">Nama Calon Santri:</div>
@@ -711,7 +698,7 @@ export default function PCSBForm({
               setFormData({
                 fullName: existingRegistration.fullName || '',
                 gender: existingRegistration.gender || 'Laki-laki',
-                jenjangPendidikan: existingRegistration.jenjangPendidikan || 'MTs / SMP Formal',
+                jenjangPendidikan: existingRegistration.jenjangPendidikan || 'Madrasah Diniyah',
                 birthPlace: existingRegistration.birthPlace || '',
                 birthDate: existingRegistration.birthDate || '',
                 parentName: existingRegistration.parentName || '',
@@ -799,65 +786,69 @@ export default function PCSBForm({
           />
         </div>
 
-        {/* Stepper Dots & Labels */}
-        <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+        {/* Stepper Dots & Labels (Anti-collision for mobile portrait) */}
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-1 text-center">
           <button
             type="button"
-            onClick={() => setCurrentStep(1)}
-            className={`flex flex-col sm:flex-row items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl transition cursor-pointer text-xs ${
+            onClick={() => {
+              setStepError('');
+              setCurrentStep(1);
+            }}
+            className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-1.5 px-1 sm:px-2 rounded-xl transition cursor-pointer text-xs min-w-0 ${
               currentStep === 1 
                 ? 'bg-emerald-50 text-emerald-900 font-extrabold border border-emerald-200' 
                 : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
               currentStep >= 1 ? 'bg-emerald-800 text-white' : 'bg-slate-200 text-slate-600'
             }`}>
               {currentStep > 1 ? <Check className="h-3 w-3" /> : '1'}
             </span>
-            <span className="truncate">1. Data Santri</span>
+            <span className="truncate sm:hidden text-[11px] font-bold">Santri</span>
+            <span className="truncate hidden sm:inline">1. Data Santri</span>
           </button>
 
           <button
             type="button"
             onClick={() => {
-              if (formData.fullName.trim() && formData.nik.trim()) {
-                setCurrentStep(2);
-              }
+              setStepError('');
+              setCurrentStep(2);
             }}
-            className={`flex flex-col sm:flex-row items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl transition cursor-pointer text-xs ${
+            className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-1.5 px-1 sm:px-2 rounded-xl transition cursor-pointer text-xs min-w-0 ${
               currentStep === 2 
                 ? 'bg-emerald-50 text-emerald-900 font-extrabold border border-emerald-200' 
                 : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
               currentStep >= 2 ? 'bg-emerald-800 text-white' : 'bg-slate-200 text-slate-600'
             }`}>
               {currentStep > 2 ? <Check className="h-3 w-3" /> : '2'}
             </span>
-            <span className="truncate">2. Orang Tua / Wali</span>
+            <span className="truncate sm:hidden text-[11px] font-bold">Wali</span>
+            <span className="truncate hidden sm:inline">2. Orang Tua / Wali</span>
           </button>
 
           <button
             type="button"
             onClick={() => {
-              if (formData.fullName.trim() && formData.parentPhone.trim()) {
-                setCurrentStep(3);
-              }
+              setStepError('');
+              setCurrentStep(3);
             }}
-            className={`flex flex-col sm:flex-row items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl transition cursor-pointer text-xs ${
+            className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-1.5 px-1 sm:px-2 rounded-xl transition cursor-pointer text-xs min-w-0 ${
               currentStep === 3 
                 ? 'bg-emerald-50 text-emerald-900 font-extrabold border border-emerald-200' 
                 : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
               currentStep === 3 ? 'bg-emerald-800 text-white' : 'bg-slate-200 text-slate-600'
             }`}>
               3
             </span>
-            <span className="truncate">3. Biaya & Berkas</span>
+            <span className="truncate sm:hidden text-[11px] font-bold">Biaya</span>
+            <span className="truncate hidden sm:inline">3. Biaya & Berkas</span>
           </button>
         </div>
       </div>
@@ -908,9 +899,9 @@ export default function PCSBForm({
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {[
-                    { val: 'MTs / SMP Formal', label: 'MTs / SMP Formal', desc: 'Madrasah Tsanawiyah terakreditasi' },
-                    { val: 'MA / SMA Formal', label: 'MA / SMA Formal', desc: 'Madrasah Aliyah peminatan IPA/IPS' },
-                    { val: 'Madrasah Diniyah Salafiyah', label: 'Salafiyah Diniyah', desc: 'Fokus kajian kitab kuning & fiqh' }
+                    { val: 'Madrasah Diniyah', label: 'Madrasah Diniyah', desc: 'Kajian kitab kuning, fiqh, & akhlakul karimah' },
+                    { val: 'SMP', label: 'SMP', desc: 'Sekolah Menengah Pertama formal terakreditasi' },
+                    { val: 'SMA', label: 'SMA', desc: 'Sekolah Menengah Atas formal terakreditasi' }
                   ].map((p) => (
                     <button
                       key={p.val}

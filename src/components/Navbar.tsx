@@ -382,13 +382,14 @@ export default function Navbar({
         }).catch(() => {});
       } catch (e) {}
 
-      // 2. Update settings namaPengurus & namaPengasuh for consistent documents
+      // 2. Update settings only if user holds specific official role
       try {
         const curSettings = JSON.parse(localStorage.getItem('pesantren_settings') || '{}');
+        const userRole = (session?.role || '').toLowerCase().trim();
         const updatedSettings = {
           ...curSettings,
-          namaPengurus: newName,
-          namaPengasuh: newName
+          // Only update namaPengasuh if the logged-in user is explicitly the Pengasuh role
+          ...(userRole.includes('pengasuh') ? { namaPengasuh: newName } : {})
         };
         localStorage.setItem('pesantren_settings', JSON.stringify(updatedSettings));
         window.dispatchEvent(new CustomEvent('pesantren_settings_updated', { detail: updatedSettings }));

@@ -1965,10 +1965,10 @@ export default function AdminDashboard({
           parsedStaff.forEach((u: any) => {
             const r = (u.role || '').toLowerCase().trim();
             const uName = (u.fullName || u.name || '').trim();
-            if (!uName) return;
             if (r === 'admin') {
+              // Admin adalah operator sistem, bukan pengasuh/pengurus kecuali memegang jabatan resmi
+            } else if (r.includes('pengasuh')) {
               next.namaPengasuh = uName;
-              next.namaPengurus = uName;
             } else if (r === 'keamanan' || r.includes('kamtib')) {
               next.namaKeamanan = uName;
             } else if (r === 'ketertiban') {
@@ -2019,7 +2019,7 @@ export default function AdminDashboard({
       if (r.includes('sekretaris') && ur.includes('sekretaris')) return true;
       if ((r.includes('akademik') || r.includes('pendidikan') || r.includes('madrasah')) && (ur.includes('akademik') || ur.includes('pendidikan') || ur.includes('madrasah'))) return true;
       if ((r.includes('pcsb') || r.includes('ppdb')) && (ur.includes('pcsb') || ur.includes('ppdb'))) return true;
-      if ((r.includes('pengasuh') || r.includes('ketua')) && (ur === 'admin' || ur.includes('pengasuh') || ur.includes('ketua'))) return true;
+      if ((r.includes('pengasuh') || r.includes('ketua')) && (ur.includes('pengasuh') || ur.includes('ketua'))) return true;
       if ((r.includes('penasihat') || r.includes('masyayikh')) && (ur.includes('penasihat') || ur.includes('masyayikh'))) return true;
       return ur === r;
     });
@@ -2062,8 +2062,8 @@ export default function AdminDashboard({
           targetName = s.namaKetuaPcsb;
         } else if (r.includes('penasihat') || r.includes('masyayikh')) {
           targetName = s.namaDewanMasyayikh;
-        } else if (r === 'admin' || r.includes('pengasuh')) {
-          targetName = s.namaPengasuh || s.namaPengurus;
+        } else if (r.includes('pengasuh')) {
+          targetName = s.namaPengasuh;
         }
 
         // Cek pengurus tambahan custom matching role / position
@@ -2908,7 +2908,7 @@ export default function AdminDashboard({
           targetName = settings.namaKetuaPcsb.trim();
         } else if ((r.includes('penasihat') || r.includes('masyayikh')) && settings.namaDewanMasyayikh) {
           targetName = settings.namaDewanMasyayikh.trim();
-        } else if ((r === 'admin' || r.includes('pengasuh')) && settings.namaPengasuh) {
+        } else if (r.includes('pengasuh') && settings.namaPengasuh) {
           targetName = settings.namaPengasuh.trim();
         }
 
