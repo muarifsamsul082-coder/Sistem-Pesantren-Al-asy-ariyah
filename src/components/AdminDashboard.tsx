@@ -10116,6 +10116,104 @@ export default function AdminDashboard({
               })()}
             </div>
 
+            {/* PPDB Official Brochure Upload Section */}
+            <div className="border-t border-emerald-100 pt-6 mt-6 text-left">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                <h4 className="font-bold text-sm text-emerald-950 flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-emerald-700" />
+                  Brosur Resmi Pendaftaran Santri Baru (PPDB)
+                </h4>
+                <span className="text-[10px] bg-emerald-100 text-emerald-900 font-mono font-bold px-2 py-0.5 rounded-full self-start sm:self-auto">
+                  Dapat Diunduh Wali Santri di Panduan
+                </span>
+              </div>
+              <p className="text-gray-500 mb-4 text-[11px] leading-relaxed">
+                Unggah dokumen brosur resmi penerimaan santri baru dalam format PDF atau Gambar (JPG/PNG). Brosur yang diunggah akan otomatis tersedia untuk diunduh oleh calon wali santri melalui menu Panduan Pendaftaran.
+              </p>
+
+              <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100 space-y-3">
+                {editSettings.brosurPcsbUrl ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border border-emerald-200">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-xs text-slate-900 truncate">
+                          {editSettings.brosurPcsbName || 'Brosur_Pendaftaran_PPDB.pdf'}
+                        </p>
+                        <p className="text-[10.5px] text-emerald-700 font-medium">
+                          ✓ Berkas brosur aktif tersimpan & siap diunduh calon santri
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <a
+                        href={editSettings.brosurPcsbUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={editSettings.brosurPcsbName || 'Brosur_Pendaftaran_PPDB'}
+                        className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Pratinjau / Unduh</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditSettings(prev => ({ ...prev, brosurPcsbUrl: '', brosurPcsbName: '' }));
+                          setIsSettingsDirty(true);
+                        }}
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer border border-rose-200"
+                        title="Hapus Brosur"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-white rounded-xl border border-dashed border-emerald-300 text-center sm:text-left">
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-bold text-slate-800 flex items-center justify-center sm:justify-start gap-1.5">
+                        <Upload className="h-4 w-4 text-emerald-600" />
+                        <span>Pilih File Brosur dari Komputer / HP</span>
+                      </div>
+                      <p className="text-[10.5px] text-slate-500">
+                        Mendukung file PDF, JPG, PNG (Maksimal 8MB)
+                      </p>
+                    </div>
+                    <label className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer shrink-0">
+                      <Upload className="h-4 w-4" />
+                      <span>Unggah Berkas Brosur</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = (uploadEvent) => {
+                            const result = uploadEvent.target?.result as string;
+                            if (result) {
+                              setEditSettings(prev => ({
+                                ...prev,
+                                brosurPcsbUrl: result,
+                                brosurPcsbName: file.name
+                              }));
+                              setIsSettingsDirty(true);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Bottom Manual Save Action Bar */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6 border-t border-emerald-100 mt-6 bg-slate-50/80 p-4 rounded-xl border border-slate-200">
               <div>

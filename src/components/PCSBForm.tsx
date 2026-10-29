@@ -142,20 +142,30 @@ export default function PCSBForm({
     });
   };
 
-  // Form State - Cleaned of bloodType, hafalan, tahfidz
+  // Form State - Cleaned of bloodType, hafalan, tahfidz, enriched with complete pesantren fields
   const [formData, setFormData] = React.useState({
     fullName: '',
     gender: 'Laki-laki' as 'Laki-laki' | 'Perempuan',
+    jenjangPendidikan: 'MTs / SMP Formal' as 'MTs / SMP Formal' | 'MA / SMA Formal' | 'Madrasah Diniyah Salafiyah',
     birthPlace: '',
     birthDate: '',
     parentName: '',
     parentPhone: '',
+    waAlternatif: '',
     address: '',
     previousSchool: '',
     kk: '',
     nik: '',
+    nisn: '',
+    anakKe: '1',
+    jumlahSaudara: '1',
+    statusKeluarga: 'Lengkap' as 'Lengkap' | 'Yatim' | 'Piatu' | 'Yatim Piatu',
     fatherName: '',
     motherName: '',
+    pekerjaanAyah: '',
+    pekerjaanIbu: '',
+    penghasilanOrtu: 'Rp 1.500.000 - Rp 3.000.000',
+    ukuranSeragam: 'M' as 'S' | 'M' | 'L' | 'XL' | 'XXL',
     healthHistory: '',
     paymentType: 'Cicilan Bulanan' as 'Cicilan Bulanan' | 'Langsung Lunas'
   });
@@ -173,7 +183,7 @@ export default function PCSBForm({
       return;
     }
     if (!formData.nik.trim() || formData.nik.length < 10) {
-      setStepError('Mohon isi NIK Calon Santri dengan angka yang valid.');
+      setStepError('Mohon isi NIK Calon Santri dengan angka yang valid (minimal 10 digit).');
       return;
     }
     if (!formData.birthPlace.trim() || !formData.birthDate) {
@@ -254,16 +264,26 @@ export default function PCSBForm({
     setFormData({
       fullName: '',
       gender: 'Laki-laki',
+      jenjangPendidikan: 'MTs / SMP Formal',
       birthPlace: '',
       birthDate: '',
       parentName: '',
       parentPhone: '',
+      waAlternatif: '',
       address: '',
       previousSchool: '',
       kk: '',
       nik: '',
+      nisn: '',
+      anakKe: '1',
+      jumlahSaudara: '1',
+      statusKeluarga: 'Lengkap',
       fatherName: '',
       motherName: '',
+      pekerjaanAyah: '',
+      pekerjaanIbu: '',
+      penghasilanOrtu: 'Rp 1.500.000 - Rp 3.000.000',
+      ukuranSeragam: 'M',
       healthHistory: '',
       paymentType: 'Cicilan Bulanan'
     });
@@ -555,6 +575,10 @@ export default function PCSBForm({
 
                 <div className="space-y-2 text-xs">
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
+                    <div className="col-span-4 text-slate-500 font-medium">Jenjang / Program:</div>
+                    <div className="col-span-8 text-emerald-900 font-bold">{formData.jenjangPendidikan || 'MTs / SMP Formal'}</div>
+                  </div>
+                  <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
                     <div className="col-span-4 text-slate-500 font-medium">Nama Calon Santri:</div>
                     <div className="col-span-8 text-slate-900 font-bold">{formData.fullName}</div>
                   </div>
@@ -567,20 +591,37 @@ export default function PCSBForm({
                     <div className="col-span-8 text-slate-900">{formData.birthPlace || '-'}, {formData.birthDate || '-'}</div>
                   </div>
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
-                    <div className="col-span-4 text-slate-500 font-medium">NIK / No. KK:</div>
-                    <div className="col-span-8 text-slate-900 font-mono">NIK: {formData.nik || '-'} | KK: {formData.kk || '-'}</div>
+                    <div className="col-span-4 text-slate-500 font-medium">NIK / NISN / No. KK:</div>
+                    <div className="col-span-8 text-slate-900 font-mono text-[11px]">
+                      NIK: {formData.nik || '-'} {formData.nisn ? `| NISN: ${formData.nisn}` : ''} | KK: {formData.kk || '-'}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
+                    <div className="col-span-4 text-slate-500 font-medium">Status Keluarga:</div>
+                    <div className="col-span-8 text-slate-900">
+                      Anak ke-{formData.anakKe || 1} dari {formData.jumlahSaudara || 1} bersaudara • Status: {formData.statusKeluarga || 'Lengkap'}
+                    </div>
                   </div>
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
                     <div className="col-span-4 text-slate-500 font-medium">Nama Orang Tua:</div>
-                    <div className="col-span-8 text-slate-900 font-medium">Ayah: {formData.fatherName || '-'} | Ibu: {formData.motherName || '-'}</div>
+                    <div className="col-span-8 text-slate-900 font-medium">
+                      Ayah: {formData.fatherName || '-'} {formData.pekerjaanAyah ? `(${formData.pekerjaanAyah})` : ''} | 
+                      Ibu: {formData.motherName || '-'} {formData.pekerjaanIbu ? `(${formData.pekerjaanIbu})` : ''}
+                    </div>
                   </div>
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
-                    <div className="col-span-4 text-slate-500 font-medium">WhatsApp Wali:</div>
-                    <div className="col-span-8 text-emerald-800 font-mono font-bold">{formData.parentPhone}</div>
+                    <div className="col-span-4 text-slate-500 font-medium">Kontak WhatsApp:</div>
+                    <div className="col-span-8 text-emerald-800 font-mono font-bold">
+                      {formData.parentPhone} {formData.waAlternatif ? `(Alt: ${formData.waAlternatif})` : ''}
+                    </div>
                   </div>
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
                     <div className="col-span-4 text-slate-500 font-medium">Sekolah Asal:</div>
                     <div className="col-span-8 text-slate-900">{formData.previousSchool || '-'}</div>
+                  </div>
+                  <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
+                    <div className="col-span-4 text-slate-500 font-medium">Ukuran Seragam:</div>
+                    <div className="col-span-8 text-slate-900 font-bold">Ukuran {formData.ukuranSeragam || 'M'}</div>
                   </div>
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
                     <div className="col-span-4 text-slate-500 font-medium">Alamat:</div>
@@ -670,16 +711,26 @@ export default function PCSBForm({
               setFormData({
                 fullName: existingRegistration.fullName || '',
                 gender: existingRegistration.gender || 'Laki-laki',
+                jenjangPendidikan: existingRegistration.jenjangPendidikan || 'MTs / SMP Formal',
                 birthPlace: existingRegistration.birthPlace || '',
                 birthDate: existingRegistration.birthDate || '',
                 parentName: existingRegistration.parentName || '',
                 parentPhone: existingRegistration.parentPhone || '',
+                waAlternatif: existingRegistration.waAlternatif || '',
                 address: existingRegistration.address || '',
                 previousSchool: existingRegistration.previousSchool || '',
                 kk: existingRegistration.kk || '',
                 nik: existingRegistration.nik || '',
+                nisn: existingRegistration.nisn || '',
+                anakKe: existingRegistration.anakKe || '1',
+                jumlahSaudara: existingRegistration.jumlahSaudara || '1',
+                statusKeluarga: existingRegistration.statusKeluarga || 'Lengkap',
                 fatherName: existingRegistration.fatherName || '',
                 motherName: existingRegistration.motherName || '',
+                pekerjaanAyah: existingRegistration.pekerjaanAyah || '',
+                pekerjaanIbu: existingRegistration.pekerjaanIbu || '',
+                penghasilanOrtu: existingRegistration.penghasilanOrtu || 'Rp 1.500.000 - Rp 3.000.000',
+                ukuranSeragam: existingRegistration.ukuranSeragam || 'M',
                 healthHistory: existingRegistration.healthHistory || '',
                 paymentType: existingRegistration.paymentType || 'Cicilan Bulanan'
               });
@@ -819,8 +870,21 @@ export default function PCSBForm({
         </div>
       )}
 
-      {/* Multi-Step Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Multi-Step Form with Enter-Key Safeguard */}
+      <form 
+        onSubmit={handleSubmit} 
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            if (currentStep === 1) {
+              handleNextStep1();
+            } else if (currentStep === 2) {
+              handleNextStep2();
+            }
+          }
+        }}
+        className="space-y-6"
+      >
 
         {/* STEP 1: IDENTITAS CALON SANTRI */}
         {currentStep === 1 && (
@@ -837,6 +901,34 @@ export default function PCSBForm({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
+              {/* Pilihan Jenjang / Program Pendidikan */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  Pilihan Jenjang & Program Pendidikan <span className="text-rose-600">*</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {[
+                    { val: 'MTs / SMP Formal', label: 'MTs / SMP Formal', desc: 'Madrasah Tsanawiyah terakreditasi' },
+                    { val: 'MA / SMA Formal', label: 'MA / SMA Formal', desc: 'Madrasah Aliyah peminatan IPA/IPS' },
+                    { val: 'Madrasah Diniyah Salafiyah', label: 'Salafiyah Diniyah', desc: 'Fokus kajian kitab kuning & fiqh' }
+                  ].map((p) => (
+                    <button
+                      key={p.val}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, jenjangPendidikan: p.val as any })}
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                        formData.jenjangPendidikan === p.val
+                          ? 'bg-emerald-50 border-emerald-700 ring-2 ring-emerald-700/20 text-emerald-950 font-bold'
+                          : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <span className="text-xs font-bold">{p.label}</span>
+                      <span className="text-[10.5px] text-slate-500 mt-1">{p.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Full Name */}
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-800 mb-1">
@@ -902,22 +994,19 @@ export default function PCSBForm({
                 />
               </div>
 
-              {/* Previous School */}
+              {/* NISN (Opsional) */}
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Sekolah Asal (SD / MI / SMP / MTs) <span className="text-rose-600">*</span>
+                  NISN (Nomor Induk Siswa Nasional) <span className="text-slate-400 font-normal">(Opsional)</span>
                 </label>
-                <div className="relative">
-                  <Award className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    value={formData.previousSchool}
-                    onChange={(e) => setFormData({ ...formData, previousSchool: e.target.value })}
-                    placeholder="Contoh: MI Al-Khoiriyah Modung"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
-                  />
-                </div>
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={formData.nisn}
+                  onChange={(e) => setFormData({ ...formData, nisn: e.target.value.replace(/\D/g, '') })}
+                  placeholder="Contoh: 0081234567"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50 font-mono"
+                />
               </div>
 
               {/* Birth Place */}
@@ -947,6 +1036,54 @@ export default function PCSBForm({
                     required
                     value={formData.birthDate}
                     onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
+                  />
+                </div>
+              </div>
+
+              {/* Anak Ke & Jumlah Saudara */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Anak Ke- <span className="text-slate-400 font-normal">(dalam keluarga)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={formData.anakKe}
+                    onChange={(e) => setFormData({ ...formData, anakKe: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
+                    placeholder="Anak ke"
+                  />
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <span>dari</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={formData.jumlahSaudara}
+                      onChange={(e) => setFormData({ ...formData, jumlahSaudara: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
+                      placeholder="Jml saudara"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Previous School */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Sekolah Asal (SD / MI / SMP / MTs) <span className="text-rose-600">*</span>
+                </label>
+                <div className="relative">
+                  <Award className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={formData.previousSchool}
+                    onChange={(e) => setFormData({ ...formData, previousSchool: e.target.value })}
+                    placeholder="Contoh: MI Al-Khoiriyah Modung"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
                   />
                 </div>
@@ -1041,6 +1178,68 @@ export default function PCSBForm({
                 />
               </div>
 
+              {/* Pekerjaan Ayah */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Pekerjaan Ayah
+                </label>
+                <input
+                  type="text"
+                  value={formData.pekerjaanAyah}
+                  onChange={(e) => setFormData({ ...formData, pekerjaanAyah: e.target.value })}
+                  placeholder="Contoh: Wiraswasta / Petani / Karyawan"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
+                />
+              </div>
+
+              {/* Pekerjaan Ibu */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Pekerjaan Ibu
+                </label>
+                <input
+                  type="text"
+                  value={formData.pekerjaanIbu}
+                  onChange={(e) => setFormData({ ...formData, pekerjaanIbu: e.target.value })}
+                  placeholder="Contoh: Ibu Rumah Tangga / Guru / Pedagang"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
+                />
+              </div>
+
+              {/* Status Anak dalam Keluarga */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Status Anak dalam Keluarga
+                </label>
+                <select
+                  value={formData.statusKeluarga}
+                  onChange={(e) => setFormData({ ...formData, statusKeluarga: e.target.value as any })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
+                >
+                  <option value="Lengkap">Lengkap (Ayah & Ibu)</option>
+                  <option value="Yatim">Yatim (Ayah Wafat)</option>
+                  <option value="Piatu">Piatu (Ibu Wafat)</option>
+                  <option value="Yatim Piatu">Yatim Piatu</option>
+                </select>
+              </div>
+
+              {/* Estimasi Penghasilan Orang Tua */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Estimasi Penghasilan Orang Tua / Bulan
+                </label>
+                <select
+                  value={formData.penghasilanOrtu}
+                  onChange={(e) => setFormData({ ...formData, penghasilanOrtu: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50"
+                >
+                  <option value="< Rp 1.500.000">&lt; Rp 1.500.000</option>
+                  <option value="Rp 1.500.000 - Rp 3.000.000">Rp 1.500.000 - Rp 3.000.000</option>
+                  <option value="Rp 3.000.000 - Rp 5.000.000">Rp 3.000.000 - Rp 5.000.000</option>
+                  <option value="> Rp 5.000.000">&gt; Rp 5.000.000</option>
+                </select>
+              </div>
+
               {/* WhatsApp Phone */}
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
@@ -1059,8 +1258,25 @@ export default function PCSBForm({
                 </div>
               </div>
 
-              {/* No. KK */}
+              {/* WhatsApp Alternatif */}
               <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Nomor WhatsApp Alternatif / Kontak Lain <span className="text-slate-400 font-normal">(Opsional)</span>
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="tel"
+                    value={formData.waAlternatif}
+                    onChange={(e) => setFormData({ ...formData, waAlternatif: e.target.value })}
+                    placeholder="Contoh: 085712345678"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-slate-50/50 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* No. KK */}
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-800 mb-1">
                   No. Kartu Keluarga (KK) (16 Digit) <span className="text-rose-600">*</span>
                 </label>
@@ -1126,8 +1342,34 @@ export default function PCSBForm({
                 3
               </div>
               <div>
-                <h2 className="text-base font-extrabold text-slate-900">Ringkasan Biaya Masuk & Berkas</h2>
-                <p className="text-xs text-slate-500">Transparansi rincian biaya awal dan kelengkapan berkas calon santri.</p>
+                <h2 className="text-base font-extrabold text-slate-900">Ringkasan Biaya Masuk, Seragam & Berkas</h2>
+                <p className="text-xs text-slate-500">Transparansi rincian biaya awal, ukuran seragam, dan kelengkapan berkas calon santri.</p>
+              </div>
+            </div>
+
+            {/* Pilihan Ukuran Seragam Santri */}
+            <div className="p-4 rounded-2xl border border-slate-250 bg-slate-50/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-900">
+                  Ukuran Seragam Calon Santri (Paket 3 Stel):
+                </label>
+                <span className="text-[11px] text-slate-500 font-medium">Bisa ditukar saat fitting di pondok</span>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                {(['S', 'M', 'L', 'XL', 'XXL'] as const).map((sz) => (
+                  <button
+                    key={sz}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, ukuranSeragam: sz })}
+                    className={`py-2 px-3 rounded-xl border text-xs font-extrabold transition cursor-pointer text-center ${
+                      formData.ukuranSeragam === sz
+                        ? 'bg-emerald-800 text-white border-emerald-800 shadow-xs'
+                        : 'bg-white border-slate-250 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    Size {sz}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -1440,6 +1682,42 @@ export default function PCSBForm({
                   Alamat: Jl. Raya Modung, Mancengan Barat, Modung, Bangkalan, Madura, Jawa Timur.<br />
                   WhatsApp Panitia: <strong className="font-mono">0812-3456-7890</strong> • Buka setiap hari kerja (08.00 - 16.00 WIB).
                 </p>
+              </div>
+
+              {/* SECTION: UNDUH BROSUR RESMI PPDB */}
+              <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-250 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div>
+                  <div className="font-extrabold text-xs text-amber-950 flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-amber-700" />
+                    <span>Brosur Resmi Penerimaan Santri Baru (PPDB)</span>
+                  </div>
+                  <p className="text-[11px] text-amber-900 mt-0.5">
+                    {settings.brosurPcsbUrl 
+                      ? `Tersedia berkas brosur resmi: ${settings.brosurPcsbName || 'Brosur_Pendaftaran.pdf'}` 
+                      : 'Unduh brosur digital lengkap dengan rincian jadwal, kurikulum, dan fasilitas pesantren.'}
+                  </p>
+                </div>
+                {settings.brosurPcsbUrl ? (
+                  <a
+                    href={settings.brosurPcsbUrl}
+                    download={settings.brosurPcsbName || "Brosur_PPDB_Ponpes_Al_Asyariyah"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm shrink-0"
+                  >
+                    <Download className="h-3.5 w-3.5 text-amber-300" />
+                    <span>Unduh Brosur Resmi</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => downloadPrintableHTML('panduan-pendaftaran-printable-area', 'Brosur_Panduan_PPDB_Al_Asyariyah')}
+                    className="px-4 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm shrink-0"
+                  >
+                    <Download className="h-3.5 w-3.5 text-amber-300" />
+                    <span>Unduh Brosur PDF</span>
+                  </button>
+                )}
               </div>
 
             </div>

@@ -50,6 +50,14 @@ export interface PCSBRegistration {
   fatherPhone?: string;
   motherPhone?: string;
   guardianPhone?: string;
+  anakKe?: number | string;
+  jumlahSaudara?: number | string;
+  statusKeluarga?: string; // Lengkap / Yatim / Piatu / Yatim Piatu
+  pekerjaanAyah?: string;
+  pekerjaanIbu?: string;
+  penghasilanOrtu?: string;
+  ukuranSeragam?: string; // S / M / L / XL / XXL
+  waAlternatif?: string;
   paymentStatus?: string;
   paymentProof?: string;
   verifiedDocuments?: string[];
@@ -306,6 +314,8 @@ export interface PortalSettings {
   availableMadrasahClasses?: string[];
   waGatewayToken?: string;
   waGatewayUrl?: string;
+  brosurPcsbUrl?: string; // URL or base64 data for uploaded PPDB brochure
+  brosurPcsbName?: string; // Original filename (e.g. Brosur_Pendaftaran_Al_Asyariyah_2026.pdf)
 }
 
 export interface UserSession {

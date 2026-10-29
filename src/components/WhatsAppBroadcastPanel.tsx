@@ -10,7 +10,8 @@ import {
   ExternalLink, 
   RefreshCw, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  X
 } from 'lucide-react';
 import { Student, Bill, PortalSettings, Room } from '../types';
 import { formatIndonesianDate } from '../lib/dateUtils';
@@ -219,6 +220,8 @@ export default function WhatsAppBroadcastPanel({
     failed: 0
   });
   const [sendStatuses, setSendStatuses] = useState<Record<string, 'pending' | 'sending' | 'sent' | 'failed'>>({});
+  const [isDirectQueueOpen, setIsDirectQueueOpen] = useState(false);
+  const [directQueueIndex, setDirectQueueIndex] = useState(0);
 
   // Helper format phone
   const cleanPhone = (phone: any): string => {
@@ -284,110 +287,120 @@ export default function WhatsAppBroadcastPanel({
 
   // Murni pesan admin dengan kalkulasi tunggakan, deadline, dan rincian resmi
   const buildMessage = (std: Student): string => {
-    if (!messageBody) return '';
-    const waliName = std.parentName || std.fatherName || std.guardianName || 'Bapak/Ibu Wali Santri';
-    
-    // Resolve bills strictly belonging to this student
-    const studentBills = (bills || []).filter(b => 
-      b && (
-        b.studentId === std.id ||
-        (b.nis && std.nis && b.nis === std.nis) ||
-        (b.studentName && std.fullName && b.studentName.trim().toLowerCase() === std.fullName.trim().toLowerCase())
-      )
-    );
+    if (!std || !messageBody) return '';
+    try {
+      const waliName = std.parentName || std.fatherName || std.guardianName || 'Bapak/Ibu Wali Santri';
+      
+      // Resolve bills strictly belonging to this student safely
+      const studentBills = (bills || []).filter(b => 
+        b && (
+          b.studentId === std.id ||
+          (b.nis && std.nis && String(b.nis) === String(std.nis)) ||
+          (b.studentName && std.fullName && String(b.studentName).trim().toLowerCase() === String(std.fullName).trim().toLowerCase())
+        )
+      );
 
-    const totalAmount = studentBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
-    const unpaidBills = studentBills.filter(b => b.status === 'Belum Lunas');
-    const unpaidAmount = unpaidBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+      const totalAmount = studentBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+      const unpaidBills = studentBills.filter(b => b.status === 'Belum Lunas');
+      const unpaidAmount = unpaidBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
 
-    // Format tunggakan
-    const tunggakanText = unpaidAmount > 0 
-      ? `Rp ${unpaidAmount.toLocaleString('id-ID')}` 
-      : 'Rp 0 (Nihil / Bebas Tunggakan)';
+      // Format tunggakan
+      const tunggakanText = unpaidAmount > 0 
+        ? `Rp ${unpaidAmount.toLocaleString('id-ID')}` 
+        : 'Rp 0 (Nihil / Bebas Tunggakan)';
 
-    // Format deadline: ambil dari jatuh tempo tagihan tertunggak terdekat, atau default tanggal 10 bulan berjalan
-    let deadlineText = '';
-    if (unpaidBills.length > 0) {
-      const dates = unpaidBills.map(b => b.dueDate).filter(Boolean);
-      if (dates.length > 0) {
-        deadlineText = formatIndonesianDate(dates[0]);
+      // Format deadline: ambil dari jatuh tempo tagihan tertunggak terdekat, atau default tanggal 10 bulan berjalan
+      let deadlineText = '';
+      if (unpaidBills.length > 0) {
+        const dates = unpaidBills.map(b => b.dueDate).filter(Boolean);
+        if (dates.length > 0) {
+          try {
+            deadlineText = formatIndonesianDate(dates[0]);
+          } catch (e) {
+            deadlineText = String(dates[0]);
+          }
+        }
       }
+      if (!deadlineText && studentBills.length > 0) {
+        const dates = studentBills.map(b => b.dueDate).filter(Boolean);
+        if (dates.length > 0) {
+          try {
+            deadlineText = formatIndonesianDate(dates[0]);
+          } catch (e) {
+            deadlineText = String(dates[0]);
+          }
+        }
+      }
+      if (!deadlineText) {
+        const now = new Date();
+        deadlineText = `10 ${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
+      }
+
+      // Format rincian tagihan tertunggak
+      const rincianTunggakanText = unpaidBills.length > 0
+        ? unpaidBills.map((b, i) => `${i + 1}. *${b.title || 'Tagihan'}* - Rp ${Number(b.amount || 0).toLocaleString('id-ID')} (Jatuh Tempo: ${b.dueDate ? formatIndonesianDate(b.dueDate) : '-'})`).join('\n')
+        : '• Tidak ada tagihan tertunggak (Nihil / Lunas)';
+
+      // Format rincian semua tagihan
+      const rincianTagihanText = studentBills.length > 0
+        ? studentBills.map((b, i) => `${i + 1}. *${b.title || 'Tagihan'}* - Rp ${Number(b.amount || 0).toLocaleString('id-ID')} [${b.status || 'Aktif'}]`).join('\n')
+        : '• Tidak ada catatan tagihan terdaftar';
+
+      // Status tagihan
+      const statusTagihanText = studentBills.length === 0
+        ? 'Bebas Tanggungan (Nihil Tagihan)'
+        : unpaidAmount === 0
+        ? 'LUNAS 100%'
+        : `Belum Lunas (Sisa: Rp ${unpaidAmount.toLocaleString('id-ID')})`;
+
+      // Bank accounts info
+      const bankName = settings.pesantrenBankName || (settings.rekeningList?.[0]?.bankName) || 'Bank Syariah Indonesia (BSI)';
+      const accNum = settings.pesantrenBankAccountNumber || (settings.rekeningList?.[0]?.accountNumber) || '7182930412';
+      const accName = settings.pesantrenBankAccountName || (settings.rekeningList?.[0]?.accountName) || settings.schoolName || "PP. Al-Asy'ariyah";
+      const infoRekeningText = `• Bank: *${bankName}*\n• No. Rekening: *${accNum}*\n• Atas Nama: *${accName}*`;
+
+      // Capaian pembelajaran info
+      const capaianText = std.classMadrasah || std.classFormal || 'Kurikulum Pembinaan Aktif';
+
+      // Bendahara name based on gender
+      const isPutra = std.gender === 'Laki-laki';
+      const bendaharaName = isPutra
+        ? (settings.namaBendaharaPutra || settings.namaBendahara || 'Ustadz Ahmad Fauzi, S.E.')
+        : (settings.namaBendaharaPutri || settings.namaBendahara || 'Ustadzah Siti Aminah, S.E.');
+
+      return messageBody
+        .replace(/\{nama_santri\}/g, std.fullName || '')
+        .replace(/\{nama_wali\}/g, waliName)
+        .replace(/\{nis\}/g, std.nis || '-')
+        .replace(/\{kelas\}/g, std.classFormal || std.classMadrasah || std.class || '-')
+        .replace(/\{kamar\}/g, std.kamar ? `Kamar ${std.kamar}` : 'Non-Asrama')
+        .replace(/\{pesantren\}/g, settings.schoolName || "Pondok Pesantren Al-Asy'ariyah")
+        .replace(/\{pengasuh\}/g, settings.namaPengasuh || "KH. Asy'ari Al-Hafidz")
+        .replace(/\{bendahara\}/g, bendaharaName)
+        .replace(/\{akademik\}/g, settings.namaAkademik || "Bagian Pendidikan & Madrasah")
+        .replace(/\{keamanan\}/g, settings.namaKeamanan || "Bagian Keamanan & Ketertiban")
+        .replace(/\{tunggakan\}/g, tunggakanText)
+        .replace(/\{nominal_tunggakan\}/g, tunggakanText)
+        .replace(/\{total_tunggakan\}/g, tunggakanText)
+        .replace(/\{deadline\}/g, deadlineText)
+        .replace(/\{jatuh_tempo\}/g, deadlineText)
+        .replace(/\{rincian_tunggakan\}/g, rincianTunggakanText)
+        .replace(/\{nominal_tagihan\}/g, `Rp ${totalAmount.toLocaleString('id-ID')}`)
+        .replace(/\{total_tagihan\}/g, `Rp ${totalAmount.toLocaleString('id-ID')}`)
+        .replace(/\{rincian_tagihan\}/g, rincianTagihanText)
+        .replace(/\{status_tagihan\}/g, statusTagihanText)
+        .replace(/\{info_rekening\}/g, infoRekeningText)
+        .replace(/\{hafalan_santri\}/g, capaianText)
+        .replace(/\{capaian_santri\}/g, capaianText)
+        .replace(/\{hari_tanggal\}/g, 'Ahad, 25 Oktober 2026')
+        .replace(/\{waktu_agenda\}/g, '08.30 - 11.30')
+        .replace(/\{jadwal_ujian\}/g, '15 s/d 22 November 2026')
+        .replace(/\{tanggal_libur\}/g, '25 Desember 2026')
+        .replace(/\{tanggal_kembali\}/g, '05 Januari 2027');
+    } catch (err) {
+      console.error('Error building message for student:', err);
+      return messageBody.replace(/\{nama_santri\}/g, std?.fullName || '');
     }
-    if (!deadlineText && studentBills.length > 0) {
-      const dates = studentBills.map(b => b.dueDate).filter(Boolean);
-      if (dates.length > 0) deadlineText = formatIndonesianDate(dates[0]);
-    }
-    if (!deadlineText) {
-      const now = new Date();
-      deadlineText = `10 ${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
-    }
-
-    // Format rincian tagihan tertunggak
-    const rincianTunggakanText = unpaidBills.length > 0
-      ? unpaidBills.map((b, i) => `${i + 1}. *${b.title}* - Rp ${Number(b.amount || 0).toLocaleString('id-ID')} (Jatuh Tempo: ${formatIndonesianDate(b.dueDate) || b.dueDate || '-'})`).join('\n')
-      : '• Tidak ada tagihan tertunggak (Nihil / Lunas)';
-
-    // Format rincian semua tagihan
-    const rincianTagihanText = studentBills.length > 0
-      ? studentBills.map((b, i) => `${i + 1}. *${b.title}* - Rp ${Number(b.amount || 0).toLocaleString('id-ID')} [${b.status}]`).join('\n')
-      : '• Tidak ada catatan tagihan terdaftar';
-
-    // Status tagihan
-    const statusTagihanText = studentBills.length === 0
-      ? 'Bebas Tanggungan (Nihil Tagihan)'
-      : unpaidAmount === 0
-      ? 'LUNAS 100%'
-      : `Belum Lunas (Sisa: Rp ${unpaidAmount.toLocaleString('id-ID')})`;
-
-    // Bank accounts info
-    const bankName = settings.pesantrenBankName || (settings.rekeningList?.[0]?.bankName) || 'Bank Syariah Indonesia (BSI)';
-    const accNum = settings.pesantrenBankAccountNumber || (settings.rekeningList?.[0]?.accountNumber) || '7182930412';
-    const accName = settings.pesantrenBankAccountName || (settings.rekeningList?.[0]?.accountName) || settings.schoolName || "PP. Al-Asy'ariyah";
-    const infoRekeningText = `• Bank: *${bankName}*\n• No. Rekening: *${accNum}*\n• Atas Nama: *${accName}*`;
-
-    // Tahfidz & Akademik info
-    const hafalanText = std.currentHafalan || (std.tahfidzLogs && std.tahfidzLogs.length > 0 ? `${std.tahfidzLogs[0].juz} Juz (${std.tahfidzLogs[0].surah || ''})` : 'Target Kurikulum Tahfidz Aktif');
-    const predikatHafalan = std.tahfidzLogs?.[0]?.grade || 'A (Istimewa)';
-    const tglSetoran = std.tahfidzLogs?.[0]?.date 
-      ? formatIndonesianDate(std.tahfidzLogs[0].date) 
-      : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-
-    // Bendahara name based on gender
-    const isPutra = std.gender === 'Laki-laki';
-    const bendaharaName = isPutra
-      ? (settings.namaBendaharaPutra || settings.namaBendahara || 'Ustadz Ahmad Fauzi, S.E.')
-      : (settings.namaBendaharaPutri || settings.namaBendahara || 'Ustadzah Siti Aminah, S.E.');
-
-    return messageBody
-      .replace(/\{nama_santri\}/g, std.fullName || '')
-      .replace(/\{nama_wali\}/g, waliName)
-      .replace(/\{nis\}/g, std.nis || '-')
-      .replace(/\{kelas\}/g, std.classFormal || std.classMadrasah || std.class || '-')
-      .replace(/\{kamar\}/g, std.kamar ? `Kamar ${std.kamar}` : 'Non-Asrama')
-      .replace(/\{pesantren\}/g, settings.schoolName || "Pondok Pesantren Al-Asy'ariyah")
-      .replace(/\{pengasuh\}/g, settings.namaPengasuh || "KH. Asy'ari Al-Hafidz")
-      .replace(/\{bendahara\}/g, bendaharaName)
-      .replace(/\{akademik\}/g, settings.namaAkademik || "Bagian Pendidikan & Madrasah")
-      .replace(/\{keamanan\}/g, settings.namaKeamanan || "Bagian Keamanan & Ketertiban")
-      .replace(/\{tunggakan\}/g, tunggakanText)
-      .replace(/\{nominal_tunggakan\}/g, tunggakanText)
-      .replace(/\{total_tunggakan\}/g, tunggakanText)
-      .replace(/\{deadline\}/g, deadlineText)
-      .replace(/\{jatuh_tempo\}/g, deadlineText)
-      .replace(/\{rincian_tunggakan\}/g, rincianTunggakanText)
-      .replace(/\{nominal_tagihan\}/g, `Rp ${totalAmount.toLocaleString('id-ID')}`)
-      .replace(/\{total_tagihan\}/g, `Rp ${totalAmount.toLocaleString('id-ID')}`)
-      .replace(/\{rincian_tagihan\}/g, rincianTagihanText)
-      .replace(/\{status_tagihan\}/g, statusTagihanText)
-      .replace(/\{info_rekening\}/g, infoRekeningText)
-      .replace(/\{hafalan_santri\}/g, hafalanText)
-      .replace(/\{predikat_hafalan\}/g, predikatHafalan)
-      .replace(/\{tanggal_setoran\}/g, tglSetoran)
-      .replace(/\{hari_tanggal\}/g, 'Ahad, 25 Oktober 2026')
-      .replace(/\{waktu_agenda\}/g, '08.30 - 11.30')
-      .replace(/\{jadwal_ujian\}/g, '15 s/d 22 November 2026')
-      .replace(/\{tanggal_libur\}/g, '25 Desember 2026')
-      .replace(/\{tanggal_kembali\}/g, '05 Januari 2027');
   };
 
   const selectedStudentsList = useMemo(() => {
@@ -505,18 +518,13 @@ export default function WhatsAppBroadcastPanel({
       logAdminActivity('BROADCAST_WHATSAPP', `Mengirim pesan WhatsApp ke ${successCount} wali santri`);
       showAlert('success', `Selesai! Pesan berhasil terkirim ke ${successCount} nomor wali.`);
     } else {
-      // Mode Direct: Buka tab WhatsApp untuk santri terpilih
-      selectedStudentsList.forEach((std, idx) => {
-        setTimeout(() => {
-          const msg = buildMessage(std);
-          const phone = cleanPhone(std.parentPhone);
-          window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
-          saveWaLog(messageTitle || 'WhatsApp Direct', phone, `${std.parentName || 'Wali'} (${std.fullName})`, msg);
-          setSendStatuses(prev => ({ ...prev, [std.id]: 'sent' }));
-        }, idx * 400);
-      });
-
-      showAlert('success', `Membuka WhatsApp untuk ${selectedStudentsList.length} wali santri terpilih.`);
+      // Mode Direct: Jika 1 santri langsung buka wa.me, jika lebih dari 1 buka antrean interaktif agar aman dari browser blocker
+      if (selectedStudentsList.length === 1) {
+        handleSendSingleDirect(selectedStudentsList[0]);
+      } else {
+        setDirectQueueIndex(0);
+        setIsDirectQueueOpen(true);
+      }
     }
   };
 
@@ -907,6 +915,139 @@ export default function WhatsAppBroadcastPanel({
         </div>
 
       </div>
+
+      {/* MODAL ANTREAN WHATSAPP DIRECT (Mencegah browser popup error & crash saat banyak santri dipilih) */}
+      {isDirectQueueOpen && selectedStudentsList.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-emerald-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse" />
+                <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                  Antrean Pengiriman WhatsApp Direct
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDirectQueueOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Stepper progress */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-emerald-900">
+                  Antrean {directQueueIndex + 1} dari {selectedStudentsList.length} Santri Terpilih
+                </span>
+                <span className="text-slate-500 font-mono text-[11px]">
+                  {Math.round(((directQueueIndex + 1) / selectedStudentsList.length) * 100)}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div 
+                  className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${((directQueueIndex + 1) / selectedStudentsList.length) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Current Student Card */}
+            {selectedStudentsList[directQueueIndex] && (() => {
+              const currentStd = selectedStudentsList[directQueueIndex];
+              const phone = cleanPhone(currentStd.parentPhone);
+              const personalizedMsg = buildMessage(currentStd);
+              const isSent = sendStatuses[currentStd.id] === 'sent';
+
+              return (
+                <div className="space-y-3">
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-sm">{currentStd.fullName}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        isSent ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {isSent ? '✓ Sudah Dibuka' : 'Menunggu Kirim'}
+                      </span>
+                    </div>
+                    <div className="text-slate-600 flex items-center justify-between text-[11px]">
+                      <span>Wali: <strong>{currentStd.parentName || currentStd.fatherName || 'Wali'}</strong></span>
+                      <span className="font-mono font-bold text-emerald-900">WA: {currentStd.parentPhone || '-'}</span>
+                    </div>
+                  </div>
+
+                  {/* Message preview box */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700">Preview Pesan Terpersonalisasi:</label>
+                    <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/70 text-[11px] text-slate-800 font-mono whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed">
+                      {personalizedMsg}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(personalizedMsg)}`, '_blank');
+                        saveWaLog(messageTitle || 'WhatsApp Direct', phone, `${currentStd.parentName || 'Wali'} (${currentStd.fullName})`, personalizedMsg);
+                        setSendStatuses(prev => ({ ...prev, [currentStd.id]: 'sent' }));
+                        
+                        if (directQueueIndex < selectedStudentsList.length - 1) {
+                          setDirectQueueIndex(prev => prev + 1);
+                        } else {
+                          showAlert('success', 'Seluruh antrean pesan WhatsApp telah selesai dikirim!');
+                        }
+                      }}
+                      className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      <span>Buka Chat WhatsApp & Lanjut ({directQueueIndex + 1}/{selectedStudentsList.length})</span>
+                    </button>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(personalizedMsg);
+                          showAlert('success', `Teks pesan untuk ${currentStd.fullName} berhasil disalin!`);
+                        }}
+                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                      >
+                        Salin Teks
+                      </button>
+
+                      {directQueueIndex < selectedStudentsList.length - 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => setDirectQueueIndex(prev => prev + 1)}
+                          className="flex-1 py-2 border border-slate-250 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                        >
+                          Lewati Santri Ini ➔
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsDirectQueueOpen(false)}
+                          className="flex-1 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 rounded-xl text-xs font-bold transition cursor-pointer"
+                        >
+                          Selesai & Tutup
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[10.5px] text-amber-900 leading-tight">
+              💡 <strong>Ingin kirim otomatis ke semua santri sekaligus tanpa membuka tab?</strong> Hubungkan WhatsApp Gateway (Fonnte API Token) di menu Pengaturan Portal agar sistem dapat mengirim otomatis di latar belakang.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

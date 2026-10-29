@@ -275,6 +275,35 @@ export default function App() {
     }
   }, [darkMode]);
 
+  // Global modal lock: prevents background body scrolling whenever ANY popup/modal is open
+  React.useEffect(() => {
+    const checkAndLockScroll = () => {
+      const activeModals = document.querySelectorAll(
+        '.fixed.inset-0.z-50, .fixed.inset-0.z-45, [role="dialog"]'
+      );
+      if (activeModals.length > 0) {
+        document.body.style.overflow = 'hidden';
+        document.body.style.touchAction = 'none';
+      } else {
+        document.body.style.overflow = '';
+        document.body.style.touchAction = '';
+      }
+    };
+
+    const observer = new MutationObserver(() => {
+      checkAndLockScroll();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    checkAndLockScroll();
+
+    return () => {
+      observer.disconnect();
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
+  }, []);
+
   // States loaded from localStorage
   const [news, setNews] = React.useState<News[]>([]);
   const [announcements, setAnnouncements] = React.useState<Announcement[]>([]);
