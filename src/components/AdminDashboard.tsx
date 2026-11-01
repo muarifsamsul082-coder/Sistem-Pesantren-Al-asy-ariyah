@@ -4727,15 +4727,15 @@ export default function AdminDashboard({
         </div>
       )}
 
-      {/* Tab Panels */}
+      {/* Tab Panels with Smooth Modern Fade-In Transition */}
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.2 }}
-          className="w-full"
+          exit={{ opacity: 0, y: -3 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full tab-fade-in"
         >
           <ErrorBoundary fallbackTitle={`Menu "${activeTab}" Mengalami Kendala`}>
             {activeTab === 'overview' && (

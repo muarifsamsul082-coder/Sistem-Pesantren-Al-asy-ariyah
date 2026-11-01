@@ -61,13 +61,11 @@ export default function Navbar({
   const [isNavOpen, setIsNavOpen] = React.useState(false);
   const [logoImgError, setLogoImgError] = React.useState(false);
 
-  // Admin menu accordions for grouping similar admin sub-items
+  // Admin menu accordions: only for Pembayaran, Log Surat & Sistem, and Persetujuan & Daftar Pengurus
   const [adminMenuAccordions, setAdminMenuAccordions] = React.useState<Record<string, boolean>>({
-    santri: true,
-    ppdb: false,
-    keuangan: false,
-    komunikasi: false,
-    pengaturan: false,
+    pembayaran: false,
+    pengurus: false,
+    log: false,
   });
 
   const toggleAdminAccordion = (category: string) => {
@@ -80,16 +78,12 @@ export default function Navbar({
   // Automatically expand group containing active tab
   React.useEffect(() => {
     if (!adminTab) return;
-    if (['students', 'input_mandiri', 'kamar', 'kelas_sekolah', 'alumni'].includes(adminTab)) {
-      setAdminMenuAccordions(prev => ({ ...prev, santri: true }));
-    } else if (['ppdb', 'reports'].includes(adminTab)) {
-      setAdminMenuAccordions(prev => ({ ...prev, ppdb: true }));
-    } else if (['bills', 'laporan_keuangan', 'rekening'].includes(adminTab)) {
-      setAdminMenuAccordions(prev => ({ ...prev, keuangan: true }));
-    } else if (['whatsapp', 'news_ann', 'outbox_log'].includes(adminTab)) {
-      setAdminMenuAccordions(prev => ({ ...prev, komunikasi: true }));
-    } else if (['settings', 'akun_pengurus', 'pengurus', 'staff_activity_log'].includes(adminTab)) {
-      setAdminMenuAccordions(prev => ({ ...prev, pengaturan: true }));
+    if (['bills', 'laporan_keuangan', 'rekening'].includes(adminTab)) {
+      setAdminMenuAccordions(prev => ({ ...prev, pembayaran: true }));
+    } else if (['akun_pengurus', 'pengurus'].includes(adminTab)) {
+      setAdminMenuAccordions(prev => ({ ...prev, pengurus: true }));
+    } else if (['outbox_log', 'staff_activity_log'].includes(adminTab)) {
+      setAdminMenuAccordions(prev => ({ ...prev, log: true }));
     }
   }, [adminTab]);
 
@@ -124,11 +118,12 @@ export default function Navbar({
     };
   }, [isNavOpen, isAccountOpen, session]);
 
-  // Profile Modal states
+  // Profile Modal & Verification Notification states
   const [profileUpdateTrigger, setProfileUpdateTrigger] = React.useState(0);
   const [pendingStaffCount, setPendingStaffCount] = React.useState<number>(0);
+  const [pendingPcsbCount, setPendingPcsbCount] = React.useState<number>(0);
 
-  const checkPendingStaff = React.useCallback(() => {
+  const checkPendingCounts = React.useCallback(() => {
     try {
       const saved = localStorage.getItem('pesantren_staff_users');
       if (saved) {
@@ -136,30 +131,55 @@ export default function Navbar({
         if (Array.isArray(users)) {
           const count = users.filter((u: any) => u && u.isConfirmed === false).length;
           setPendingStaffCount(count);
-          return;
+        } else {
+          setPendingStaffCount(0);
         }
+      } else {
+        setPendingStaffCount(0);
       }
-    } catch (e) {}
-    setPendingStaffCount(0);
+    } catch (e) {
+      setPendingStaffCount(0);
+    }
+
+    try {
+      const savedPpdb = localStorage.getItem('pesantren_ppdb_list');
+      if (savedPpdb) {
+        const list = JSON.parse(savedPpdb);
+        if (Array.isArray(list)) {
+          const count = list.filter((p: any) => p && (p.status === 'Pending' || p.status === 'Diproses')).length;
+          setPendingPcsbCount(count);
+        } else {
+          setPendingPcsbCount(0);
+        }
+      } else {
+        setPendingPcsbCount(0);
+      }
+    } catch (e) {
+      setPendingPcsbCount(0);
+    }
   }, []);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
-      checkPendingStaff();
+      checkPendingCounts();
     }, 0);
-    const handleStaffUpdate = () => {
+    const handleUpdate = () => {
       setTimeout(() => {
-        checkPendingStaff();
+        checkPendingCounts();
       }, 0);
     };
-    window.addEventListener('pesantren_staff_users_updated', handleStaffUpdate);
-    window.addEventListener('storage', handleStaffUpdate);
+    window.addEventListener('pesantren_staff_users_updated', handleUpdate);
+    window.addEventListener('pesantren_ppdb_updated', handleUpdate);
+    window.addEventListener('pesantren_db_sync', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
     return () => {
       clearTimeout(timer);
-      window.removeEventListener('pesantren_staff_users_updated', handleStaffUpdate);
-      window.removeEventListener('storage', handleStaffUpdate);
+      window.removeEventListener('pesantren_staff_users_updated', handleUpdate);
+      window.removeEventListener('pesantren_ppdb_updated', handleUpdate);
+      window.removeEventListener('pesantren_db_sync', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
     };
-  }, [checkPendingStaff]);
+  }, [checkPendingCounts]);
 
   React.useEffect(() => {
     const handleUpdate = () => {
@@ -1022,348 +1042,301 @@ export default function Navbar({
             {/* Drawer Menu Content (Scroll Area) */}
             <div className="flex-1 overflow-y-auto py-2 divide-y divide-slate-50 dark:divide-slate-900">
               
-              {/* ADMIN MENU OPTIONS - GROUPED INTO CLEAN ACCORDIONS */}
+              {/* ADMIN MENU OPTIONS - SEPARATED INDIVIDUALLY EXCEPT PEMBAYARAN, LOG, & PENGURUS */}
               {session.role === 'admin' && (
-                <div className="py-1 space-y-1">
-                  <div className="px-4 py-1 text-[9px] uppercase font-mono font-bold text-slate-400">
-                    Menu Administrasi Pesantren
+                <div className="py-1 space-y-0.5">
+                  <div className="px-4 py-1.5 text-[10px] uppercase font-bold text-slate-400">
+                    Menu Administrasi
                   </div>
 
-                  {/* 1. Quick Link: Statistik Utama */}
+                  {/* 1. Beranda */}
                   <a
                     href="#admin/overview"
                     onClick={(e) => { e.preventDefault(); handleAdminTabClick('overview'); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center justify-between cursor-pointer rounded-xl ${
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
                       adminTab === 'overview' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white shadow-xs' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      <span className="text-sm">📊</span>
-                      <span>Statistik Utama (Grafik)</span>
-                    </span>
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md ${
-                      adminTab === 'overview' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-900 text-emerald-100' 
-                        : 'bg-slate-200/80 dark:bg-slate-700 text-slate-500'
-                    }`}>
-                      Ringkasan
-                    </span>
+                    <span>Beranda</span>
                   </a>
 
-                  {/* 2. Group: Kesiswaan & Santri */}
-                  <div className="space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleAdminAccordion('santri')}
-                      className="w-full px-4 py-2 text-xs font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="text-sm">👥</span>
-                        <span>Kesiswaan & Santri</span>
-                      </span>
-                      <span className="flex items-center gap-1.5 text-slate-400">
-                        <span className="text-[10px] font-normal bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded-md">5</span>
-                        {adminMenuAccordions.santri ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      </span>
-                    </button>
-                    {adminMenuAccordions.santri && (
-                      <div className="ml-5 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
-                        <a
-                          href="#admin/santri"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('students'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'students' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Manajemen Data Santri
-                        </a>
-                        <a
-                          href="#admin/input-mandiri"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('input_mandiri'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'input_mandiri' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Pendaftaran Offline Santri
-                        </a>
-                        <a
-                          href="#admin/kamar"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('kamar'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'kamar' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Manajemen Kamar & Quota
-                        </a>
-                        <a
-                          href="#admin/kelas"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('kelas_sekolah'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'kelas_sekolah' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Input Kelas & Sekolah
-                        </a>
-                        <a
-                          href="#admin/alumni"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('alumni'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'alumni' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Database Alumni Pesantren
-                        </a>
-                      </div>
-                    )}
-                  </div>
+                  {/* 2. Data Santri */}
+                  <a
+                    href="#admin/santri"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('students'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'students' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Data Santri</span>
+                  </a>
 
-                  {/* 3. Group: Pendaftaran (PSB) */}
-                  <div className="space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleAdminAccordion('ppdb')}
-                      className="w-full px-4 py-2 text-xs font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="text-sm">📝</span>
-                        <span>Pendaftaran Santri Baru (PSB)</span>
-                      </span>
-                      <span className="flex items-center gap-1.5 text-slate-400">
-                        <span className="text-[10px] font-normal bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded-md">2</span>
-                        {adminMenuAccordions.ppdb ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      </span>
-                    </button>
-                    {adminMenuAccordions.ppdb && (
-                      <div className="ml-5 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
-                        <a
-                          href="#admin/ppdb"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('ppdb'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'ppdb' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Pendaftar PCSB Baru
-                        </a>
-                        <a
-                          href="#admin/reports"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('reports'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'reports' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Rekapan Laporan Terpadu
-                        </a>
-                      </div>
-                    )}
-                  </div>
+                  {/* 3. Kamar Asrama */}
+                  <a
+                    href="#admin/kamar"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('kamar'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'kamar' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Kamar Asrama</span>
+                  </a>
 
-                  {/* 4. Group: Keuangan & Rekening */}
+                  {/* 4. Kelas & Sekolah Formal */}
+                  <a
+                    href="#admin/kelas"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('kelas_sekolah'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'kelas_sekolah' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Kelas & Sekolah Formal</span>
+                  </a>
+
+                  {/* 5. Database Alumni */}
+                  <a
+                    href="#admin/alumni"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('alumni'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'alumni' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Database Alumni</span>
+                  </a>
+
+                  {/* 6. Pendaftaran Santri Baru (PSB) */}
+                  <a
+                    href="#admin/ppdb"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('ppdb'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'ppdb' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Pendaftaran Santri Baru</span>
+                    {pendingPcsbCount > 0 && (
+                      <span className="bg-amber-400 text-slate-950 font-bold text-[9px] px-2 py-0.5 rounded-full animate-pulse">
+                        Perlu Verifikasi ({pendingPcsbCount})
+                      </span>
+                    )}
+                  </a>
+
+                  {/* 7. Pendaftaran Offline Santri */}
+                  <a
+                    href="#admin/input-mandiri"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('input_mandiri'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'input_mandiri' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Pendaftaran Offline Santri</span>
+                  </a>
+
+                  {/* 8. Berita & Pengumuman */}
+                  <a
+                    href="#admin/berita"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('news_ann'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'news_ann' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Berita & Pengumuman</span>
+                  </a>
+
+                  {/* 9. Broadcast WhatsApp */}
+                  <a
+                    href="#admin/whatsapp"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('whatsapp'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'whatsapp' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Broadcast WhatsApp</span>
+                  </a>
+
+                  {/* 10. Rekapan Laporan Terpadu */}
+                  <a
+                    href="#admin/reports"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('reports'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'reports' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Rekapan Laporan Terpadu</span>
+                  </a>
+
+                  {/* 11. DISATUKAN: Pembayaran */}
                   <div className="space-y-0.5">
                     <button
                       type="button"
-                      onClick={() => toggleAdminAccordion('keuangan')}
-                      className="w-full px-4 py-2 text-xs font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
+                      onClick={() => toggleAdminAccordion('pembayaran')}
+                      className="w-full px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
                     >
-                      <span className="flex items-center gap-2">
-                        <span className="text-sm">💰</span>
-                        <span>Keuangan & Rekening</span>
-                      </span>
-                      <span className="flex items-center gap-1.5 text-slate-400">
-                        <span className="text-[10px] font-normal bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded-md">3</span>
-                        {adminMenuAccordions.keuangan ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      <span>Pembayaran</span>
+                      <span className="text-slate-400">
+                        {adminMenuAccordions.pembayaran ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </span>
                     </button>
-                    {adminMenuAccordions.keuangan && (
-                      <div className="ml-5 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
+                    {adminMenuAccordions.pembayaran && (
+                      <div className="ml-4 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
                         <a
                           href="#admin/tagihan"
                           onClick={(e) => { e.preventDefault(); handleAdminTabClick('bills'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
+                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
                             adminTab === 'bills' && currentView === 'admin-dashboard' 
                               ? 'bg-emerald-800 text-white font-bold' 
                               : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
                           }`}
                         >
-                          Tagihan & Keuangan SPP
+                          <span>Tagihan & Keuangan SPP</span>
                         </a>
                         <a
                           href="#admin/keuangan"
                           onClick={(e) => { e.preventDefault(); handleAdminTabClick('laporan_keuangan'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center justify-between cursor-pointer ${
+                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
                             adminTab === 'laporan_keuangan' && currentView === 'admin-dashboard' 
                               ? 'bg-emerald-800 text-white font-bold' 
                               : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
                           }`}
                         >
                           <span>Laporan Keuangan & Kas</span>
-                          <span className="text-[9px] bg-amber-400 text-emerald-950 font-black px-1.5 py-0.5 rounded-full font-mono">
-                            PUTRA/I
-                          </span>
                         </a>
                         <a
                           href="#admin/rekening"
                           onClick={(e) => { e.preventDefault(); handleAdminTabClick('rekening'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
+                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
                             adminTab === 'rekening' && currentView === 'admin-dashboard' 
                               ? 'bg-emerald-800 text-white font-bold' 
                               : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
                           }`}
                         >
-                          Rekening Pesantren
+                          <span>Rekening Pesantren</span>
                         </a>
                       </div>
                     )}
                   </div>
 
-                  {/* 5. Group: Komunikasi & Publikasi */}
+                  {/* 12. DISATUKAN: Persetujuan Akun Pengurus & Daftar Pengurus */}
                   <div className="space-y-0.5">
                     <button
                       type="button"
-                      onClick={() => toggleAdminAccordion('komunikasi')}
-                      className="w-full px-4 py-2 text-xs font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
+                      onClick={() => toggleAdminAccordion('pengurus')}
+                      className="w-full px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
                     >
-                      <span className="flex items-center gap-2">
-                        <span className="text-sm">📢</span>
-                        <span>Komunikasi & Publikasi</span>
-                      </span>
-                      <span className="flex items-center gap-1.5 text-slate-400">
-                        <span className="text-[10px] font-normal bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded-md">3</span>
-                        {adminMenuAccordions.komunikasi ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      </span>
-                    </button>
-                    {adminMenuAccordions.komunikasi && (
-                      <div className="ml-5 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
-                        <a
-                          href="#admin/whatsapp"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('whatsapp'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'whatsapp' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Broadcast WhatsApp
-                        </a>
-                        <a
-                          href="#admin/berita"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('news_ann'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'news_ann' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Berita & Pengumuman
-                        </a>
-                        <a
-                          href="#admin/surat-keluar"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('outbox_log'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'outbox_log' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Register Log Surat Keluar
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 6. Group: Pengaturan & Akun Pengurus */}
-                  <div className="space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleAdminAccordion('pengaturan')}
-                      className="w-full px-4 py-2 text-xs font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="text-sm">⚙️</span>
-                        <span>Pengaturan & Akun</span>
-                      </span>
+                      <span>Pengurus</span>
                       <span className="flex items-center gap-1.5 text-slate-400">
                         {pendingStaffCount > 0 && (
-                          <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded-full">
-                            {pendingStaffCount}
+                          <span className="bg-amber-400 text-slate-950 font-bold text-[9px] px-1.5 py-0.5 rounded-full animate-pulse">
+                            Perlu Verifikasi ({pendingStaffCount})
                           </span>
                         )}
-                        <span className="text-[10px] font-normal bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded-md">4</span>
-                        {adminMenuAccordions.pengaturan ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        {adminMenuAccordions.pengurus ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </span>
                     </button>
-                    {adminMenuAccordions.pengaturan && (
-                      <div className="ml-5 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
-                        <a
-                          href="#admin/settings"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('settings'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-2 cursor-pointer ${
-                            adminTab === 'settings' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Pengaturan Portal & Brosur
-                        </a>
+                    {adminMenuAccordions.pengurus && (
+                      <div className="ml-4 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
                         <a
                           href="#admin/akun-pengurus"
                           onClick={(e) => { e.preventDefault(); handleAdminTabClick('akun_pengurus'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center justify-between cursor-pointer ${
+                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
                             adminTab === 'akun_pengurus' && currentView === 'admin-dashboard' 
                               ? 'bg-emerald-800 text-white font-bold' 
                               : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
                           }`}
                         >
-                          <span className="truncate">Persetujuan & Akun Pengurus</span>
+                          <span>Persetujuan & Akun Pengurus</span>
                           {pendingStaffCount > 0 && (
-                            <span className="bg-amber-400 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-full animate-bounce shrink-0 ml-1">
-                              {pendingStaffCount}
+                            <span className="bg-amber-400 text-slate-950 font-bold text-[9px] px-1.5 py-0.5 rounded-full animate-pulse">
+                              Perlu Verifikasi
                             </span>
                           )}
                         </a>
                         <a
                           href="#admin/pengurus"
                           onClick={(e) => { e.preventDefault(); handleAdminTabClick('pengurus'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center justify-between cursor-pointer ${
+                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
                             adminTab === 'pengurus' && currentView === 'admin-dashboard' 
                               ? 'bg-emerald-800 text-white font-bold' 
                               : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
                           }`}
                         >
-                          Daftar Pengurus & Tanda Tangan
+                          <span>Daftar Pengurus & Tanda Tangan</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 13. DISATUKAN: Log Surat Keluar & Log Sistem */}
+                  <div className="space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleAdminAccordion('log')}
+                      className="w-full px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
+                    >
+                      <span>Log & Riwayat</span>
+                      <span className="text-slate-400">
+                        {adminMenuAccordions.log ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      </span>
+                    </button>
+                    {adminMenuAccordions.log && (
+                      <div className="ml-4 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
+                        <a
+                          href="#admin/surat-keluar"
+                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('outbox_log'); }}
+                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
+                            adminTab === 'outbox_log' && currentView === 'admin-dashboard' 
+                              ? 'bg-emerald-800 text-white font-bold' 
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          <span>Log Surat Keluar</span>
                         </a>
                         <a
                           href="#admin/audit-log"
                           onClick={(e) => { e.preventDefault(); handleAdminTabClick('staff_activity_log'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center justify-between cursor-pointer ${
+                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
                             adminTab === 'staff_activity_log' && currentView === 'admin-dashboard' 
                               ? 'bg-emerald-800 text-white font-bold' 
                               : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
                           }`}
                         >
-                          <span>Log Aksi & Audit Pengurus</span>
-                          <span className="text-[9px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 font-mono font-bold px-1.5 py-0.5 rounded-full">
-                            Audit
-                          </span>
+                          <span>Log Sistem & Audit Pengurus</span>
                         </a>
                       </div>
                     )}
                   </div>
+
+                  {/* 14. Pengaturan Portal & Brosur */}
+                  <a
+                    href="#admin/settings"
+                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('settings'); }}
+                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                      adminTab === 'settings' && currentView === 'admin-dashboard' 
+                        ? 'bg-emerald-800 text-white font-bold' 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    <span>Pengaturan Portal & Brosur</span>
+                  </a>
 
                 </div>
               )}
