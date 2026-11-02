@@ -1958,37 +1958,9 @@ export default function AdminDashboard({
         } catch (e) {}
       }
 
-      // Auto-update editSettings so "Daftar Pengurus" menu always matches the account names
-      setEditSettings(prev => {
-        const next = { ...prev, ...parsedSettings };
-        if (Array.isArray(parsedStaff)) {
-          parsedStaff.forEach((u: any) => {
-            const r = (u.role || '').toLowerCase().trim();
-            const uName = (u.fullName || u.name || '').trim();
-            if (r === 'admin') {
-              // Admin adalah operator sistem, bukan pengasuh/pengurus kecuali memegang jabatan resmi
-            } else if (r.includes('pengasuh')) {
-              next.namaPengasuh = uName;
-            } else if (r === 'keamanan' || r.includes('kamtib')) {
-              next.namaKeamanan = uName;
-            } else if (r === 'ketertiban') {
-              next.namaKetertiban = uName;
-            } else if (r === 'kesehatan' || r.includes('poskestren')) {
-              next.namaKesehatan = uName;
-            } else if (r.includes('bendahara')) {
-              next.namaBendaharaPutra = uName;
-              next.namaBendahara = uName;
-            } else if (r.includes('sekretaris')) {
-              next.namaSekretarisPutra = uName;
-            } else if (r.includes('pcsb') || r.includes('ppdb')) {
-              next.namaKetuaPcsb = uName;
-            } else if (r.includes('akademik')) {
-              next.namaAkademik = uName;
-            }
-          });
-        }
-        return next;
-      });
+      if (parsedSettings && typeof parsedSettings === 'object') {
+        setEditSettings(prev => ({ ...prev, ...parsedSettings }));
+      }
     };
 
     // Run once on mount to ensure initial match
@@ -2016,11 +1988,10 @@ export default function AdminDashboard({
       if (r === 'ketertiban' && ur === 'ketertiban') return true;
       if ((r === 'kesehatan' || r.includes('poskestren')) && (ur === 'kesehatan' || ur.includes('poskestren'))) return true;
       if (r.includes('bendahara') && ur.includes('bendahara')) return true;
-      if (r.includes('sekretaris') && ur.includes('sekretaris')) return true;
       if ((r.includes('akademik') || r.includes('pendidikan') || r.includes('madrasah')) && (ur.includes('akademik') || ur.includes('pendidikan') || ur.includes('madrasah'))) return true;
       if ((r.includes('pcsb') || r.includes('ppdb')) && (ur.includes('pcsb') || ur.includes('ppdb'))) return true;
       if ((r.includes('pengasuh') || r.includes('ketua')) && (ur.includes('pengasuh') || ur.includes('ketua'))) return true;
-      if ((r.includes('penasihat') || r.includes('masyayikh')) && (ur.includes('penasihat') || ur.includes('masyayikh'))) return true;
+      if ((r.includes('yayasan') || r.includes('penasihat')) && (ur.includes('yayasan') || ur.includes('penasihat'))) return true;
       return ur === r;
     });
     if (byRole) return byRole;
@@ -2054,14 +2025,12 @@ export default function AdminDashboard({
           targetName = s.namaKesehatan;
         } else if (r.includes('bendahara')) {
           targetName = s.namaBendaharaPutra || s.namaBendahara || s.namaBendaharaPutri;
-        } else if (r.includes('sekretaris')) {
-          targetName = s.namaSekretarisPutra || s.namaSekretarisPutri;
         } else if (r.includes('akademik') || r.includes('pendidikan') || r.includes('madrasah')) {
           targetName = s.namaAkademik;
         } else if (r.includes('pcsb') || r.includes('ppdb')) {
           targetName = s.namaKetuaPcsb;
-        } else if (r.includes('penasihat') || r.includes('masyayikh')) {
-          targetName = s.namaDewanMasyayikh;
+        } else if (r.includes('yayasan') || r.includes('penasihat')) {
+          targetName = s.namaKetuaYayasan;
         } else if (r.includes('pengasuh')) {
           targetName = s.namaPengasuh;
         }
@@ -2081,7 +2050,7 @@ export default function AdminDashboard({
           else if (s.namaKetertiban && s.namaKetertiban.toLowerCase().includes(uFull)) targetName = s.namaKetertiban;
           else if (s.namaKesehatan && s.namaKesehatan.toLowerCase().includes(uFull)) targetName = s.namaKesehatan;
           else if (s.namaBendaharaPutra && s.namaBendaharaPutra.toLowerCase().includes(uFull)) targetName = s.namaBendaharaPutra;
-          else if (s.namaSekretarisPutra && s.namaSekretarisPutra.toLowerCase().includes(uFull)) targetName = s.namaSekretarisPutra;
+          else if (s.namaKetuaYayasan && s.namaKetuaYayasan.toLowerCase().includes(uFull)) targetName = s.namaKetuaYayasan;
           else if (s.namaAkademik && s.namaAkademik.toLowerCase().includes(uFull)) targetName = s.namaAkademik;
           else if (s.namaKetuaPcsb && s.namaKetuaPcsb.toLowerCase().includes(uFull)) targetName = s.namaKetuaPcsb;
         }
@@ -2859,15 +2828,12 @@ export default function AdminDashboard({
       updatedSettings.namaBendaharaPutra = newName.trim();
       updatedSettings.namaBendahara = newName.trim();
       didUpdateSettings = true;
-    } else if (roleKey.includes('sekretaris')) {
-      updatedSettings.namaSekretarisPutra = newName.trim();
-      didUpdateSettings = true;
     } else if (roleKey.includes('akademik') || roleKey.includes('pendidikan') || roleKey.includes('madrasah')) {
       updatedSettings.namaAkademik = newName.trim(); didUpdateSettings = true;
     } else if (roleKey.includes('pcsb') || roleKey.includes('ppdb')) {
       updatedSettings.namaKetuaPcsb = newName.trim(); didUpdateSettings = true;
-    } else if (roleKey.includes('penasihat') || roleKey.includes('masyayikh')) {
-      updatedSettings.namaDewanMasyayikh = newName.trim(); didUpdateSettings = true;
+    } else if (roleKey.includes('yayasan') || roleKey.includes('penasihat')) {
+      updatedSettings.namaKetuaYayasan = newName.trim(); didUpdateSettings = true;
     } else if (roleKey.includes('pengasuh')) {
       updatedSettings.namaPengasuh = newName.trim(); didUpdateSettings = true;
     }
@@ -2900,14 +2866,12 @@ export default function AdminDashboard({
           targetName = settings.namaKesehatan.trim();
         } else if (r.includes('bendahara') && (settings.namaBendaharaPutra || settings.namaBendahara)) {
           targetName = (settings.namaBendaharaPutra || settings.namaBendahara)!.trim();
-        } else if (r.includes('sekretaris') && (settings.namaSekretarisPutra || settings.namaSekretarisPutri)) {
-          targetName = (settings.namaSekretarisPutra || settings.namaSekretarisPutri)!.trim();
         } else if ((r.includes('akademik') || r.includes('pendidikan') || r.includes('madrasah')) && settings.namaAkademik) {
           targetName = settings.namaAkademik.trim();
         } else if ((r.includes('pcsb') || r.includes('ppdb')) && settings.namaKetuaPcsb) {
           targetName = settings.namaKetuaPcsb.trim();
-        } else if ((r.includes('penasihat') || r.includes('masyayikh')) && settings.namaDewanMasyayikh) {
-          targetName = settings.namaDewanMasyayikh.trim();
+        } else if ((r.includes('yayasan') || r.includes('penasihat')) && settings.namaKetuaYayasan) {
+          targetName = settings.namaKetuaYayasan.trim();
         } else if (r.includes('pengasuh') && settings.namaPengasuh) {
           targetName = settings.namaPengasuh.trim();
         }
@@ -2935,6 +2899,7 @@ export default function AdminDashboard({
         setTimeout(() => {
           window.dispatchEvent(new Event('pesantren_staff_users_updated'));
         }, 0);
+        if (isSupabaseConfigured()) pushAllStaffUsersToSupabase(updated).catch(() => {});
         return updated;
       }
       return prev;
@@ -2945,10 +2910,8 @@ export default function AdminDashboard({
     settings.namaKesehatan, 
     settings.namaBendaharaPutra, 
     settings.namaBendahara, 
-    settings.namaSekretarisPutra,
-    settings.namaSekretarisPutri,
     settings.namaKetuaPcsb,
-    settings.namaDewanMasyayikh,
+    settings.namaKetuaYayasan,
     settings.namaPengasuh,
     settings.namaAkademik, 
     settings.customOfficials
@@ -3068,8 +3031,8 @@ export default function AdminDashboard({
       if (!regSettings.namaBendaharaPutra) regSettings.namaBendaharaPutra = newStaff.fullName;
       if (!regSettings.namaBendahara) regSettings.namaBendahara = newStaff.fullName;
       didSync = true;
-    } else if (rKey.includes('sekretaris')) {
-      if (!regSettings.namaSekretarisPutra) regSettings.namaSekretarisPutra = newStaff.fullName;
+    } else if (rKey.includes('yayasan')) {
+      regSettings.namaKetuaYayasan = newStaff.fullName;
       didSync = true;
     } else if (rKey.includes('akademik') || rKey.includes('pendidikan') || rKey.includes('madrasah')) {
       regSettings.namaAkademik = newStaff.fullName; didSync = true;
@@ -10683,13 +10646,13 @@ export default function AdminDashboard({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full min-w-0">
               
-              {/* Dewan Masyayikh / Penasihat */}
+              {/* Ketua Yayasan */}
               <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2 min-w-0 w-full overflow-hidden">
                 <div className="flex items-center justify-between flex-wrap gap-1 min-w-0">
-                  <span className="text-xs font-bold text-slate-900">Dewan Masyayikh / Penasihat</span>
+                  <span className="text-xs font-bold text-slate-900">Ketua Yayasan</span>
                   <div className="flex items-center gap-1 flex-wrap">
                     {(() => {
-                      const matched = getMatchedStaffUser('penasihat', editSettings.namaDewanMasyayikh);
+                      const matched = getMatchedStaffUser('yayasan', editSettings.namaKetuaYayasan);
                       if (!matched) return null;
                       return (
                         <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded flex items-center gap-1" title={`Tersinkron dengan akun login: ${matched.email}`}>
@@ -10697,7 +10660,7 @@ export default function AdminDashboard({
                         </span>
                       );
                     })()}
-                    {editSettings.ttdDewanMasyayikhUrl && (
+                    {editSettings.ttdKetuaYayasanUrl && (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                         ✓ Ada
                       </span>
@@ -10706,10 +10669,10 @@ export default function AdminDashboard({
                 </div>
                 <input
                   type="text"
-                  placeholder="Nama Dewan Masyayikh..."
-                  value={editSettings.namaDewanMasyayikh || ''}
+                  placeholder="Nama Ketua Yayasan..."
+                  value={editSettings.namaKetuaYayasan || ''}
                   onChange={(e) => {
-                    setEditSettings({ ...editSettings, namaDewanMasyayikh: e.target.value });
+                    setEditSettings({ ...editSettings, namaKetuaYayasan: e.target.value });
                     setIsSettingsDirty(true);
                   }}
                   className="w-full min-w-0 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
@@ -10726,7 +10689,7 @@ export default function AdminDashboard({
                         if (file) {
                           const compressed = await compressImage(file, 300, 160, 0.85);
                           if (compressed) {
-                            setEditSettings({ ...editSettings, ttdDewanMasyayikhUrl: compressed });
+                            setEditSettings({ ...editSettings, ttdKetuaYayasanUrl: compressed });
                             setIsSettingsDirty(true);
                           }
                         }
@@ -10737,172 +10700,18 @@ export default function AdminDashboard({
                     <input
                       type="text"
                       placeholder="URL tanda tangan..."
-                      value={editSettings.ttdDewanMasyayikhUrl?.startsWith('data:') ? '' : (editSettings.ttdDewanMasyayikhUrl || '')}
+                      value={editSettings.ttdKetuaYayasanUrl?.startsWith('data:') ? '' : (editSettings.ttdKetuaYayasanUrl || '')}
                       onChange={(e) => {
-                        setEditSettings({ ...editSettings, ttdDewanMasyayikhUrl: e.target.value.trim() });
+                        setEditSettings({ ...editSettings, ttdKetuaYayasanUrl: e.target.value.trim() });
                         setIsSettingsDirty(true);
                       }}
                       className="flex-1 min-w-0 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
                     />
-                    {editSettings.ttdDewanMasyayikhUrl && (
+                    {editSettings.ttdKetuaYayasanUrl && (
                       <button
                         type="button"
                         onClick={() => {
-                          setEditSettings({ ...editSettings, ttdDewanMasyayikhUrl: '' });
-                          setIsSettingsDirty(true);
-                        }}
-                        className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
-                      >
-                        Hapus
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Sekretaris Pondok Putra */}
-              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2 min-w-0 w-full overflow-hidden">
-                <div className="flex items-center justify-between flex-wrap gap-1 min-w-0">
-                  <span className="text-xs font-bold text-slate-900">Sekretaris Pondok Putra</span>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {(() => {
-                      const matched = getMatchedStaffUser('sekretaris', editSettings.namaSekretarisPutra);
-                      if (!matched) return null;
-                      return (
-                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded flex items-center gap-1" title={`Tersinkron dengan akun login: ${matched.email}`}>
-                          👥 Akun: {matched.fullName || matched.name}
-                        </span>
-                      );
-                    })()}
-                    {editSettings.ttdSekretarisPutraUrl && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        ✓ Ada
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Nama Sekretaris Putra..."
-                  value={editSettings.namaSekretarisPutra || ''}
-                  onChange={(e) => {
-                    setEditSettings({ ...editSettings, namaSekretarisPutra: e.target.value });
-                    setIsSettingsDirty(true);
-                  }}
-                  className="w-full min-w-0 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
-                />
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 w-full min-w-0">
-                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer shrink-0">
-                    <UploadCloud className="h-3 w-3" /> Unggah TTD
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const compressed = await compressImage(file, 300, 160, 0.85);
-                          if (compressed) {
-                            setEditSettings({ ...editSettings, ttdSekretarisPutraUrl: compressed });
-                            setIsSettingsDirty(true);
-                          }
-                        }
-                      }}
-                    />
-                  </label>
-                  <div className="flex items-center gap-1 flex-1 min-w-0 w-full">
-                    <input
-                      type="text"
-                      placeholder="URL tanda tangan..."
-                      value={editSettings.ttdSekretarisPutraUrl?.startsWith('data:') ? '' : (editSettings.ttdSekretarisPutraUrl || '')}
-                      onChange={(e) => {
-                        setEditSettings({ ...editSettings, ttdSekretarisPutraUrl: e.target.value.trim() });
-                        setIsSettingsDirty(true);
-                      }}
-                      className="flex-1 min-w-0 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
-                    />
-                    {editSettings.ttdSekretarisPutraUrl && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditSettings({ ...editSettings, ttdSekretarisPutraUrl: '' });
-                          setIsSettingsDirty(true);
-                        }}
-                        className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
-                      >
-                        Hapus
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Sekretaris Pondok Putri */}
-              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2 min-w-0 w-full overflow-hidden">
-                <div className="flex items-center justify-between flex-wrap gap-1 min-w-0">
-                  <span className="text-xs font-bold text-slate-900">Sekretaris Pondok Putri</span>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {(() => {
-                      const matched = getMatchedStaffUser('sekretaris', editSettings.namaSekretarisPutri);
-                      if (!matched) return null;
-                      return (
-                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded flex items-center gap-1" title={`Tersinkron dengan akun login: ${matched.email}`}>
-                          👥 Akun: {matched.fullName || matched.name}
-                        </span>
-                      );
-                    })()}
-                    {editSettings.ttdSekretarisPutriUrl && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        ✓ Ada
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Nama Sekretaris Putri..."
-                  value={editSettings.namaSekretarisPutri || ''}
-                  onChange={(e) => {
-                    setEditSettings({ ...editSettings, namaSekretarisPutri: e.target.value });
-                    setIsSettingsDirty(true);
-                  }}
-                  className="w-full min-w-0 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
-                />
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 w-full min-w-0">
-                  <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer shrink-0">
-                    <UploadCloud className="h-3 w-3" /> Unggah TTD
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const compressed = await compressImage(file, 300, 160, 0.85);
-                          if (compressed) {
-                            setEditSettings({ ...editSettings, ttdSekretarisPutriUrl: compressed });
-                            setIsSettingsDirty(true);
-                          }
-                        }
-                      }}
-                    />
-                  </label>
-                  <div className="flex items-center gap-1 flex-1 min-w-0 w-full">
-                    <input
-                      type="text"
-                      placeholder="URL tanda tangan..."
-                      value={editSettings.ttdSekretarisPutriUrl?.startsWith('data:') ? '' : (editSettings.ttdSekretarisPutriUrl || '')}
-                      onChange={(e) => {
-                        setEditSettings({ ...editSettings, ttdSekretarisPutriUrl: e.target.value.trim() });
-                        setIsSettingsDirty(true);
-                      }}
-                      className="flex-1 min-w-0 w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
-                    />
-                    {editSettings.ttdSekretarisPutriUrl && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditSettings({ ...editSettings, ttdSekretarisPutriUrl: '' });
+                          setEditSettings({ ...editSettings, ttdKetuaYayasanUrl: '' });
                           setIsSettingsDirty(true);
                         }}
                         className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded font-semibold cursor-pointer shrink-0"
@@ -11909,8 +11718,8 @@ export default function AdminDashboard({
                                       if (!appSettings.namaBendaharaPutra) appSettings.namaBendaharaPutra = resolvedName;
                                       if (!appSettings.namaBendahara) appSettings.namaBendahara = resolvedName;
                                       didAppSync = true;
-                                    } else if (appRole.includes('sekretaris')) {
-                                      if (!appSettings.namaSekretarisPutra) appSettings.namaSekretarisPutra = resolvedName;
+                                    } else if (appRole.includes('yayasan')) {
+                                      if (!appSettings.namaKetuaYayasan) appSettings.namaKetuaYayasan = resolvedName;
                                       didAppSync = true;
                                     } else if (appRole.includes('akademik') || appRole.includes('pendidikan') || appRole.includes('madrasah')) {
                                       appSettings.namaAkademik = resolvedName; didAppSync = true;
@@ -12011,7 +11820,7 @@ export default function AdminDashboard({
                     <option value="ketertiban">Bagian Ketertiban Santri</option>
                     <option value="kesehatan">Bagian Kesehatan (Poskestren)</option>
                     <option value="bendahara">Bendahara Pondok</option>
-                    <option value="sekretaris">Sekretaris Pondok</option>
+                    <option value="yayasan">Ketua Yayasan</option>
                     <option value="akademik">Bagian Pendidikan / Madrasah</option>
                     <option value="pcsb">Ketua Panitia PCSB / PPDB</option>
                   </select>

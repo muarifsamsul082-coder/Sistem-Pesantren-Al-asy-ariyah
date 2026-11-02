@@ -222,12 +222,8 @@ CREATE TABLE IF NOT EXISTS public.settings (
   -- DAFTAR PENGURUS YANG MENJABAT & TANDA TANGAN
   nama_pengurus TEXT,
   ttd_pengurus_url TEXT,
-  nama_dewan_masyayikh TEXT,
-  ttd_dewan_masyayikh_url TEXT,
-  nama_sekretaris_putra TEXT,
-  ttd_sekretaris_putra_url TEXT,
-  nama_sekretaris_putri TEXT,
-  ttd_sekretaris_putri_url TEXT,
+  nama_ketua_yayasan TEXT,
+  ttd_ketua_yayasan_url TEXT,
   nama_bendahara TEXT,
   ttd_bendahara_url TEXT,
   stempel_bendahara_url TEXT,
@@ -652,12 +648,8 @@ ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_lurah_putra TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_lurah_putra_url TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_lurah_putri TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_lurah_putri_url TEXT;
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_sekretaris_putra TEXT;
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_sekretaris_putra_url TEXT;
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_sekretaris_putri TEXT;
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_sekretaris_putri_url TEXT;
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_dewan_masyayikh TEXT;
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_dewan_masyayikh_url TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_ketua_yayasan TEXT;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_ketua_yayasan_url TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS nama_keamanan TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS ttd_keamanan_url TEXT;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS stempel_keamanan_url TEXT;
@@ -2909,12 +2901,8 @@ export function formatSettingsToSupabasePayload(s: PortalSettings) {
     ttd_lurah_putra_url: s.ttdLurahPutraUrl || null,
     nama_lurah_putri: s.namaLurahPutri || null,
     ttd_lurah_putri_url: s.ttdLurahPutriUrl || null,
-    nama_sekretaris_putra: s.namaSekretarisPutra || null,
-    ttd_sekretaris_putra_url: s.ttdSekretarisPutraUrl || null,
-    nama_sekretaris_putri: s.namaSekretarisPutri || null,
-    ttd_sekretaris_putri_url: s.ttdSekretarisPutriUrl || null,
-    nama_dewan_masyayikh: s.namaDewanMasyayikh || null,
-    ttd_dewan_masyayikh_url: s.ttdDewanMasyayikhUrl || null,
+    nama_ketua_yayasan: s.namaKetuaYayasan || null,
+    ttd_ketua_yayasan_url: s.ttdKetuaYayasanUrl || null,
     nama_keamanan: s.namaKeamanan || null,
     ttd_keamanan_url: s.ttdKeamananUrl || null,
     stempel_keamanan_url: s.stempelKeamananUrl || null,
@@ -3023,12 +3011,8 @@ export async function syncSettingsWithSupabase(currentSettings: PortalSettings):
         ttdLurahPutraUrl: data.ttd_lurah_putra_url !== undefined ? data.ttd_lurah_putra_url : workingSettings.ttdLurahPutraUrl,
         namaLurahPutri: data.nama_lurah_putri || workingSettings.namaLurahPutri,
         ttdLurahPutriUrl: data.ttd_lurah_putri_url !== undefined ? data.ttd_lurah_putri_url : workingSettings.ttdLurahPutriUrl,
-        namaSekretarisPutra: data.nama_sekretaris_putra || workingSettings.namaSekretarisPutra,
-        ttdSekretarisPutraUrl: data.ttd_sekretaris_putra_url !== undefined ? data.ttd_sekretaris_putra_url : workingSettings.ttdSekretarisPutraUrl,
-        namaSekretarisPutri: data.nama_sekretaris_putri || workingSettings.namaSekretarisPutri,
-        ttdSekretarisPutriUrl: data.ttd_sekretaris_putri_url !== undefined ? data.ttd_sekretaris_putri_url : workingSettings.ttdSekretarisPutriUrl,
-        namaDewanMasyayikh: data.nama_dewan_masyayikh || workingSettings.namaDewanMasyayikh,
-        ttdDewanMasyayikhUrl: data.ttd_dewan_masyayikh_url !== undefined ? data.ttd_dewan_masyayikh_url : workingSettings.ttdDewanMasyayikhUrl,
+        namaKetuaYayasan: data.nama_ketua_yayasan || data.nama_dewan_masyayikh || workingSettings.namaKetuaYayasan,
+        ttdKetuaYayasanUrl: data.ttd_ketua_yayasan_url !== undefined ? data.ttd_ketua_yayasan_url : (data.ttd_dewan_masyayikh_url !== undefined ? data.ttd_dewan_masyayikh_url : workingSettings.ttdKetuaYayasanUrl),
         namaKeamanan: data.nama_keamanan || workingSettings.namaKeamanan,
         ttdKeamananUrl: data.ttd_keamanan_url !== undefined ? data.ttd_keamanan_url : workingSettings.ttdKeamananUrl,
         stempelKeamananUrl: data.stempel_keamanan_url !== undefined ? data.stempel_keamanan_url : workingSettings.stempelKeamananUrl,
@@ -3118,6 +3102,8 @@ export async function pushSettingsToSupabase(s: PortalSettings): Promise<void> {
         nama_pengasuh: s.namaPengasuh || null,
         ttd_pengasuh_url: s.ttdPengasuhUrl || null,
         stempel_pengasuh_url: s.stempelPengasuhUrl || null,
+        nama_ketua_yayasan: s.namaKetuaYayasan || null,
+        ttd_ketua_yayasan_url: s.ttdKetuaYayasanUrl || null,
         nama_pengurus: s.namaPengurus || null,
         ttd_pengurus_url: s.ttdPengurusUrl || null,
         nama_bendahara: s.namaBendahara || null,

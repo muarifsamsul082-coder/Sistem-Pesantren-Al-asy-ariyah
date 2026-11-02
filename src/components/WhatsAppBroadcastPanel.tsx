@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Send, 
   CheckSquare, 
@@ -44,140 +44,108 @@ export const getLetterTemplates = (settings: PortalSettings) => {
       label: '⚠️ Peringatan Tunggakan & Batas Akhir (Deadline)',
       title: 'Peringatan Tunggakan Pembayaran',
       body: `Assalamu'alaikum Wr. Wb.
-Yth. Bapak/Ibu {nama_wali},
-Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas}, Kamar: {kamar})
+Yth. Bapak/Ibu {nama_wali} (Wali dari {nama_santri}, Kelas {kelas}).
 
-Semoga Bapak/Ibu sekeluarga senantiasa berada dalam lindungan dan limpahan rahmat Allah SWT.
+Informasi kewajiban administrasi santri yang belum lunas di ${school}:
+• Total Tunggakan: *{tunggakan}*
+• Batas Pelunasan: *{deadline}*
 
-Melalui pesan ini, kami dari bagian Keuangan / Bendahara ${school} menginformasikan catatan administrasi ananda yang saat ini masih *melewati batas jatuh tempo (menunggak)* dengan rincian sebagai berikut:
-
-⚠️ *RINCIAN TUNGGAKAN PEMBAYARAN:*
-• Total Kewajiban Menunggak: *{tunggakan}*
-• Batas Akhir Pelunasan (Deadline): *{deadline}*
-
-📋 *Pos Tagihan Tertunggak:*
+Rincian:
 {rincian_tunggakan}
 
-Mohon bantuan Bapak/Ibu wali santri untuk dapat segera melunasi kewajiban tersebut sebelum batas deadline: *{deadline}* demi kelancaran kegiatan belajar, pembinaan ibadah, dan operasional santri di pesantren.
-
-Pembayaran dapat ditunaikan secara tunai di kantor bendahara atau melalui transfer rekening resmi:
+Rekening Pembayaran:
 {info_rekening}
 
-*Catatan:* Apabila Bapak/Ibu telah melakukan pembayaran sebelumnya, mohon kirimkan foto resi/bukti transfer melalui nomor ini agar kami sinkronkan pembukuannya.
-
-Jazakumullah khairan katsiran atas perhatian, kerja sama, dan pengertian Bapak/Ibu.
+Mohon konfirmasi bukti transfer via WhatsApp ini. Terima kasih atas kerja samanya.
 Wassalamu'alaikum Wr. Wb.
 
--- ${bendahara} (Bendahara ${school}) --`
+-- Bendahara ${school} --`
     },
     {
       id: 'surat_tagihan',
       label: '💰 Pemberitahuan Pembayaran Syahriyah / SPP',
       title: 'Pemberitahuan Pembayaran Syahriyah',
       body: `Assalamu'alaikum Wr. Wb.
-Yth. Bapak/Ibu {nama_wali},
-Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas}, Kamar: {kamar})
+Yth. Bapak/Ibu {nama_wali} (Wali dari {nama_santri}, Kelas {kelas}).
 
-Diberitahukan perihal administrasi pembayaran syahriyah (SPP) dan kegiatan santri di ${school}:
-
-📋 *RINCIAN TAGIHAN:*
+Pemberitahuan tagihan syahriyah di ${school}:
 • Total Tagihan: *{nominal_tagihan}*
-• Batas Pembayaran (Jatuh Tempo): *{deadline}*
-• Status Pembayaran: *{status_tagihan}*
+• Jatuh Tempo: *{deadline}*
+• Status: *{status_tagihan}*
 
-Rincian pos biaya:
+Rincian:
 {rincian_tagihan}
 
-Pembayaran dapat ditunaikan secara tunai di kantor bendahara atau ditransfer melalui rekening resmi pesantren:
+Rekening Pembayaran:
 {info_rekening}
 
-Setelah melakukan transfer, bukti pembayaran dapat diunggah melalui Portal Santri resmi atau konfirmasikan ke nomor bendahara.
-
-Jazakumullah khairan katsiran atas perhatian, kerja sama, dan dukungannya.
+Konfirmasikan bukti transfer ke nomor ini atau via portal. Terima kasih.
 Wassalamu'alaikum Wr. Wb.
 
--- ${bendahara} (Bendahara ${school}) --`
+-- Bendahara ${school} --`
     },
     {
       id: 'surat_undangan',
       label: '✉️ Undangan Pertemuan Wali Santri',
       title: 'Undangan Pertemuan Wali Santri',
       body: `Assalamu'alaikum Wr. Wb.
-Yth. Bapak/Ibu {nama_wali},
-Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas}, Kamar: {kamar})
+Yth. Bapak/Ibu {nama_wali} (Wali dari {nama_santri}).
 
-Mengharap kehadiran Bapak/Ibu Wali Santri dalam agenda *Pertemuan & Silaturahmi Akbar Wali Santri* ${school} yang insya Allah akan diselenggarakan pada:
-
-📅 Hari / Tanggal: {hari_tanggal}
-⏰ Waktu: {waktu_agenda} WIB
+Mengharap kehadiran Bapak/Ibu pada Pertemuan Wali Santri ${school}:
+📅 Waktu: {hari_tanggal}, pukul {waktu_agenda} WIB
 📍 Tempat: Aula Pertemuan Utama ${school}
-📌 Agenda: Evaluasi Perkembangan Santri, Laporan Pendidikan, & Musyawarah Wali
+📌 Agenda: Evaluasi Pendidikan & Silaturahmi
 
-Kehadiran serta masukan dari Bapak/Ibu sekalian sangat berharga demi kemajuan pendidikan, akhlakul karimah, dan pembinaan ananda di pondok pesantren.
-
-Atas perhatian dan kehadirannya, kami haturkan terima kasih.
+Kehadiran Bapak/Ibu sangat diharapkan. Terima kasih.
 Wassalamu'alaikum Wr. Wb.
 
--- ${pengasuh} (Pengasuh ${school}) --`
+-- Pengasuh ${school} --`
     },
     {
       id: 'surat_ujian',
       label: '📝 Pemberitahuan Waktu & Jadwal Ujian Santri',
       title: 'Pemberitahuan Waktu & Jadwal Ujian Santri',
       body: `Assalamu'alaikum Wr. Wb.
-Yth. Bapak/Ibu {nama_wali},
-Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas})
+Yth. Bapak/Ibu {nama_wali} (Wali dari {nama_santri}).
 
-Diberitahukan kepada seluruh wali santri, khususnya wali dari ananda *{nama_santri}*, bahwa agenda *Ujian Semester (Imtihan Diniyah & Ujian Formal)* di ${school} akan segera dilaksanakan:
+Pemberitahuan Ujian Semester di ${school}:
+📅 Pelaksanaan: {jadwal_ujian}
+📖 Materi: Kitab Kuning, Tahfidz & Formal
 
-📅 Periode Pelaksanaan: {jadwal_ujian}
-📖 Cakupan Materi: Kitab Kuning, Tahfidz Al-Qur'an, dan Akademik Sekolah
-
-Mohon doa restu dan motivasi dari Bapak/Ibu agar ananda senantiasa diberikan kesehatan, ketenangan, kemudahan dalam belajar, serta memperoleh hasil ujian yang berkah dan memuaskan.
-
+Mohon doa restu agar ananda diberikan kelancaran belajar. Terima kasih.
 Wassalamu'alaikum Wr. Wb.
 
--- ${akademik} (${school}) --`
+-- Bagian Akademik ${school} --`
     },
     {
       id: 'surat_libur',
       label: '🌙 Maklumat Libur & Penjemputan Santri',
       title: 'Maklumat Libur & Penjemputan Santri',
       body: `Assalamu'alaikum Wr. Wb.
-Yth. Bapak/Ibu {nama_wali},
-Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas}, Kamar: {kamar})
+Yth. Bapak/Ibu {nama_wali} (Wali dari {nama_santri}).
 
-Sehubungan dengan selesainya agenda pendidikan dan ujian di ${school}, kami menginformasikan jadwal perpulangan/libur semester santri:
-
+Jadwal Libur Semester Santri ${school}:
 📅 Mulai Penjemputan: {tanggal_libur}
-📅 Batas Kembali ke Pesantren: {tanggal_kembali}
+📅 Batas Kembali: {tanggal_kembali}
 
-Ketentuan Perpulangan:
-1. Menyelesaikan proses perizinan resmi di bagian Keamanan.
-2. Menyelesaikan kewajiban administrasi syahriyah bagi yang masih memiliki tunggakan.
-3. Menjaga sholat 5 waktu, adab, dan nama baik pesantren selama di lingkungan keluarga.
-
-Demikian maklumat ini disampaikan. Terima kasih atas kerja samanya.
+Catatan: Harap menyelesaikan perizinan di Keamanan dan administrasi sebelum kepulangan. Terima kasih.
 Wassalamu'alaikum Wr. Wb.
 
--- ${keamanan} (${school}) --`
+-- Bagian Keamanan ${school} --`
     },
     {
       id: 'surat_tahfidz',
       label: '📖 Laporan Perkembangan Tahfidz Al-Qur\'an',
       title: 'Laporan Hafalan Al-Qur\'an Santri',
       body: `Assalamu'alaikum Wr. Wb.
-Yth. Bapak/Ibu {nama_wali},
-Wali dari ananda: *{nama_santri}* (NIS: {nis}, Kelas: {kelas})
+Yth. Bapak/Ibu {nama_wali} (Wali dari {nama_santri}).
 
-Alhamdulillah, berikut kami sampaikan laporan mutaba'ah tahfidz Al-Qur'an ananda di ${school}:
+Laporan mutaba'ah tahfidz Al-Qur'an ananda di ${school}:
+📖 Capaian: *{hafalan_santri}*
+⭐ Predikat: *{predikat_hafalan}*
+📅 Tanggal: {tanggal_setoran}
 
-📖 Capaian Hafalan: *{hafalan_santri}*
-⭐ Predikat Setoran Terakhir: *{predikat_hafalan}*
-📅 Tanggal Pembaruan: {tanggal_setoran}
-
-Semoga ananda senantiasa istiqomah dalam murojaah, mengamalkan akhlak Qur'ani, dan membawa keberkahan bagi keluarga tercinta.
-
+Semoga ananda istiqomah dan berkah bagi keluarga. Terima kasih.
 Wassalamu'alaikum Wr. Wb.
 
 -- Pembina Tahfidz ${school} --`
@@ -209,6 +177,7 @@ export default function WhatsAppBroadcastPanel({
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
   // Message compose states - Simple & tanpa penambahan kata-kata otomatis
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [messageTitle, setMessageTitle] = useState('Pemberitahuan Pesantren');
   const [messageBody, setMessageBody] = useState<string>('');
 
@@ -249,12 +218,49 @@ export default function WhatsAppBroadcastPanel({
     return c.length >= 10 && c.startsWith('62');
   };
 
-  // Filtered students list
+  // Helper cek apakah sedang dalam mode broadcast penunggakan / tunggakan santri
+  const isTunggakanBroadcast = useMemo(() => {
+    const titleLower = (messageTitle || '').toLowerCase();
+    const bodyLower = (messageBody || '').toLowerCase();
+    return (
+      selectedTemplateId === 'surat_tunggakan' ||
+      titleLower.includes('tunggakan') ||
+      titleLower.includes('belum lunas') ||
+      titleLower.includes('menunggak') ||
+      bodyLower.includes('{tunggakan}') ||
+      bodyLower.includes('{rincian_tunggakan}') ||
+      bodyLower.includes('{nominal_tunggakan}') ||
+      bodyLower.includes('{total_tunggakan}')
+    );
+  }, [selectedTemplateId, messageTitle, messageBody]);
+
+  // Helper kalkulasi tagihan & tunggakan per santri
+  const getStudentUnpaidData = useCallback((std: Student) => {
+    if (!std || !bills) return { unpaidBills: [], unpaidAmount: 0 };
+    const studentBills = bills.filter(b => 
+      b && (
+        b.studentId === std.id ||
+        (b.nis && std.nis && String(b.nis) === String(std.nis)) ||
+        (b.studentName && std.fullName && String(b.studentName).trim().toLowerCase() === String(std.fullName).trim().toLowerCase())
+      )
+    );
+    const unpaidBills = studentBills.filter(b => b.status === 'Belum Lunas');
+    const unpaidAmount = unpaidBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+    return { unpaidBills, unpaidAmount };
+  }, [bills]);
+
+  // Filtered students list - Jika tentang penunggakan, HANYA TAMPILKAN SANTRI YANG MENUNGGAK
   const filteredStudents = useMemo(() => {
     if (!Array.isArray(students)) return [];
     return students.filter(s => {
       if (!s || !s.id) return false;
       if (s.status !== 'Aktif') return false;
+
+      // Filter khusus tunggakan: hanya santri yang memiliki tunggakan/belum bayar (unpaidAmount > 0)
+      if (isTunggakanBroadcast) {
+        const { unpaidAmount } = getStudentUnpaidData(s);
+        if (unpaidAmount <= 0) return false;
+      }
 
       // Class filter
       if (selectedClass !== 'Semua') {
@@ -277,7 +283,24 @@ export default function WhatsAppBroadcastPanel({
 
       return true;
     });
-  }, [students, selectedClass, hasPhoneOnly, searchQuery]);
+  }, [students, selectedClass, hasPhoneOnly, searchQuery, isTunggakanBroadcast, getStudentUnpaidData]);
+
+  // Auto-deselect santri yang tidak menunggak saat masuk mode penunggakan
+  React.useEffect(() => {
+    if (isTunggakanBroadcast) {
+      setSelectedStudentIds(prev => {
+        const next = new Set<string>();
+        prev.forEach(id => {
+          const s = students.find(x => x.id === id);
+          if (s) {
+            const { unpaidAmount } = getStudentUnpaidData(s);
+            if (unpaidAmount > 0) next.add(id);
+          }
+        });
+        return next;
+      });
+    }
+  }, [isTunggakanBroadcast, students, getStudentUnpaidData]);
 
   // Selection handlers
   const handleToggleSelectAll = () => {
@@ -613,6 +636,7 @@ export default function WhatsAppBroadcastPanel({
                   onClick={() => {
                     setMessageBody('');
                     setMessageTitle('Pemberitahuan Pesantren');
+                    setSelectedTemplateId('');
                   }}
                   className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer"
                 >
@@ -621,9 +645,10 @@ export default function WhatsAppBroadcastPanel({
               )}
             </div>
             <select
-              value=""
+              value={selectedTemplateId}
               onChange={(e) => {
                 const val = e.target.value;
+                setSelectedTemplateId(val);
                 if (!val) return;
                 const tmpl = letterTemplates.find(t => t.id === val);
                 if (tmpl) {
@@ -646,11 +671,12 @@ export default function WhatsAppBroadcastPanel({
                   key={tmpl.id}
                   type="button"
                   onClick={() => {
+                    setSelectedTemplateId(tmpl.id);
                     setMessageTitle(tmpl.title);
                     setMessageBody(tmpl.body);
                   }}
                   className={`text-[10.5px] px-2 py-0.5 rounded-lg border font-semibold transition cursor-pointer flex items-center gap-1 ${
-                    messageTitle === tmpl.title
+                    selectedTemplateId === tmpl.id || messageTitle === tmpl.title
                       ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs'
                       : 'bg-white hover:bg-emerald-100/70 text-emerald-950 border-emerald-200 shadow-2xs'
                   }`}
@@ -878,6 +904,19 @@ export default function WhatsAppBroadcastPanel({
               </div>
             </div>
 
+            {/* Banner Mode Khusus Tunggakan */}
+            {isTunggakanBroadcast && (
+              <div className="bg-amber-50 border border-amber-300 text-amber-900 px-3 py-2 rounded-lg text-xs flex items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-amber-800">⚠️ Mode Penagihan Tunggakan:</span>
+                  <span className="text-amber-900 font-medium">Hanya santri dengan tunggakan belum lunas yang ditampilkan ({filteredStudents.length} santri).</span>
+                </div>
+                <span className="text-[10px] font-bold bg-amber-200/90 text-amber-900 px-2 py-0.5 rounded shrink-0">
+                  Terfilter Otomatis
+                </span>
+              </div>
+            )}
+
             {/* List Penerima Ringkas */}
             <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[360px] overflow-y-auto">
               <table className="w-full text-left text-xs">
@@ -901,6 +940,7 @@ export default function WhatsAppBroadcastPanel({
                       const hasPhone = isValidPhone(std.parentPhone);
                       const isSelected = selectedStudentIds.has(std.id);
                       const isSent = sendStatuses[std.id] === 'sent';
+                      const unpaidData = isTunggakanBroadcast ? getStudentUnpaidData(std) : null;
 
                       return (
                         <tr 
@@ -923,6 +963,11 @@ export default function WhatsAppBroadcastPanel({
                             <div className="text-[10px] text-slate-500">
                               NIS: {std.nis || '-'} • {std.class || std.classFormal || '-'}
                             </div>
+                            {unpaidData && unpaidData.unpaidAmount > 0 && (
+                              <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                                <span>Tunggakan: Rp {unpaidData.unpaidAmount.toLocaleString('id-ID')}</span>
+                              </div>
+                            )}
                           </td>
                           <td className="p-2">
                             <div className="font-semibold text-slate-800 leading-tight">

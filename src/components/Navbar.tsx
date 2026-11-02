@@ -508,8 +508,8 @@ export default function Navbar({
         else if (session.role.includes('bendahara')) {
           updatedSettings.namaBendaharaPutra = newName;
           updatedSettings.namaBendahara = newName;
-        } else if (session.role.includes('sekretaris')) {
-          updatedSettings.namaSekretarisPutra = newName;
+        } else if (session.role.includes('yayasan')) {
+          updatedSettings.namaKetuaYayasan = newName;
         }
 
         localStorage.setItem('pesantren_settings', JSON.stringify(updatedSettings));

@@ -82,13 +82,37 @@ export function getTodayDateString(): string {
 }
 
 /**
+ * Checks if a given date string is more than 30 days / 1 month before current date
+ */
+export function isDateMoreThanOneMonthAgo(dateStr?: string): boolean {
+  if (!dateStr || !dateStr.trim()) return false;
+  try {
+    const normalized = normalizeDateToYMD(dateStr);
+    const targetDate = new Date(`${normalized}T00:00:00`);
+    if (isNaN(targetDate.getTime())) return false;
+    const now = new Date();
+    const diffMs = now.getTime() - targetDate.getTime();
+    const oneMonthMs = 30 * 24 * 60 * 60 * 1000;
+    return diffMs > oneMonthMs;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Ensures PPDB settings preserve user-configured start and end dates.
- * It will not wipe or shift dates.
+ * Tanggal pendaftaran ditutup dihapus jika tanggal sudah melewati satu bulan pada tanggal berjalan.
  */
 export function autoAdjustPpdbSettings<T extends { ppdbOpen?: boolean; ppdbStartDate?: string; ppdbEndDate?: string }>(settings: T): T {
   if (!settings) return settings;
   const start = settings.ppdbStartDate ? normalizeDateToYMD(settings.ppdbStartDate) : '';
-  const end = settings.ppdbEndDate ? normalizeDateToYMD(settings.ppdbEndDate) : '';
+  let end = settings.ppdbEndDate ? normalizeDateToYMD(settings.ppdbEndDate) : '';
+  
+  // Jika tanggal pendaftaran ditutup sudah melewati 1 bulan dari tanggal sekarang, hapus tanggalnya
+  if (end && isDateMoreThanOneMonthAgo(end)) {
+    end = '';
+  }
+
   return {
     ...settings,
     ppdbStartDate: start,
@@ -122,7 +146,12 @@ export function isPpdbCurrentlyActive(settings?: {
   }
 
   const start = settings.ppdbStartDate?.trim() || '';
-  const end = settings.ppdbEndDate?.trim() || '';
+  let end = settings.ppdbEndDate?.trim() || '';
+
+  // Tanggal pada pendaftaran ditutup dihapus jika tanggal sudah melewati satu bulan pada tanggal berjalan
+  if (end && isDateMoreThanOneMonthAgo(end)) {
+    end = '';
+  }
 
   const startFormatted = formatIndonesianDate(start);
   const endFormatted = formatIndonesianDate(end);
@@ -159,6 +188,20 @@ export function isPpdbCurrentlyActive(settings?: {
   }
 
   if (end && todayStr > end) {
+    const isPastOneMonth = isDateMoreThanOneMonthAgo(end);
+    if (isPastOneMonth) {
+      return {
+        isActive: false,
+        statusText: 'Penerimaan Calon Santri Baru saat ini sedang ditutup.',
+        badgeText: 'Pendaftaran Ditutup',
+        unifiedNoticeText: 'Pendaftaran Calon Santri Baru Sedang Ditutup',
+        reason: 'ended',
+        periodDetail: 'Masa pendaftaran online periode ini sedang ditutup.',
+        scheduleRangeText: 'Pendaftaran Ditutup',
+        startDateFormatted: '',
+        endDateFormatted: ''
+      };
+    }
     return {
       isActive: false,
       statusText: `Pendaftaran telah resmi berakhir dan ditutup pada tanggal ${endFormatted}.`,

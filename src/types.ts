@@ -260,14 +260,8 @@ export interface PortalSettings {
   namaLurahPutri?: string;
   ttdLurahPutriUrl?: string;
 
-  namaSekretarisPutra?: string;
-  ttdSekretarisPutraUrl?: string;
-
-  namaSekretarisPutri?: string;
-  ttdSekretarisPutriUrl?: string;
-
-  namaDewanMasyayikh?: string;
-  ttdDewanMasyayikhUrl?: string;
+  namaKetuaYayasan?: string;
+  ttdKetuaYayasanUrl?: string;
   
   namaKeamanan?: string;
   ttdKeamananUrl?: string;
