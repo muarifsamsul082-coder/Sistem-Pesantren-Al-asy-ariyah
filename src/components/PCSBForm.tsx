@@ -531,8 +531,8 @@ export default function PCSBForm({
 
         {/* Printable Slip Modal */}
         {viewingSlip && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 md:p-8 border border-emerald-100 flex flex-col justify-between print:shadow-none print:border-none print:p-0 my-8 text-left">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-4 sm:p-8 border border-emerald-100 flex flex-col justify-between print:shadow-none print:border-none print:p-0 my-auto mx-auto max-h-[92vh] sm:max-h-[90vh] overflow-y-auto text-left">
               <PrintGuideAlert />
 
               <div id="ppdb-slip-receipt-printable-area" className="space-y-4">
@@ -1520,8 +1520,8 @@ export default function PCSBForm({
 
       {/* PANDUAN PENDAFTARAN MODAL (Triggered via Hamburger Menu) */}
       {isGuideOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 sm:p-8 border border-emerald-100 space-y-5 max-h-[90vh] overflow-y-auto text-left">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full p-4 sm:p-8 border border-emerald-100 space-y-5 max-h-[90vh] overflow-y-auto text-left my-auto mx-auto">
             
             {/* Modal Header */}
             <div className="flex items-start justify-between pb-4 border-b border-slate-150">
@@ -1735,8 +1735,8 @@ export default function PCSBForm({
 
       {/* CEK STATUS PENDAFTARAN MODAL (Triggered via Hamburger Menu) */}
       {isCheckStatusOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 border border-emerald-100 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-5 sm:p-7 border border-emerald-100 space-y-4 my-auto mx-auto max-h-[90vh] overflow-y-auto text-left">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Search className="h-5 w-5 text-amber-600" />

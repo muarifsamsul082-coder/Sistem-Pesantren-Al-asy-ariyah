@@ -276,14 +276,12 @@ export default function App() {
   React.useEffect(() => {
     const checkAndLockScroll = () => {
       const activeModals = document.querySelectorAll(
-        '.fixed.inset-0.z-50, .fixed.inset-0.z-45, [role="dialog"]'
+        '.fixed.inset-0, [role="dialog"]'
       );
       if (activeModals.length > 0) {
         document.body.style.overflow = 'hidden';
-        document.body.style.touchAction = 'none';
       } else {
         document.body.style.overflow = '';
-        document.body.style.touchAction = '';
       }
     };
 
@@ -854,7 +852,7 @@ export default function App() {
         const currentLocal = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
         const lastModStr = localStorage.getItem('pesantren_settings_last_modified');
         const lastModTime = lastModStr ? parseInt(lastModStr, 10) : 0;
-        const isLocallyModifiedRecently = (Date.now() - lastModTime < 35000) || isLocalDataRecentlyChanged('settings');
+        const isLocallyModifiedRecently = (Date.now() - lastModTime < 60000) || isLocalDataRecentlyChanged('settings', 60000);
 
         if (isLocallyModifiedRecently) {
           // If locally changed recently, push local settings to server rather than overwriting
@@ -877,8 +875,8 @@ export default function App() {
               ...remoteSettings,
               ...currentLocal,
               ppdbOpen: typeof currentLocal.ppdbOpen === 'boolean' ? currentLocal.ppdbOpen : (typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : DEFAULT_SETTINGS.ppdbOpen),
-              ppdbStartDate: currentLocal.ppdbStartDate || remoteSettings.ppdbStartDate || '',
-              ppdbEndDate: currentLocal.ppdbEndDate || remoteSettings.ppdbEndDate || '',
+              ppdbStartDate: currentLocal.ppdbStartDate !== undefined ? currentLocal.ppdbStartDate : (remoteSettings.ppdbStartDate || ''),
+              ppdbEndDate: currentLocal.ppdbEndDate !== undefined ? currentLocal.ppdbEndDate : (remoteSettings.ppdbEndDate || ''),
             };
             const adjusted = autoAdjustPpdbSettings(mergedSettings);
             setSettings(adjusted);
@@ -1223,15 +1221,15 @@ export default function App() {
         }
 
         const currentLocalSettings = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
-        if (!isLocalDataRecentlyChanged('settings')) {
+        if (!isLocalDataRecentlyChanged('settings', 60000)) {
           const remoteSettings = await syncSettingsWithSupabase(currentLocalSettings);
           if (remoteSettings) {
             const mergedSettings: PortalSettings = {
               ...currentLocalSettings,
               ...remoteSettings,
-              ppdbOpen: typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : currentLocalSettings.ppdbOpen,
-              ppdbStartDate: remoteSettings.ppdbStartDate !== undefined ? remoteSettings.ppdbStartDate : (currentLocalSettings.ppdbStartDate || ''),
-              ppdbEndDate: remoteSettings.ppdbEndDate !== undefined ? remoteSettings.ppdbEndDate : (currentLocalSettings.ppdbEndDate || ''),
+              ppdbOpen: typeof currentLocalSettings.ppdbOpen === 'boolean' ? currentLocalSettings.ppdbOpen : (typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : DEFAULT_SETTINGS.ppdbOpen),
+              ppdbStartDate: currentLocalSettings.ppdbStartDate !== undefined ? currentLocalSettings.ppdbStartDate : (remoteSettings.ppdbStartDate || ''),
+              ppdbEndDate: currentLocalSettings.ppdbEndDate !== undefined ? currentLocalSettings.ppdbEndDate : (remoteSettings.ppdbEndDate || ''),
             };
             const adjusted = autoAdjustPpdbSettings(mergedSettings);
             setSettings(adjusted);

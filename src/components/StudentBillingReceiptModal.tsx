@@ -40,8 +40,8 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
 
   if (!activeStudent) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/80 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center space-y-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/80 backdrop-blur-sm overflow-y-auto">
+        <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center space-y-4 my-auto mx-auto max-h-[90vh] overflow-y-auto">
           <AlertCircle className="h-10 w-10 text-amber-500 mx-auto" />
           <h3 className="font-bold text-gray-900 text-base">Data Santri Tidak Ditemukan</h3>
           <p className="text-xs text-gray-500">Tidak ada santri yang dipilih untuk mencetak rekapitulasi tagihan.</p>
@@ -188,7 +188,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-emerald-950/85 backdrop-blur-sm overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[96vh] flex flex-col overflow-hidden border border-emerald-100 print:shadow-none print:border-none print:max-h-none print:w-full">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[96vh] flex flex-col overflow-hidden border border-emerald-100 my-auto mx-auto print:shadow-none print:border-none print:max-h-none print:w-full">
         
         {/* Top Action Bar (hidden in print) */}
         <div className="p-4 bg-gradient-to-r from-emerald-900 to-teal-950 text-white flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden">

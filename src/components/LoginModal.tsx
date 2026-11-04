@@ -343,8 +343,8 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/70 backdrop-blur-sm animate-fade-in font-sans">
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-emerald-100 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/70 backdrop-blur-sm animate-fade-in font-sans overflow-y-auto">
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-emerald-100 flex flex-col max-h-[92vh] sm:max-h-[90vh] my-auto mx-auto">
         
         {/* Header with authentic pesantren photography & dark emerald gradient overlay */}
         <div className="relative h-44 px-6 py-5 text-white overflow-hidden shrink-0 flex flex-col justify-end">

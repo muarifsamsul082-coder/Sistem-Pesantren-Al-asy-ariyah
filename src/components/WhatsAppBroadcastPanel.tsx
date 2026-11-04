@@ -1026,8 +1026,8 @@ export default function WhatsAppBroadcastPanel({
 
       {/* MODAL ANTREAN WHATSAPP DIRECT (Mencegah browser popup error & crash saat banyak santri dipilih) */}
       {isDirectQueueOpen && selectedStudentsList.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-emerald-100 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-lg w-full p-5 sm:p-6 border border-emerald-100 space-y-4 my-auto mx-auto max-h-[90vh] overflow-y-auto text-left">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse" />

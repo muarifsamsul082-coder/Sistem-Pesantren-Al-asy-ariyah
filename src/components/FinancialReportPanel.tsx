@@ -1527,8 +1527,8 @@ export default function FinancialReportPanel({
 
       {/* MODAL 1: FORM PENCATATAN PENGELUARAN BENDAHARA */}
       {isAddExpenseModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden text-left font-sans">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden text-left font-sans my-auto mx-auto">
             {/* Modal Header */}
             <div className="p-4 bg-gradient-to-r from-emerald-850 to-teal-950 text-white flex items-center justify-between">
               <div>
@@ -1766,8 +1766,8 @@ export default function FinancialReportPanel({
 
       {/* MODAL 2: PREVIEW RECEIPT IMAGE */}
       {viewReceiptModalUrl && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 space-y-3 relative text-left">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 space-y-3 relative text-left my-auto mx-auto max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
               <h4 className="font-extrabold text-sm text-slate-900">Bukti Nota / Kwitansi Pengeluaran</h4>
               <button
@@ -1787,8 +1787,8 @@ export default function FinancialReportPanel({
 
       {/* MODAL KONFIRMASI HAPUS PENGELUARAN KAS */}
       {expenseToDelete && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 border border-rose-200 shadow-2xl text-left font-sans">
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 border border-rose-200 shadow-2xl text-left font-sans my-auto mx-auto max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 text-rose-600">
               <div className="p-2.5 bg-rose-50 rounded-xl border border-rose-100">
                 <Trash2 className="h-6 w-6" />
@@ -1844,7 +1844,7 @@ export default function FinancialReportPanel({
       {/* MODAL 3: CETAK DOKUMEN LAPORAN KEUANGAN RESMI (A4 STANDAR PESANTREN) */}
       {isPrintModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full border border-slate-100 flex flex-col max-h-[92vh] overflow-hidden text-left font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full border border-slate-100 flex flex-col max-h-[92vh] overflow-hidden text-left font-sans my-auto mx-auto">
             {/* Header Dialog */}
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between print:hidden">
               <div className="flex items-center gap-2">

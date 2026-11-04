@@ -1406,8 +1406,8 @@ export default function Navbar({
 
       {/* Profile Modal */}
       {isProfileModalOpen && session && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-emerald-100 flex flex-col text-slate-800 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-emerald-100 flex flex-col text-slate-800 animate-fade-in my-auto mx-auto max-h-[90vh]">
             {/* Header */}
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-5 flex justify-between items-center">
               <div className="flex items-center gap-2.5">

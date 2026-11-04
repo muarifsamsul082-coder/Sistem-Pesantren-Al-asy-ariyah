@@ -1782,6 +1782,8 @@ export default function AdminDashboard({
       // Auto-adjust PPDB open status based on end date
       const finalSettings = autoAdjustPpdbSettings({ ...editSettings });
       setEditSettings(finalSettings);
+      markLocalDataChanged('settings');
+      localStorage.setItem('pesantren_settings_last_modified', Date.now().toString());
 
       // 1. Direct localStorage persistence FIRST to lock the source of truth
       localStorage.setItem('pesantren_settings', JSON.stringify(finalSettings));
@@ -2097,6 +2099,7 @@ export default function AdminDashboard({
     setSettings(updated);
     setIsSettingsDirty(false);
     markLocalDataChanged('settings');
+    localStorage.setItem('pesantren_settings_last_modified', Date.now().toString());
 
     try {
       localStorage.setItem('pesantren_settings', JSON.stringify(updated));
@@ -2125,25 +2128,32 @@ export default function AdminDashboard({
   // Immediate toggle for PPDB Online status across all devices
   const handleTogglePpdbOnline = async (isChecked: boolean) => {
     const todayStr = getTodayDateString();
-    const nextSettings = {
-      ...editSettings,
-      ppdbOpen: isChecked
-    };
+    let start = editSettings.ppdbStartDate ? normalizeDateToYMD(editSettings.ppdbStartDate) : '';
+    let end = editSettings.ppdbEndDate ? normalizeDateToYMD(editSettings.ppdbEndDate) : '';
 
-    // Jika dibuka secara manual, bersihkan batas tanggal yang lampau agar tidak langsung mental / tertutup
+    // Jika dibuka secara manual, bersihkan batas tanggal yang bertentangan
+    // agar portal tidak mental / tetap terbuka langsung
     if (isChecked) {
-      if (nextSettings.ppdbEndDate && todayStr > nextSettings.ppdbEndDate) {
-        nextSettings.ppdbEndDate = '';
+      if (end && todayStr > end) {
+        end = '';
       }
-      if (nextSettings.ppdbStartDate && todayStr < nextSettings.ppdbStartDate) {
-        nextSettings.ppdbStartDate = todayStr;
+      if (start && todayStr < start) {
+        start = '';
       }
     }
+
+    const nextSettings: PortalSettings = {
+      ...editSettings,
+      ppdbOpen: isChecked,
+      ppdbStartDate: start,
+      ppdbEndDate: end
+    };
 
     setEditSettings(nextSettings);
     setSettings(nextSettings);
     setIsSettingsDirty(false);
     markLocalDataChanged('settings');
+    localStorage.setItem('pesantren_settings_last_modified', Date.now().toString());
 
     try {
       localStorage.setItem('pesantren_settings', JSON.stringify(nextSettings));
@@ -6649,8 +6659,8 @@ export default function AdminDashboard({
 
             {/* DETAIL ALUMNI DIALOG MODAL (Centered Modal) */}
             {selectedAlumniForDetails && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/70 backdrop-blur-sm overflow-y-auto">
-                <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 flex flex-col my-auto max-h-[88vh] sm:max-h-[90vh] animate-fade-in">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/70 backdrop-blur-sm overflow-y-auto">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 flex flex-col my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] animate-fade-in">
                   <div className="bg-gradient-to-r from-emerald-850 to-teal-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
                     <div>
                       <h4 className="font-bold text-base flex items-center gap-2">Detail Alumni & Kelulusan</h4>
@@ -7281,8 +7291,8 @@ export default function AdminDashboard({
 
             {/* MODAL DIALOG: SELECT KETUA KAMAR */}
             {selectingKetuaRoom && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm">
-                <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 text-slate-800 animate-fade-in text-xs flex flex-col max-h-[88vh] sm:max-h-[90vh] my-auto">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 text-slate-800 animate-fade-in text-xs flex flex-col max-h-[88vh] sm:max-h-[90vh] my-auto mx-auto">
                   <div className="bg-gradient-to-r from-emerald-850 to-teal-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
                     <div>
                       <h4 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-2">
@@ -7454,8 +7464,8 @@ export default function AdminDashboard({
 
             {/* MODAL DIALOG: ADD / EDIT ROOM */}
             {(isAddRoomOpen || editingRoom) && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/70 backdrop-blur-sm overflow-y-auto">
-                <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 flex flex-col my-auto max-h-[88vh] sm:max-h-[90vh] animate-fade-in">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/70 backdrop-blur-sm overflow-y-auto">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 flex flex-col my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] animate-fade-in">
                   <div className="bg-gradient-to-r from-emerald-850 to-teal-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
                     <div>
                       <h4 className="font-bold text-base flex items-center gap-2">
@@ -10039,12 +10049,12 @@ export default function AdminDashboard({
           {/* MODAL GENERATOR SKRIP SQL SUPABASE */}
           <AnimatePresence>
             {showSqlModal && (
-              <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-slate-900 text-white rounded-2xl p-6 max-w-3xl w-full max-h-[85vh] flex flex-col border border-amber-600/70 shadow-2xl"
+                  className="bg-slate-900 text-white rounded-2xl p-4 sm:p-6 max-w-3xl w-full max-h-[88vh] sm:max-h-[85vh] flex flex-col border border-amber-600/70 shadow-2xl my-auto mx-auto"
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
                     <div className="flex items-center gap-2">
@@ -13575,8 +13585,8 @@ export default function AdminDashboard({
 
       {/* MODAL: DETAIL LOG AUDIT PENGURUS */}
       {selectedStaffLogDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-emerald-100 transform transition-all">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-emerald-100 transform transition-all my-auto mx-auto max-h-[90vh] flex flex-col">
             <div className="bg-gradient-to-r from-emerald-800 to-teal-950 p-4 text-white flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-amber-300" />
@@ -13654,7 +13664,7 @@ export default function AdminDashboard({
 
       {/* MODAL: EDIT DATA SANTRI / ALUMNI */}
       {editingStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/70 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/70 backdrop-blur-sm overflow-y-auto">
           <form 
             onSubmit={(e) => {
               e.preventDefault();
@@ -13770,7 +13780,7 @@ export default function AdminDashboard({
               setEditingStudent(null);
               showAlert('success', 'Data santri/alumni berhasil diperbarui!');
             }}
-            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 flex flex-col my-auto max-h-[88vh] sm:max-h-[90vh] animate-fade-in"
+            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 flex flex-col my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] animate-fade-in"
           >
             <div className="bg-gradient-to-r from-emerald-850 to-teal-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
               <div>
@@ -14131,8 +14141,8 @@ export default function AdminDashboard({
 
       {/* PROCEDUR RIBET: MODAL DETAILED DELETION */}
       {tightDeleteStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-red-950/80 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-red-200 text-xs text-left animate-fade-in my-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-red-950/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-red-200 text-xs text-left animate-fade-in my-auto mx-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">
             <div className="bg-gradient-to-r from-red-800 to-rose-950 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
               <div>
                 <h4 className="font-extrabold text-sm uppercase tracking-wide">️ Prosedur Penghapusan Ketat (Maksimal)</h4>
@@ -14328,8 +14338,8 @@ export default function AdminDashboard({
 
       {/* MODAL: CETAK KWITANSI RESMI (ADMIN PERSPECTIVE APPROVED) */}
       {receiptBill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm print:bg-white print:p-0">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 md:p-8 border border-emerald-100 flex flex-col justify-between print:shadow-none print:border-none print:p-0 my-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-4 sm:p-8 border border-emerald-100 flex flex-col justify-between print:shadow-none print:border-none print:p-0 my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto">
             
             {/* Prominent Close/Keluar button at the top for alumni and admin */}
             <div className="flex justify-between items-center mb-3 border-b border-gray-150 pb-2 print:hidden">
@@ -14513,8 +14523,8 @@ export default function AdminDashboard({
 
       {/* MODAL: CETAK KARTU SANTRI AKTIF (ADMIN PERSPECTIVE APPROVED LANDSCAPE) */}
       {selectedStudentForCard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm print:bg-white print:p-0 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-emerald-100 overflow-hidden flex flex-col justify-between print:shadow-none print:border-none my-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-emerald-100 overflow-hidden flex flex-col justify-between print:shadow-none print:border-none my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto">
             
             <div className="p-4 bg-emerald-50 border-b border-emerald-100 print:hidden text-left text-xs">
               <div className="bg-emerald-100/60 border border-emerald-200 text-emerald-950 rounded-lg p-2.5 font-semibold">
@@ -14711,8 +14721,8 @@ export default function AdminDashboard({
           return new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
         };
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm print:bg-white print:p-0 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full border border-slate-100 overflow-hidden flex flex-col justify-between print:shadow-none print:border-none my-auto max-h-[88vh] sm:max-h-[90vh]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0 animate-fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full border border-slate-100 overflow-hidden flex flex-col justify-between print:shadow-none print:border-none my-auto mx-auto max-h-[88vh] sm:max-h-[90vh]">
               
               <div className="p-4 bg-teal-50 border-b border-teal-100 print:hidden text-left text-xs flex justify-between items-center gap-4">
                 <div className="bg-teal-100/60 border border-teal-200 text-teal-950 rounded-lg p-2.5 font-semibold flex-1">
@@ -14960,8 +14970,8 @@ export default function AdminDashboard({
         const lastEducation = mapClassToLastEducation(selectedAlumniForCard);
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-sm print:bg-white print:p-0 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-[620px] w-full border border-amber-100 max-h-[88vh] sm:max-h-[90vh] flex flex-col justify-between print:shadow-none print:border-none my-auto overflow-y-auto scrollbar-thin">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0 animate-fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-[620px] w-full border border-amber-100 max-h-[88vh] sm:max-h-[90vh] flex flex-col justify-between print:shadow-none print:border-none my-auto mx-auto overflow-y-auto scrollbar-thin">
               
               <div className="p-2.5 bg-amber-50 border-b border-amber-100 print:hidden text-left">
                 <div className="text-[10px] text-amber-950 font-bold text-center">
@@ -15217,8 +15227,8 @@ export default function AdminDashboard({
 
       {/* MODAL: CETAK SLIP PPDB RESMI */}
       {selectedPpdbForSlip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm print:bg-white print:p-0">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 md:p-8 border border-emerald-100 flex flex-col justify-between print:shadow-none print:border-none print:p-0 my-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-4 sm:p-8 border border-emerald-100 flex flex-col justify-between print:shadow-none print:border-none print:p-0 my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto">
             
             <PrintGuideAlert />
 
@@ -15401,8 +15411,8 @@ export default function AdminDashboard({
 
       {/* MODAL: CONFIRMATION FOR PPDB ARRIVAL / VERIFICATION (STEP-BY-STEP) */}
       {ppdbConfirmData && (
-        <div className="fixed inset-0 z-[100] p-3 sm:p-4 bg-teal-950/75 backdrop-blur-sm flex justify-center items-center">
-          <div className={`bg-white rounded-2xl w-full ${ppdbConfirmStep === 2 ? 'max-w-5xl' : 'max-w-md'} my-auto overflow-y-auto max-h-[88vh] sm:max-h-[90vh] shadow-2xl border border-emerald-100 p-6 space-y-4 text-left animate-fade-in transition-all duration-300`}>
+        <div className="fixed inset-0 z-[100] p-3 sm:p-4 bg-teal-950/75 backdrop-blur-sm flex justify-center items-center overflow-y-auto">
+          <div className={`bg-white rounded-2xl w-full ${ppdbConfirmStep === 2 ? 'max-w-5xl' : 'max-w-md'} my-auto mx-auto overflow-y-auto max-h-[88vh] sm:max-h-[90vh] shadow-2xl border border-emerald-100 p-4 sm:p-6 space-y-4 text-left animate-fade-in transition-all duration-300`}>
             {/* Header / Steps Indicator */}
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
               <div>
@@ -15987,11 +15997,11 @@ export default function AdminDashboard({
       {confirmDialog && confirmDialog.isOpen && (
         <div 
           onClick={() => setConfirmDialog(null)}
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm font-sans"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm font-sans overflow-y-auto"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-slate-150 text-left space-y-4 animate-fade-in my-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-slate-150 text-left space-y-4 animate-fade-in my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center gap-3 text-red-600">
               <span className="text-2xl">⚠️</span>
@@ -16034,8 +16044,8 @@ export default function AdminDashboard({
 
       {/* High-Fidelity Indonesian Official Document Verification Viewer */}
       {activePreviewDoc && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm font-sans animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 flex flex-col max-h-[88vh] sm:max-h-[90vh] overflow-hidden text-left my-auto">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm font-sans animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 flex flex-col max-h-[88vh] sm:max-h-[90vh] overflow-hidden text-left my-auto mx-auto">
             
             {/* Modal Header */}
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -16344,8 +16354,8 @@ export default function AdminDashboard({
 
       {/* MODAL: PRINTER PREVIEW FOR SECURITY LOG (PERIZINAN) */}
       {printSecurityLog && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-200 relative animate-fade-in my-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-200 relative animate-fade-in my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col">
             {/* Header Sticky Bar */}
             <div className="p-4 bg-emerald-900 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
@@ -16580,8 +16590,8 @@ export default function AdminDashboard({
 
       {/* MODAL: PRINTER PREVIEW FOR DISCIPLINE LOG (TAKZIR) */}
       {printDisciplineLog && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-200 relative animate-fade-in my-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-200 relative animate-fade-in my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col">
             {/* Header Sticky Bar */}
             <div className="p-4 bg-indigo-900 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
@@ -16775,8 +16785,8 @@ export default function AdminDashboard({
 
       {/* MODAL: PRINTER PREVIEW FOR HEALTH LOG (MEDIS) */}
       {printHealthLog && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-200 relative animate-fade-in my-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-200 relative animate-fade-in my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col">
             {/* Header Sticky Bar */}
             <div className="p-4 bg-rose-900 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
@@ -16985,8 +16995,8 @@ export default function AdminDashboard({
         const dest = getDestInfo(b.paymentMethod);
 
         return (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl border border-slate-200 relative animate-fade-in my-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col font-sans">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl border border-slate-200 relative animate-fade-in my-auto mx-auto max-h-[88vh] sm:max-h-[90vh] flex flex-col font-sans">
               
               {/* Header */}
               <div className="p-5 bg-teal-900 text-white flex justify-between items-center shrink-0">
@@ -17266,8 +17276,8 @@ export default function AdminDashboard({
 
       {/* MODAL EDIT DATA TAGIHAN PEMBAYARAN */}
       {editingBill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-emerald-100 overflow-hidden text-slate-800 text-xs my-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-emerald-100 overflow-hidden text-slate-800 text-xs my-auto mx-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 p-4 text-white flex justify-between items-center">
               <div>
                 <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-1.5">
@@ -17440,8 +17450,8 @@ export default function AdminDashboard({
 
       {/* MODAL PREVIEW QRIS RESMI BERLOGO PONDOK (UNTUK ADMIN) */}
       {previewQrisRekening && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-sm w-full border border-emerald-100 overflow-hidden shadow-2xl text-slate-800 text-xs my-auto flex flex-col">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-emerald-950/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-sm w-full border border-emerald-100 overflow-hidden shadow-2xl text-slate-800 text-xs my-auto mx-auto flex flex-col max-h-[90vh] overflow-y-auto">
             <div className="bg-gradient-to-r from-emerald-850 to-teal-950 p-4 text-white flex justify-between items-center">
               <div>
                 <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-1.5 text-amber-300">
@@ -17520,8 +17530,8 @@ export default function AdminDashboard({
         </div>
       )}
       {editingEventId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-emerald-100 overflow-hidden text-slate-800 text-xs my-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-emerald-100 overflow-hidden text-slate-800 text-xs my-auto mx-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 p-4 text-white flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-1.5">
@@ -17646,8 +17656,8 @@ export default function AdminDashboard({
 
       {/* MODAL EDIT REKENING / KANAL PEMBAYARAN */}
       {editingBankAccount && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-emerald-100 overflow-hidden text-slate-800 text-xs my-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-emerald-100 overflow-hidden text-slate-800 text-xs my-auto mx-auto flex flex-col max-h-[88vh] sm:max-h-[90vh]">
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 p-4 text-white flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-1.5">
@@ -17930,8 +17940,8 @@ export default function AdminDashboard({
 
       {/* Staff Credential Notification Modal */}
       {staffCredentialNotification && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-emerald-100 transform transition-all">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fadeIn overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-emerald-100 transform transition-all my-auto mx-auto max-h-[90vh] flex flex-col">
             <div className="bg-gradient-to-r from-emerald-800 to-teal-950 p-4 text-white flex justify-between items-center">
               <div className="flex items-center gap-2">
                 

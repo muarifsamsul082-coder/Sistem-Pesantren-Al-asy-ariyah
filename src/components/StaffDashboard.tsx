@@ -2097,11 +2097,11 @@ export default function StaffDashboard({
       {showAddModal && (
         <div 
           onClick={() => setShowAddModal(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 flex flex-col my-auto max-h-[92vh] animate-fade-in text-xs font-sans"
+            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 flex flex-col my-auto mx-auto max-h-[92vh] animate-fade-in text-xs font-sans"
           >
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-emerald-900 to-teal-950 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
@@ -2553,11 +2553,11 @@ export default function StaffDashboard({
       {printSecurityTarget && (
         <div 
           onClick={() => setPrintSecurityTarget(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-emerald-100 relative max-h-[92vh] overflow-y-auto animate-fade-in text-xs"
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-emerald-100 relative my-auto mx-auto max-h-[92vh] overflow-y-auto animate-fade-in text-xs"
           >
             <button 
               onClick={() => setPrintSecurityTarget(null)} 
@@ -2667,11 +2667,11 @@ export default function StaffDashboard({
       {printDisciplineTarget && (
         <div 
           onClick={() => setPrintDisciplineTarget(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-indigo-100 relative max-h-[92vh] overflow-y-auto animate-fade-in text-xs"
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-indigo-100 relative my-auto mx-auto max-h-[92vh] overflow-y-auto animate-fade-in text-xs"
           >
             <button 
               onClick={() => setPrintDisciplineTarget(null)} 
@@ -2780,11 +2780,11 @@ export default function StaffDashboard({
       {printHealthTarget && (
         <div 
           onClick={() => setPrintHealthTarget(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-rose-100 relative max-h-[92vh] overflow-y-auto animate-fade-in text-xs"
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full font-serif border border-rose-100 relative my-auto mx-auto max-h-[92vh] overflow-y-auto animate-fade-in text-xs"
           >
             <button 
               onClick={() => setPrintHealthTarget(null)} 
@@ -2893,8 +2893,8 @@ export default function StaffDashboard({
 
       {/* CONFIRMATION MODAL FOR DELETE */}
       {deleteConfirmTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs font-sans">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs font-sans overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200 my-auto mx-auto max-h-[90vh] overflow-y-auto">
             <div className="h-12 w-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 className="h-6 w-6" />
             </div>

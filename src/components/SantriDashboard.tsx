@@ -651,7 +651,7 @@ export default function SantriDashboard({
               {/* Payment Modal Dialog (Pop up di tengah layar) */}
               {selectedBill && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto font-sans">
-                  <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-6 max-w-lg w-full border border-emerald-100 text-left space-y-4 animate-fade-in my-auto max-h-[90vh] overflow-y-auto">
+                  <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-6 max-w-lg w-full border border-emerald-100 text-left space-y-4 animate-fade-in my-auto mx-auto max-h-[90vh] overflow-y-auto">
                     <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">
@@ -1363,8 +1363,8 @@ export default function SantriDashboard({
 
       {/* MODAL: CETAK KWITANSI RESMI */}
       {receiptBill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/75 backdrop-blur-sm print:bg-white print:p-0">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 md:p-8 border border-emerald-100 flex flex-col justify-between print:shadow-none print:border-none print:p-0 relative animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-4 sm:p-8 border border-emerald-100 flex flex-col justify-between my-auto mx-auto max-h-[92vh] sm:max-h-[90vh] overflow-y-auto print:shadow-none print:border-none print:p-0 relative animate-fade-in">
             
             {/* Absolute close button */}
             <button
@@ -1540,8 +1540,8 @@ export default function SantriDashboard({
 
       {/* MODAL: CETAK KARTU SANTRI AKTIF (STUDENT/WALI PERSPECTIVE LANDSCAPE) */}
       {showStudentCard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-emerald-100 overflow-hidden flex flex-col justify-between print:shadow-none print:border-none my-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-emerald-950/75 backdrop-blur-sm overflow-y-auto print:bg-white print:p-0 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-emerald-100 overflow-hidden flex flex-col justify-between my-auto mx-auto max-h-[92vh] sm:max-h-[90vh] overflow-y-auto print:shadow-none print:border-none">
             
             <div className="p-4 bg-emerald-50 border-b border-emerald-100 print:hidden text-left text-xs">
               <div className="bg-emerald-100/60 border border-emerald-200 text-emerald-950 rounded-lg p-2.5 font-semibold">
