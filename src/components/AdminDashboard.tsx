@@ -6,7 +6,7 @@ import {
   Search, CheckSquare, Bell, DollarSign, Wallet, GraduationCap, ArrowUpRight, Send, AlertCircle, Printer, Download, Upload, MessageSquare, LogOut, UploadCloud, Loader2, Sparkles,
   CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, XCircle, RefreshCw, Code, Save, Clock, Landmark, Info, QrCode
 } from 'lucide-react';
-import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, OfficialItem, compressImage, isSameRoom } from '../types';
+import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, OfficialItem, PcsbFeeItem, getResolvedPcsbFeeItems, compressImage, isSameRoom } from '../types';
 import { getBillAmountBreakdown, generateQrisQrCodeWithLogo, generateDynamicQrisString } from '../lib/qris';
 import { downloadPrintableHTML, downloadPrintableTableHTML, PrintGuideAlert } from './PrintHelper';
 import ErrorBoundary from './ErrorBoundary';
@@ -141,134 +141,71 @@ const formatIndonesianDate = (dateStr: string) => {
 };
 
 const generateNewStudentBills = (newStudent: Student, paymentType: string, settings: PortalSettings): Bill[] => {
-  const getFeeValue = (val: number | undefined, defaultVal: number) => {
-    return (val !== undefined && val !== null) ? Number(val) : defaultVal;
-  };
-
-  const isFeeEnabled = (enabled: boolean | undefined) => {
-    return enabled !== false; // true if undefined or true
-  };
-
   const newBillsList: Bill[] = [];
+  const feeItems = getResolvedPcsbFeeItems(settings);
+  const enabledItems = feeItems.filter(f => f.enabled);
 
-  if (isFeeEnabled(settings.pcsbEnablePendaftaran)) {
-    newBillsList.push({
-      id: `bill-reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      studentId: newStudent.id,
-      studentName: newStudent.fullName,
-      nis: newStudent.nis,
-      title: 'Biaya Pendaftaran Calon Santri Baru (PCSB)',
-      amount: getFeeValue(settings.pcsbFeePendaftaran, 150000),
-      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Belum Lunas',
-      category: 'Pendaftaran'
-    });
-  }
-
-  if (isFeeEnabled(settings.pcsbEnableSarpras)) {
-    newBillsList.push({
-      id: `bill-sarpras-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      studentId: newStudent.id,
-      studentName: newStudent.fullName,
-      nis: newStudent.nis,
-      title: 'Infaq Pengembangan Sarpras & Gedung',
-      amount: getFeeValue(settings.pcsbFeeSarpras, 1500000),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Belum Lunas',
-      category: 'Pendaftaran'
-    });
-  }
-
-  if (isFeeEnabled(settings.pcsbEnableSeragam)) {
-    newBillsList.push({
-      id: `bill-seragam-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      studentId: newStudent.id,
-      studentName: newStudent.fullName,
-      nis: newStudent.nis,
-      title: 'Seragam Resmi & Atribut Pesantren (3 Stel)',
-      amount: getFeeValue(settings.pcsbFeeSeragam, 750000),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Belum Lunas',
-      category: 'Pendaftaran'
-    });
-  }
-
-  if (isFeeEnabled(settings.pcsbEnableKitab)) {
-    newBillsList.push({
-      id: `bill-kitab-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      studentId: newStudent.id,
-      studentName: newStudent.fullName,
-      nis: newStudent.nis,
-      title: 'Paket Kitab Kuning & Buku Panduan Belajar',
-      amount: getFeeValue(settings.pcsbFeeKitab, 450000),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Belum Lunas',
-      category: 'Pendaftaran'
-    });
-  }
-
-  if (isFeeEnabled(settings.pcsbEnableKesehatan)) {
-    newBillsList.push({
-      id: `bill-kesehatan-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      studentId: newStudent.id,
-      studentName: newStudent.fullName,
-      nis: newStudent.nis,
-      title: 'Kas Kesehatan & Penyediaan Lemari Asrama',
-      amount: getFeeValue(settings.pcsbFeeKesehatan, 350000),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Belum Lunas',
-      category: 'Pendaftaran'
-    });
-  }
-
-  if (isFeeEnabled(settings.pcsbEnableSyahriyah) && paymentType !== 'Langsung Lunas') {
-    newBillsList.push({
-      id: `bill-syahriyah-first-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      studentId: newStudent.id,
-      studentName: newStudent.fullName,
-      nis: newStudent.nis,
-      title: 'Iuran Syahriyah / SPP Bulan Pertama (Juli)',
-      amount: getFeeValue(settings.pcsbFeeSyahriyah, 200000),
-      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Belum Lunas',
-      category: 'Syahriyah'
-    });
-  }
-
-  const syahriyahAmount = getFeeValue(settings.pcsbFeeSyahriyah, 200000);
-  if (isFeeEnabled(settings.pcsbEnableSyahriyah)) {
-    if (paymentType === 'Langsung Lunas') {
-      newBillsList.push({
-        id: `bill-sya-lunas-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        studentId: newStudent.id,
-        studentName: newStudent.fullName,
-        nis: newStudent.nis,
-        title: 'Iuran Syahriyah 1 Tahun (Lunas)',
-        amount: syahriyahAmount * 12,
-        dueDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        status: 'Belum Lunas',
-        category: 'Syahriyah'
-      });
-    } else {
-      const months = [
-        'Agustus', 'September', 'Oktober', 'November', 'Desember',
-        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni'
-      ];
-      months.forEach((m, idx) => {
+  enabledItems.forEach((item, index) => {
+    const isSyahriyah = item.id.includes('syahriyah') || item.title.toLowerCase().includes('syahriyah') || item.title.toLowerCase().includes('spp');
+    if (isSyahriyah) {
+      if (paymentType === 'Langsung Lunas') {
         newBillsList.push({
-          id: `bill-sya-cicil-${idx}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          id: `bill-${item.id}-lunas-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           studentId: newStudent.id,
           studentName: newStudent.fullName,
           nis: newStudent.nis,
-          title: `Iuran Syahriyah Bulan ${m} (Cicilan ${idx + 2}/12)`,
-          amount: syahriyahAmount,
-          dueDate: new Date(Date.now() + (45 + idx * 30) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          title: `${item.title} 1 Tahun (Lunas)`,
+          amount: item.amount * 12,
+          dueDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           status: 'Belum Lunas',
           category: 'Syahriyah'
         });
+      } else {
+        newBillsList.push({
+          id: `bill-${item.id}-first-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          studentId: newStudent.id,
+          studentName: newStudent.fullName,
+          nis: newStudent.nis,
+          title: `${item.title} (Bulan Pertama)`,
+          amount: item.amount,
+          dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          status: 'Belum Lunas',
+          category: 'Syahriyah'
+        });
+
+        const months = [
+          'Agustus', 'September', 'Oktober', 'November', 'Desember',
+          'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni'
+        ];
+        months.forEach((m, idx) => {
+          newBillsList.push({
+            id: `bill-${item.id}-cicil-${idx}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            studentId: newStudent.id,
+            studentName: newStudent.fullName,
+            nis: newStudent.nis,
+            title: `${item.title} Bulan ${m} (Cicilan ${idx + 2}/12)`,
+            amount: item.amount,
+            dueDate: new Date(Date.now() + (45 + idx * 30) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            status: 'Belum Lunas',
+            category: 'Syahriyah'
+          });
+        });
+      }
+    } else {
+      const isRegistration = item.id.includes('pendaftaran') || item.title.toLowerCase().includes('daftar') || item.title.toLowerCase().includes('formulir');
+      newBillsList.push({
+        id: `bill-${item.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}-${index}`,
+        studentId: newStudent.id,
+        studentName: newStudent.fullName,
+        nis: newStudent.nis,
+        title: item.title,
+        amount: item.amount,
+        dueDate: new Date(Date.now() + (isRegistration ? 14 : 30) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'Belum Lunas',
+        category: 'Pendaftaran'
       });
     }
-  }
+  });
 
   return newBillsList;
 };
@@ -1747,6 +1684,11 @@ export default function AdminDashboard({
   });
   const [saveStatus, setSaveStatus] = React.useState<'saved' | 'saving' | 'idle'>('idle');
   const [isSettingsDirty, setIsSettingsDirty] = React.useState(false);
+  const isSettingsDirtyRef = React.useRef(false);
+  React.useEffect(() => {
+    isSettingsDirtyRef.current = isSettingsDirty;
+  }, [isSettingsDirty]);
+  const [isSupabaseAccordionOpen, setIsSupabaseAccordionOpen] = React.useState(false);
 
   // Local draft state for PPDB Fee Settings in Bills tab to ensure smooth typing and toggling
   const [pcsbFeeDraft, setPcsbFeeDraft] = React.useState<Record<string, number | string>>({});
@@ -1780,6 +1722,36 @@ export default function AdminDashboard({
     });
     setFeeSaveFeedback('✓ Tersimpan');
     setTimeout(() => setFeeSaveFeedback(null), 2500);
+  };
+
+  // Dynamic PPDB Fee Items Helpers
+  const currentPcsbFeeItems = React.useMemo(() => {
+    return getResolvedPcsbFeeItems(editSettings);
+  }, [editSettings.pcsbFeeItems, editSettings.pcsbFeePendaftaran, editSettings.pcsbFeeSarpras, editSettings.pcsbFeeSeragam, editSettings.pcsbFeeKitab, editSettings.pcsbFeeKesehatan, editSettings.pcsbFeeSyahriyah]);
+
+  const handleUpdateFeeItem = (id: string, updates: Partial<PcsbFeeItem>) => {
+    const list = getResolvedPcsbFeeItems(editSettings).map(it => it.id === id ? { ...it, ...updates } : it);
+    setEditSettings(prev => ({ ...prev, pcsbFeeItems: list }));
+    setIsSettingsDirty(true);
+  };
+
+  const handleAddFeeItem = () => {
+    const list = getResolvedPcsbFeeItems(editSettings);
+    const newItem: PcsbFeeItem = {
+      id: `fee_${Date.now()}`,
+      title: 'Pos Tagihan Baru',
+      amount: 100000,
+      enabled: true
+    };
+    const nextList = [...list, newItem];
+    setEditSettings(prev => ({ ...prev, pcsbFeeItems: nextList }));
+    setIsSettingsDirty(true);
+  };
+
+  const handleDeleteFeeItem = (id: string) => {
+    const list = getResolvedPcsbFeeItems(editSettings).filter(it => it.id !== id);
+    setEditSettings(prev => ({ ...prev, pcsbFeeItems: list }));
+    setIsSettingsDirty(true);
   };
 
   // Sync editSettings with upstream settings only if user does not have un-saved local changes
@@ -1938,6 +1910,8 @@ export default function AdminDashboard({
 
   React.useEffect(() => {
     const handleSync = () => {
+      // Do not overwrite editSettings if user is actively editing officials, signatures, or portal settings
+      if (isSettingsDirtyRef.current) return;
       const savedStaff = localStorage.getItem('pesantren_staff_users');
       const savedSettings = localStorage.getItem('pesantren_settings');
       let parsedStaff: any[] = [];
@@ -2150,10 +2124,21 @@ export default function AdminDashboard({
 
   // Immediate toggle for PPDB Online status across all devices
   const handleTogglePpdbOnline = async (isChecked: boolean) => {
+    const todayStr = getTodayDateString();
     const nextSettings = {
       ...editSettings,
       ppdbOpen: isChecked
     };
+
+    // Jika dibuka secara manual, bersihkan batas tanggal yang lampau agar tidak langsung mental / tertutup
+    if (isChecked) {
+      if (nextSettings.ppdbEndDate && todayStr > nextSettings.ppdbEndDate) {
+        nextSettings.ppdbEndDate = '';
+      }
+      if (nextSettings.ppdbStartDate && todayStr < nextSettings.ppdbStartDate) {
+        nextSettings.ppdbStartDate = todayStr;
+      }
+    }
 
     setEditSettings(nextSettings);
     setSettings(nextSettings);
@@ -8165,180 +8150,67 @@ export default function AdminDashboard({
                 Atur nominal biaya yang otomatis ditagihkan kepada calon santri baru saat pendaftarannya disetujui (diterima). Nilai tersimpan permanen dan otomatis disinkronkan.
               </p>
               
-              <div className="space-y-3.5 pt-1 text-xs">
-                {/* 1. Biaya Pendaftaran */}
-                <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10.5px] font-bold text-emerald-950">1. Biaya Pendaftaran (PCSB)</label>
-                    <label className="relative inline-flex items-center cursor-pointer select-none">
-                      <input 
-                        type="checkbox" 
-                        checked={settings.pcsbEnablePendaftaran !== false}
-                        onChange={(e) => handleFeeToggle('pcsbEnablePendaftaran', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
-                    </label>
-                  </div>
-                  {(settings.pcsbEnablePendaftaran !== false) && (
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
-                      <input
-                        type="number"
-                        value={getFeeInputValue('pcsbFeePendaftaran', 150000)}
-                        onChange={(e) => handleFeeInputChange('pcsbFeePendaftaran', e.target.value)}
-                        onBlur={(e) => handleFeeInputCommit('pcsbFeePendaftaran', e.target.value, 150000)}
-                        className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                        placeholder="150000"
-                      />
-                    </div>
-                  )}
-                </div>
+              <div className="space-y-3 pt-1 text-xs">
+                {currentPcsbFeeItems.map((item, idx) => (
+                  <div key={item.id} className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-100/60 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-1.5 py-0.5 rounded shrink-0">
+                          #{idx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          value={item.title}
+                          onChange={(e) => handleUpdateFeeItem(item.id, { title: e.target.value })}
+                          placeholder="Uraian Pos Tagihan..."
+                          className="w-full px-2 py-1 text-xs font-bold text-emerald-950 bg-white border border-emerald-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        />
+                      </div>
 
-                {/* 2. Infaq Sarpras */}
-                <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10.5px] font-bold text-emerald-950">2. Infaq Pengembangan Sarpras</label>
-                    <label className="relative inline-flex items-center cursor-pointer select-none">
-                      <input 
-                        type="checkbox" 
-                        checked={settings.pcsbEnableSarpras !== false}
-                        onChange={(e) => handleFeeToggle('pcsbEnableSarpras', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
-                    </label>
-                  </div>
-                  {(settings.pcsbEnableSarpras !== false) && (
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
-                      <input
-                        type="number"
-                        value={getFeeInputValue('pcsbFeeSarpras', 1500000)}
-                        onChange={(e) => handleFeeInputChange('pcsbFeeSarpras', e.target.value)}
-                        onBlur={(e) => handleFeeInputCommit('pcsbFeeSarpras', e.target.value, 1500000)}
-                        className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                        placeholder="1500000"
-                      />
+                      <div className="flex items-center gap-2 shrink-0">
+                        <label className="relative inline-flex items-center cursor-pointer select-none" title={item.enabled ? 'Aktif' : 'Nonaktif'}>
+                          <input 
+                            type="checkbox" 
+                            checked={item.enabled}
+                            onChange={(e) => handleUpdateFeeItem(item.id, { enabled: e.target.checked })}
+                            className="sr-only peer"
+                          />
+                          <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFeeItem(item.id)}
+                          className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition cursor-pointer"
+                          title="Hapus Pos Tagihan Ini"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
 
-                {/* 3. Seragam Resmi */}
-                <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10.5px] font-bold text-emerald-950">3. Seragam & Atribut Santri</label>
-                    <label className="relative inline-flex items-center cursor-pointer select-none">
-                      <input 
-                        type="checkbox" 
-                        checked={settings.pcsbEnableSeragam !== false}
-                        onChange={(e) => handleFeeToggle('pcsbEnableSeragam', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
-                    </label>
+                    {item.enabled && (
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
+                        <input
+                          type="number"
+                          value={item.amount}
+                          onChange={(e) => handleUpdateFeeItem(item.id, { amount: Number(e.target.value) || 0 })}
+                          className="w-full pl-8 pr-3 py-1 border border-emerald-200 rounded-lg text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
                   </div>
-                  {(settings.pcsbEnableSeragam !== false) && (
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
-                      <input
-                        type="number"
-                        value={getFeeInputValue('pcsbFeeSeragam', 750000)}
-                        onChange={(e) => handleFeeInputChange('pcsbFeeSeragam', e.target.value)}
-                        onBlur={(e) => handleFeeInputCommit('pcsbFeeSeragam', e.target.value, 750000)}
-                        className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                        placeholder="750000"
-                      />
-                    </div>
-                  )}
-                </div>
+                ))}
 
-                {/* 4. Paket Kitab */}
-                <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10.5px] font-bold text-emerald-950">4. Paket Kitab Kuning & Buku</label>
-                    <label className="relative inline-flex items-center cursor-pointer select-none">
-                      <input 
-                        type="checkbox" 
-                        checked={settings.pcsbEnableKitab !== false}
-                        onChange={(e) => handleFeeToggle('pcsbEnableKitab', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
-                    </label>
-                  </div>
-                  {(settings.pcsbEnableKitab !== false) && (
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
-                      <input
-                        type="number"
-                        value={getFeeInputValue('pcsbFeeKitab', 450000)}
-                        onChange={(e) => handleFeeInputChange('pcsbFeeKitab', e.target.value)}
-                        onBlur={(e) => handleFeeInputCommit('pcsbFeeKitab', e.target.value, 450000)}
-                        className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                        placeholder="450000"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* 5. Kas Kesehatan */}
-                <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10.5px] font-bold text-emerald-950">5. Kas Kesehatan & Lemari</label>
-                    <label className="relative inline-flex items-center cursor-pointer select-none">
-                      <input 
-                        type="checkbox" 
-                        checked={settings.pcsbEnableKesehatan !== false}
-                        onChange={(e) => handleFeeToggle('pcsbEnableKesehatan', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
-                    </label>
-                  </div>
-                  {(settings.pcsbEnableKesehatan !== false) && (
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
-                      <input
-                        type="number"
-                        value={getFeeInputValue('pcsbFeeKesehatan', 350000)}
-                        onChange={(e) => handleFeeInputChange('pcsbFeeKesehatan', e.target.value)}
-                        onBlur={(e) => handleFeeInputCommit('pcsbFeeKesehatan', e.target.value, 350000)}
-                        className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                        placeholder="350000"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* 6. SPP Bulanan */}
-                <div className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100/40 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10.5px] font-bold text-emerald-950">6. SPP Bulanan (Syahriyah)</label>
-                    <label className="relative inline-flex items-center cursor-pointer select-none">
-                      <input 
-                        type="checkbox" 
-                        checked={settings.pcsbEnableSyahriyah !== false}
-                        onChange={(e) => handleFeeToggle('pcsbEnableSyahriyah', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-7 h-4 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-700"></div>
-                    </label>
-                  </div>
-                  {(settings.pcsbEnableSyahriyah !== false) && (
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1.5 text-[10px] font-bold text-emerald-800">Rp</span>
-                      <input
-                        type="number"
-                        value={getFeeInputValue('pcsbFeeSyahriyah', 200000)}
-                        onChange={(e) => handleFeeInputChange('pcsbFeeSyahriyah', e.target.value)}
-                        onBlur={(e) => handleFeeInputCommit('pcsbFeeSyahriyah', e.target.value, 200000)}
-                        className="w-full pl-8 pr-3 py-1 border border-emerald-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                        placeholder="200000"
-                      />
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={handleAddFeeItem}
+                  className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-dashed border-emerald-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Tambah Pos Tagihan Baru</span>
+                </button>
               </div>
 
               {/* Total Summary and Explicit Save Button */}
@@ -8346,14 +8218,10 @@ export default function AdminDashboard({
                 <div className="flex justify-between items-center text-xs font-bold text-emerald-950">
                   <span>Total Tagihan Masuk Aktif:</span>
                   <span className="font-mono text-emerald-800 text-sm">
-                    Rp {(
-                      ((settings.pcsbEnablePendaftaran !== false) ? Number(getFeeInputValue('pcsbFeePendaftaran', 150000)) : 0) +
-                      ((settings.pcsbEnableSarpras !== false) ? Number(getFeeInputValue('pcsbFeeSarpras', 1500000)) : 0) +
-                      ((settings.pcsbEnableSeragam !== false) ? Number(getFeeInputValue('pcsbFeeSeragam', 750000)) : 0) +
-                      ((settings.pcsbEnableKitab !== false) ? Number(getFeeInputValue('pcsbFeeKitab', 450000)) : 0) +
-                      ((settings.pcsbEnableKesehatan !== false) ? Number(getFeeInputValue('pcsbFeeKesehatan', 350000)) : 0) +
-                      ((settings.pcsbEnableSyahriyah !== false) ? Number(getFeeInputValue('pcsbFeeSyahriyah', 200000)) : 0)
-                    ).toLocaleString('id-ID')}
+                    Rp {currentPcsbFeeItems
+                      .filter(it => it.enabled)
+                      .reduce((sum, it) => sum + (Number(it.amount) || 0), 0)
+                      .toLocaleString('id-ID')}
                   </span>
                 </div>
 
@@ -8369,39 +8237,21 @@ export default function AdminDashboard({
                         if (saved) currentStored = JSON.parse(saved);
                       } catch (e) {}
 
-                      const feePendaftaran = Number(pcsbFeeDraft.pcsbFeePendaftaran !== undefined ? pcsbFeeDraft.pcsbFeePendaftaran : (settings.pcsbFeePendaftaran ?? 150000));
-                      const feeSarpras = Number(pcsbFeeDraft.pcsbFeeSarpras !== undefined ? pcsbFeeDraft.pcsbFeeSarpras : (settings.pcsbFeeSarpras ?? 1500000));
-                      const feeSeragam = Number(pcsbFeeDraft.pcsbFeeSeragam !== undefined ? pcsbFeeDraft.pcsbFeeSeragam : (settings.pcsbFeeSeragam ?? 750000));
-                      const feeKitab = Number(pcsbFeeDraft.pcsbFeeKitab !== undefined ? pcsbFeeDraft.pcsbFeeKitab : (settings.pcsbFeeKitab ?? 450000));
-                      const feeKesehatan = Number(pcsbFeeDraft.pcsbFeeKesehatan !== undefined ? pcsbFeeDraft.pcsbFeeKesehatan : (settings.pcsbFeeKesehatan ?? 350000));
-                      const feeSyahriyah = Number(pcsbFeeDraft.pcsbFeeSyahriyah !== undefined ? pcsbFeeDraft.pcsbFeeSyahriyah : (settings.pcsbFeeSyahriyah ?? 200000));
-
                       const commitSettings: PortalSettings = {
                         ...currentStored,
                         ...settings,
                         ...editSettings,
-                        pcsbFeePendaftaran: isNaN(feePendaftaran) ? 150000 : feePendaftaran,
-                        pcsbFeeSarpras: isNaN(feeSarpras) ? 1500000 : feeSarpras,
-                        pcsbFeeSeragam: isNaN(feeSeragam) ? 750000 : feeSeragam,
-                        pcsbFeeKitab: isNaN(feeKitab) ? 450000 : feeKitab,
-                        pcsbFeeKesehatan: isNaN(feeKesehatan) ? 350000 : feeKesehatan,
-                        pcsbFeeSyahriyah: isNaN(feeSyahriyah) ? 200000 : feeSyahriyah,
-                        pcsbEnablePendaftaran: settings.pcsbEnablePendaftaran !== false,
-                        pcsbEnableSarpras: settings.pcsbEnableSarpras !== false,
-                        pcsbEnableSeragam: settings.pcsbEnableSeragam !== false,
-                        pcsbEnableKitab: settings.pcsbEnableKitab !== false,
-                        pcsbEnableKesehatan: settings.pcsbEnableKesehatan !== false,
-                        pcsbEnableSyahriyah: settings.pcsbEnableSyahriyah !== false
+                        pcsbFeeItems: currentPcsbFeeItems
                       };
 
                       updateAndPersistSettings(commitSettings);
-                      setPcsbFeeDraft({});
+                      setIsSettingsDirty(false);
                       logAdminActivity(
                         'PENGATURAN_PEMBAYARAN_PCSB',
-                        `Memperbarui aturan nominal penagihan santri baru: Pendaftaran: Rp ${feePendaftaran.toLocaleString('id-ID')}, Sarpras: Rp ${feeSarpras.toLocaleString('id-ID')}, Seragam: Rp ${feeSeragam.toLocaleString('id-ID')}, Kitab: Rp ${feeKitab.toLocaleString('id-ID')}, Kesehatan: Rp ${feeKesehatan.toLocaleString('id-ID')}, Syahriyah: Rp ${feeSyahriyah.toLocaleString('id-ID')}`
+                        `Memperbarui pos penagihan santri baru: ${currentPcsbFeeItems.map(f => `${f.title}: Rp ${f.amount.toLocaleString('id-ID')}`).join(', ')}`
                       );
                       setFeeSaveFeedback('✓ Berhasil Disimpan Permanen!');
-                      showAlert('success', '✓ Pengaturan Pembayaran Santri Baru Berhasil Disimpan Permanen!');
+                      showAlert('success', '✓ Pengaturan Pos Tagihan Santri Baru Berhasil Disimpan Permanen!');
                     } catch (err: any) {
                       showAlert('danger', `Gagal menyimpan pengaturan: ${err?.message || err}`);
                     } finally {
@@ -9517,46 +9367,97 @@ export default function AdminDashboard({
             </div>
           </h3>
 
-          {/* KONEKSI & SINKRONISASI DATABASE SUPABASE CLOUD (MULTI-PERANGKAT) */}
-          <div className="mb-6 p-5 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-900 via-teal-950 to-slate-950 text-white shadow-lg space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-800/80 pb-3">
-              <div className="flex items-center gap-2.5">
-                <Database className="h-6 w-6 text-amber-400 shrink-0" />
-                <div>
-                  <h4 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
-                    Koneksi & Sinkronisasi Database Supabase Cloud
-                    <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
-                      isCloudConnected 
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' 
-                        : 'bg-amber-500/20 text-amber-300 border-amber-400/40'
-                    }`}>
-                      {isCloudConnected ? '● Terkoneksi Realtime' : '○ Belum Dikonfigurasi'}
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-emerald-200/90 leading-relaxed">
-                    Pastikan seluruh data (santri, tagihan, kamar, perizinan) tersinkron otomatis ke tabel Supabase agar perubahan seketika tampak di semua HP, laptop, dan tablet.
-                  </p>
-                </div>
+          {/* KONEKSI & SINKRONISASI DATABASE SUPABASE CLOUD (MULTI-PERANGKAT) - RINGKAS & COLLAPSIBLE */}
+          <div className="mb-5 rounded-xl border border-emerald-300 bg-slate-900 text-white shadow-xs overflow-hidden text-xs">
+            <div className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-950">
+              <div className="flex items-center gap-2 min-w-0">
+                <Database className="h-4 w-4 text-amber-400 shrink-0" />
+                <span className="font-bold text-white text-xs truncate">Database Cloud Supabase</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
+                  isCloudConnected 
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' 
+                    : 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                }`}>
+                  {isCloudConnected ? '● Terkoneksi' : '○ Belum Konek'}
+                </span>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => setShowManualDbConfig(!showManualDbConfig)}
-                  className="px-3 py-1.5 bg-emerald-800/80 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition border border-emerald-600/60 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  disabled={supabasePushStatus.loading || !isCloudConnected}
+                  onClick={async () => {
+                    setSupabasePushStatus({ loading: true, message: 'Mengunggah...', success: null });
+                    try {
+                      const res = await pushAllLocalDataToSupabase({
+                        students, bills, news, announcements, ppdbList, rooms: rooms || [], settings, events
+                      });
+                      setSupabasePushStatus({ loading: false, message: res.message, success: res.success });
+                      if (res.success) {
+                        showAlert('success', `Berhasil unggah semua data ke Supabase (${res.count} data)!`);
+                        window.dispatchEvent(new Event('pesantren_db_sync'));
+                      } else {
+                        showAlert('danger', res.message);
+                      }
+                    } catch (e: any) {
+                      setSupabasePushStatus({ loading: false, message: 'Gagal', success: false });
+                      showAlert('danger', 'Gagal: ' + String(e));
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-emerald-800 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                  title="Unggah semua data ke cloud"
                 >
-                  <Settings className="h-3.5 w-3.5 text-amber-300" />
-                  <span>{showManualDbConfig ? 'Tutup Form Kredensial' : 'Kelola Kredensial URL & Key'}</span>
+                  {supabasePushStatus.loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <UploadCloud className="h-3 w-3 text-amber-300" />}
+                  <span>Unggah Cloud</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={supabasePullStatus.loading || !isCloudConnected}
+                  onClick={async () => {
+                    setSupabasePullStatus({ loading: true, message: 'Menarik...', success: null });
+                    try {
+                      const remoteStd = await syncStudentsWithSupabase(students);
+                      if (Array.isArray(remoteStd) && remoteStd.length > 0) {
+                        setStudents(remoteStd);
+                        localStorage.setItem('pesantren_students', JSON.stringify(remoteStd));
+                      }
+                      const remoteB = await syncBillsWithSupabase(bills);
+                      if (Array.isArray(remoteB)) {
+                        setBills(remoteB);
+                        localStorage.setItem('pesantren_bills', JSON.stringify(remoteB));
+                      }
+                      setSupabasePullStatus({ loading: false, message: 'Selesai', success: true });
+                      showAlert('success', 'Data ditarik dari Supabase!');
+                      window.dispatchEvent(new Event('pesantren_db_sync'));
+                    } catch (e: any) {
+                      setSupabasePullStatus({ loading: false, message: 'Gagal', success: false });
+                      showAlert('danger', 'Gagal: ' + String(e));
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-teal-800 hover:bg-teal-700 disabled:opacity-40 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                  title="Tarik data terbaru dari cloud"
+                >
+                  {supabasePullStatus.loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3 text-emerald-300" />}
+                  <span>Tarik Cloud</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSupabaseAccordionOpen(!isSupabaseAccordionOpen)}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  <Settings className="h-3 w-3 text-amber-300" />
+                  <span>{isSupabaseAccordionOpen ? 'Tutup Pengaturan ▲' : 'Buka Pengaturan ▼'}</span>
                 </button>
               </div>
             </div>
 
-            {/* URL & Anon Key Inputs (collapsible or displayed when not configured) */}
-            {(showManualDbConfig || !isCloudConnected) && (
-              <div className="p-4 bg-slate-900/90 rounded-xl border border-emerald-700/60 space-y-3 text-xs">
+            {isSupabaseAccordionOpen && (
+              <div className="p-3.5 bg-slate-950 border-t border-slate-800 space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-emerald-300 uppercase mb-1">
+                    <label className="block text-[10px] font-bold text-emerald-300 uppercase mb-1">
                       Supabase Project URL
                     </label>
                     <input
@@ -9564,11 +9465,11 @@ export default function AdminDashboard({
                       placeholder="https://your-project.supabase.co"
                       value={supabaseUrlInput}
                       onChange={(e) => setSupabaseUrlInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:ring-1 focus:ring-emerald-400 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-xs focus:ring-1 focus:ring-emerald-400 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-emerald-300 uppercase mb-1">
+                    <label className="block text-[10px] font-bold text-emerald-300 uppercase mb-1">
                       Supabase Anon / Public Key (JWT)
                     </label>
                     <input
@@ -9576,7 +9477,7 @@ export default function AdminDashboard({
                       placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                       value={supabaseKeyInput}
                       onChange={(e) => setSupabaseKeyInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:ring-1 focus:ring-emerald-400 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-xs focus:ring-1 focus:ring-emerald-400 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -9598,14 +9499,13 @@ export default function AdminDashboard({
                           showAlert('danger', res.message);
                         }
                       }}
-                      className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-bold transition cursor-pointer border border-slate-600 flex items-center gap-1.5"
+                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-bold transition cursor-pointer border border-slate-600 flex items-center gap-1"
                     >
-                      {supabaseTestStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                      <span>Uji Koneksi Supabase</span>
+                      {supabaseTestStatus.loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                      <span>Uji Koneksi</span>
                     </button>
-
                     {supabaseTestStatus.message && (
-                      <span className={`text-[11px] font-bold ${supabaseTestStatus.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <span className={`text-[10px] font-bold ${supabaseTestStatus.success ? 'text-emerald-400' : 'text-rose-400'}`}>
                         {supabaseTestStatus.message}
                       </span>
                     )}
@@ -9622,97 +9522,20 @@ export default function AdminDashboard({
                       const res = await testSupabaseConnection();
                       if (res.success) {
                         setIsCloudConnected(true);
-                        showAlert('success', 'Kredensial Supabase berhasil disimpan dan disiarkan ke semua perangkat!');
+                        showAlert('success', 'Kredensial Supabase berhasil disimpan!');
                         window.dispatchEvent(new Event('pesantren_db_sync'));
                       } else {
                         showAlert('info', `Kredensial disimpan, namun respon Supabase: ${res.message}`);
                       }
                     }}
-                    className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold rounded-lg text-xs transition cursor-pointer shadow-md flex items-center gap-1.5"
+                    className="px-3.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-lg text-xs transition cursor-pointer flex items-center gap-1 shadow-xs"
                   >
-                    <Save className="h-3.5 w-3.5" />
-                    <span>Simpan & Aktifkan Sinkronisasi Semua Perangkat</span>
+                    <Save className="h-3 w-3" />
+                    <span>Simpan Kredensial</span>
                   </button>
                 </div>
               </div>
             )}
-
-            {/* Quick Action Cloud Sync Toolbar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <div className="text-[11px] text-emerald-200 font-medium flex items-center gap-2">
-                <span>🔄 Realtime Listener: Aktif di port WebSocket</span>
-                <span className="text-emerald-400">•</span>
-                <span>Auto-Polling: Tiap 5 Detik</span>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  disabled={supabasePushStatus.loading || !isCloudConnected}
-                  onClick={async () => {
-                    setSupabasePushStatus({ loading: true, message: 'Mengunggah seluruh data...', success: null });
-                    try {
-                      const res = await pushAllLocalDataToSupabase({
-                        students,
-                        bills,
-                        news,
-                        announcements,
-                        ppdbList,
-                        rooms: rooms || [],
-                        settings,
-                        events
-                      });
-                      setSupabasePushStatus({ loading: false, message: res.message, success: res.success });
-                      if (res.success) {
-                        showAlert('success', `Berhasil mengunggah & menyinkronkan seluruh data lokal ke tabel Supabase (${res.count} data)!`);
-                        window.dispatchEvent(new Event('pesantren_db_sync'));
-                      } else {
-                        showAlert('danger', res.message);
-                      }
-                    } catch (e: any) {
-                      setSupabasePushStatus({ loading: false, message: 'Gagal mengunggah', success: false });
-                      showAlert('danger', 'Gagal mengunggah: ' + String(e));
-                    }
-                  }}
-                  className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-sm flex items-center gap-1.5 border border-emerald-500/50"
-                  title="Unggah seluruh santri, tagihan, kamar, dan pengaturan ke tabel Supabase"
-                >
-                  {supabasePushStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5 text-amber-300" />}
-                  <span>Unggah Semua Data Lokal ke Supabase ☁️</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={supabasePullStatus.loading || !isCloudConnected}
-                  onClick={async () => {
-                    setSupabasePullStatus({ loading: true, message: 'Menarik data...', success: null });
-                    try {
-                      const remoteStd = await syncStudentsWithSupabase(students);
-                      if (Array.isArray(remoteStd) && remoteStd.length > 0) {
-                        setStudents(remoteStd);
-                        localStorage.setItem('pesantren_students', JSON.stringify(remoteStd));
-                      }
-                      const remoteB = await syncBillsWithSupabase(bills);
-                      if (Array.isArray(remoteB)) {
-                        setBills(remoteB);
-                        localStorage.setItem('pesantren_bills', JSON.stringify(remoteB));
-                      }
-                      setSupabasePullStatus({ loading: false, message: 'Selesai', success: true });
-                      showAlert('success', 'Data terbaru berhasil ditarik dari Supabase dan diperbarui di layar!');
-                      window.dispatchEvent(new Event('pesantren_db_sync'));
-                    } catch (e: any) {
-                      setSupabasePullStatus({ loading: false, message: 'Gagal menarik', success: false });
-                      showAlert('danger', 'Gagal menarik data dari Supabase: ' + String(e));
-                    }
-                  }}
-                  className="px-3.5 py-1.5 bg-teal-800 hover:bg-teal-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-sm flex items-center gap-1.5 border border-teal-600/50"
-                  title="Tarik data santri & tagihan terbaru dari tabel Supabase"
-                >
-                  {supabasePullStatus.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 text-emerald-300" />}
-                  <span>Tarik Data Terbaru dari Supabase ⟳</span>
-                </button>
-              </div>
-            </div>
           </div>
 
           <form onSubmit={(e) => e.preventDefault()} className="space-y-4 text-xs">

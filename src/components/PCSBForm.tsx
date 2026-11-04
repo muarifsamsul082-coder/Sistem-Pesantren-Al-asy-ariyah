@@ -5,7 +5,7 @@ import {
   ArrowLeft, Check, ShieldCheck, Clock, FileCheck, AlertCircle, ChevronRight,
   Eye, RefreshCw
 } from 'lucide-react';
-import { PCSBRegistration, PortalSettings } from '../types';
+import { PCSBRegistration, PortalSettings, PcsbFeeItem, getResolvedPcsbFeeItems } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
 import { isPpdbCurrentlyActive } from '../lib/dateUtils';
 
@@ -59,27 +59,21 @@ export default function PCSBForm({
     } as any;
   }, [propSettings]);
 
-  const feePendaftaran = settings.pcsbFeePendaftaran ?? 150000;
-  const feeSarpras = settings.pcsbFeeSarpras ?? 1500000;
-  const feeSeragam = settings.pcsbFeeSeragam ?? 750000;
-  const feeKitab = settings.pcsbFeeKitab ?? 450000;
-  const feeKesehatan = settings.pcsbFeeKesehatan ?? 350000;
-  const feeSyahriyah = settings.pcsbFeeSyahriyah ?? 200000;
+  const feeItems = React.useMemo(() => {
+    return getResolvedPcsbFeeItems(settings);
+  }, [settings]);
 
-  const enabledPendaftaran = settings.pcsbEnablePendaftaran !== false;
-  const enabledSarpras = settings.pcsbEnableSarpras !== false;
-  const enabledSeragam = settings.pcsbEnableSeragam !== false;
-  const enabledKitab = settings.pcsbEnableKitab !== false;
-  const enabledKesehatan = settings.pcsbEnableKesehatan !== false;
-  const enabledSyahriyah = settings.pcsbEnableSyahriyah !== false;
+  const enabledFeeItems = React.useMemo(() => {
+    return feeItems.filter(f => f.enabled);
+  }, [feeItems]);
 
-  const feeLainLain = 
-    (enabledSarpras ? feeSarpras : 0) + 
-    (enabledSeragam ? feeSeragam : 0) + 
-    (enabledKitab ? feeKitab : 0) + 
-    (enabledKesehatan ? feeKesehatan : 0);
+  const registrationFeeItem = enabledFeeItems.find(f => f.id.includes('pendaftaran') || f.title.toLowerCase().includes('pendaftaran') || f.title.toLowerCase().includes('formulir'));
+  const feePendaftaran = registrationFeeItem ? registrationFeeItem.amount : 150000;
 
-  const totalEstimasiAwal = (enabledPendaftaran ? feePendaftaran : 0) + feeLainLain + (enabledSyahriyah ? feeSyahriyah : 0);
+  const syahriyahFeeItem = enabledFeeItems.find(f => f.id.includes('syahriyah') || f.title.toLowerCase().includes('syahriyah') || f.title.toLowerCase().includes('spp'));
+  const feeSyahriyah = syahriyahFeeItem ? syahriyahFeeItem.amount : 200000;
+
+  const totalEstimasiAwal = enabledFeeItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
 
   const formatRupiah = (val: number) => {
     return 'Rp ' + val.toLocaleString('id-ID');
@@ -1649,15 +1643,17 @@ export default function PCSBForm({
                 </div>
 
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-200 text-xs">
-                    <span className="font-medium text-slate-700">Biaya Formulir & Pendaftaran Awal</span>
-                    <span className="font-mono font-bold text-slate-900">{formatRupiah(feePendaftaran)}</span>
+                  {enabledFeeItems.map(f => (
+                    <div key={f.id} className="flex items-center justify-between pb-1.5 border-b border-slate-200 text-xs">
+                      <span className="font-medium text-slate-700">{f.title}</span>
+                      <span className="font-mono font-bold text-slate-900">{formatRupiah(f.amount)}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between pt-1 text-xs font-bold text-emerald-950">
+                    <span>Total Estimasi Paket Masuk Awal</span>
+                    <span className="font-mono font-black text-emerald-800 text-sm">{formatRupiah(totalEstimasiAwal)}</span>
                   </div>
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-200 text-xs">
-                    <span className="font-medium text-slate-700">Total Paket Masuk Awal (Sarpras, Seragam 3 Stel, Kitab Kuning, Kas Kesehatan & SPP Bln 1)</span>
-                    <span className="font-mono font-bold text-emerald-900">{formatRupiah(totalEstimasiAwal)}</span>
-                  </div>
-                  <div className="text-[11px] text-slate-600 leading-relaxed">
+                  <div className="text-[11px] text-slate-600 leading-relaxed pt-1">
                     <strong>Pilihan Pembayaran SPP (Syahriyah):</strong> Wali santri dapat memilih skema <em>Cicilan Bulanan</em> ({formatRupiah(feeSyahriyah)}/bulan) atau <em>Langsung Lunas 1 Tahun</em> ({formatRupiah(feeSyahriyah * 12)}/tahun).
                   </div>
                 </div>

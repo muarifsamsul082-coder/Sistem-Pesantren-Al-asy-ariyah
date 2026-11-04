@@ -217,6 +217,28 @@ export interface OfficialItem {
   orderIndex?: number;
 }
 
+export interface PcsbFeeItem {
+  id: string;
+  title: string;
+  amount: number;
+  enabled: boolean;
+  category?: string;
+}
+
+export function getResolvedPcsbFeeItems(settings?: Partial<PortalSettings>): PcsbFeeItem[] {
+  if (settings?.pcsbFeeItems && Array.isArray(settings.pcsbFeeItems) && settings.pcsbFeeItems.length > 0) {
+    return settings.pcsbFeeItems;
+  }
+  return [
+    { id: 'fee_pendaftaran', title: 'Pendaftaran & Formulir', amount: Number(settings?.pcsbFeePendaftaran ?? 150000), enabled: settings?.pcsbEnablePendaftaran !== false },
+    { id: 'fee_sarpras', title: 'Infaq Pengembangan Sarpras & Gedung', amount: Number(settings?.pcsbFeeSarpras ?? 1500000), enabled: settings?.pcsbEnableSarpras !== false },
+    { id: 'fee_seragam', title: 'Seragam Resmi & Atribut Pondok (3 Stel)', amount: Number(settings?.pcsbFeeSeragam ?? 750000), enabled: settings?.pcsbEnableSeragam !== false },
+    { id: 'fee_kitab', title: 'Paket Kitab Kuning & Buku Panduan', amount: Number(settings?.pcsbFeeKitab ?? 450000), enabled: settings?.pcsbEnableKitab !== false },
+    { id: 'fee_kesehatan', title: 'Iuran Kesehatan & Fasilitas Asrama', amount: Number(settings?.pcsbFeeKesehatan ?? 350000), enabled: settings?.pcsbEnableKesehatan !== false },
+    { id: 'fee_syahriyah', title: 'Iuran Syahriyah / SPP Bulan Pertama', amount: Number(settings?.pcsbFeeSyahriyah ?? 200000), enabled: settings?.pcsbEnableSyahriyah !== false },
+  ];
+}
+
 export interface PortalSettings {
   schoolName: string;
   namaYayasan?: string;
@@ -300,6 +322,7 @@ export interface PortalSettings {
   pcsbEnableKitab?: boolean;
   pcsbEnableKesehatan?: boolean;
   pcsbEnableSyahriyah?: boolean;
+  pcsbFeeItems?: PcsbFeeItem[];
   pesantrenBankAccountNumber?: string;
   pesantrenBankAccountName?: string;
   qrisString?: string;

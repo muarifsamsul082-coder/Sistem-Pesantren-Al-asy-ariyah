@@ -105,11 +105,18 @@ export function isDateMoreThanOneMonthAgo(dateStr?: string): boolean {
  */
 export function autoAdjustPpdbSettings<T extends { ppdbOpen?: boolean; ppdbStartDate?: string; ppdbEndDate?: string }>(settings: T): T {
   if (!settings) return settings;
+  const todayStr = getTodayDateString();
   const start = settings.ppdbStartDate ? normalizeDateToYMD(settings.ppdbStartDate) : '';
   let end = settings.ppdbEndDate ? normalizeDateToYMD(settings.ppdbEndDate) : '';
   
   // Jika tanggal pendaftaran ditutup sudah melewati 1 bulan dari tanggal sekarang, hapus tanggalnya
   if (end && isDateMoreThanOneMonthAgo(end)) {
+    end = '';
+  }
+
+  // Jika admin membuka pendaftaran (ppdbOpen: true) namun tanggal akhir berada di masa lampau,
+  // hapus tanggal akhir otomatis agar portal tidak mental / menolak terbuka
+  if (settings.ppdbOpen === true && end && todayStr > end) {
     end = '';
   }
 
@@ -145,11 +152,18 @@ export function isPpdbCurrentlyActive(settings?: {
     };
   }
 
+  const todayStr = getTodayDateString();
   const start = settings.ppdbStartDate?.trim() || '';
   let end = settings.ppdbEndDate?.trim() || '';
 
   // Tanggal pada pendaftaran ditutup dihapus jika tanggal sudah melewati satu bulan pada tanggal berjalan
   if (end && isDateMoreThanOneMonthAgo(end)) {
+    end = '';
+  }
+
+  // Jika admin mengaktifkan pendaftaran (ppdbOpen === true) tetapi tanggal batas akhir lampau,
+  // pastikan tidak memblokir akses pendaftaran dan izinkan tetap buka.
+  if (settings.ppdbOpen === true && end && todayStr > end) {
     end = '';
   }
 
@@ -171,8 +185,6 @@ export function isPpdbCurrentlyActive(settings?: {
     };
   }
 
-  const todayStr = getTodayDateString();
-
   if (start && todayStr < start) {
     return {
       isActive: false,
@@ -188,20 +200,6 @@ export function isPpdbCurrentlyActive(settings?: {
   }
 
   if (end && todayStr > end) {
-    const isPastOneMonth = isDateMoreThanOneMonthAgo(end);
-    if (isPastOneMonth) {
-      return {
-        isActive: false,
-        statusText: 'Penerimaan Calon Santri Baru saat ini sedang ditutup.',
-        badgeText: 'Pendaftaran Ditutup',
-        unifiedNoticeText: 'Pendaftaran Calon Santri Baru Sedang Ditutup',
-        reason: 'ended',
-        periodDetail: 'Masa pendaftaran online periode ini sedang ditutup.',
-        scheduleRangeText: 'Pendaftaran Ditutup',
-        startDateFormatted: '',
-        endDateFormatted: ''
-      };
-    }
     return {
       isActive: false,
       statusText: `Pendaftaran telah resmi berakhir dan ditutup pada tanggal ${endFormatted}.`,

@@ -30,31 +30,74 @@ export function downloadPrintableHTML(elementId: string, title: string) {
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background-color: #f9fafb;
-      color: #111827;
-      padding: 2.5rem 1rem;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      padding: 1.5rem 0.5rem;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     .print-sheet {
       background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 1rem;
-      padding: 2.5rem;
-      max-width: 36rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0;
+      padding: 15mm 15mm;
+      width: 210mm;
+      max-width: 100%;
+      min-height: 297mm;
       margin: 0 auto;
       box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      box-sizing: border-box;
+    }
+    /* Excel & Official Document Ledger Styling */
+    table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      border: 1.5px solid #334155 !important;
+      font-size: 11px !important;
+      margin-top: 8px !important;
+      margin-bottom: 12px !important;
+    }
+    th {
+      background-color: #064e3b !important;
+      color: #ffffff !important;
+      border: 1px solid #334155 !important;
+      padding: 6px 8px !important;
+      font-weight: 700 !important;
+      font-size: 10.5px !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.02em !important;
+    }
+    td {
+      border: 1px solid #cbd5e1 !important;
+      padding: 5px 7px !important;
+      font-size: 10.5px !important;
+      vertical-align: top !important;
+    }
+    tr:nth-child(even) td {
+      background-color: #f8fafc !important;
+    }
+    .rounded-2xl, .rounded-xl, .rounded-lg, .rounded-3xl {
+      border-radius: 2px !important;
+    }
+    .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xs, .shadow-xs {
+      box-shadow: none !important;
     }
     @media print {
+      @page {
+        size: A4 portrait;
+        margin: 10mm 12mm 12mm 12mm;
+      }
       body {
-        background-color: white;
-        padding: 0;
+        background-color: white !important;
+        padding: 0 !important;
       }
       .print-sheet {
         border: none !important;
         box-shadow: none !important;
         padding: 0 !important;
+        width: 100% !important;
         max-width: 100% !important;
+        min-height: auto !important;
       }
       .no-print {
         display: none !important;
@@ -180,34 +223,71 @@ export function downloadPrintableTableHTML(elementId: string, title: string) {
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background-color: #f9fafb;
-      color: #111827;
-      padding: 1.5rem;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      padding: 1rem 0.5rem;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     .print-sheet {
       background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 1rem;
-      padding: 3rem;
-      max-width: 68rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0;
+      padding: 12mm 15mm;
+      width: 297mm;
+      max-width: 100%;
       margin: 0 auto;
       box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      box-sizing: border-box;
+    }
+    /* Excel & Official Document Ledger Table Styling */
+    table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      border: 1.5px solid #334155 !important;
+      font-size: 10px !important;
+      margin-top: 8px !important;
+      margin-bottom: 12px !important;
+    }
+    th {
+      background-color: #064e3b !important;
+      color: #ffffff !important;
+      border: 1px solid #334155 !important;
+      padding: 5px 6px !important;
+      font-weight: 700 !important;
+      font-size: 9.5px !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.02em !important;
+    }
+    td {
+      border: 1px solid #cbd5e1 !important;
+      padding: 4px 6px !important;
+      font-size: 9.5px !important;
+      vertical-align: top !important;
+    }
+    tr:nth-child(even) td {
+      background-color: #f8fafc !important;
+    }
+    .rounded-2xl, .rounded-xl, .rounded-lg, .rounded-3xl {
+      border-radius: 2px !important;
+    }
+    .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xs, .shadow-xs {
+      box-shadow: none !important;
     }
     @media print {
       @page {
         size: A4 landscape;
-        margin: 1.5cm;
+        margin: 8mm 10mm 10mm 10mm;
       }
       body {
-        background-color: white;
-        padding: 0;
+        background-color: white !important;
+        padding: 0 !important;
       }
       .print-sheet {
         border: none !important;
         box-shadow: none !important;
         padding: 0 !important;
+        width: 100% !important;
         max-width: 100% !important;
       }
       .no-print {
@@ -285,15 +365,47 @@ export function downloadPrintableA4ReceiptHTML(elementId: string, title: string)
     }
     .print-sheet {
       background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 0.5rem;
-      padding: 2.2rem 2.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0;
+      padding: 12mm 15mm;
       width: 210mm;
       max-width: 100%;
       min-height: 297mm;
       margin: 0 auto;
-      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
       box-sizing: border-box;
+    }
+    table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      border: 1.5px solid #334155 !important;
+      font-size: 11px !important;
+      margin-top: 8px !important;
+      margin-bottom: 12px !important;
+    }
+    th {
+      background-color: #064e3b !important;
+      color: #ffffff !important;
+      border: 1px solid #334155 !important;
+      padding: 6px 8px !important;
+      font-weight: 700 !important;
+      font-size: 10.5px !important;
+      text-transform: uppercase !important;
+    }
+    td {
+      border: 1px solid #cbd5e1 !important;
+      padding: 5px 7px !important;
+      font-size: 10.5px !important;
+      vertical-align: top !important;
+    }
+    tr:nth-child(even) td {
+      background-color: #f8fafc !important;
+    }
+    .rounded-2xl, .rounded-xl, .rounded-lg, .rounded-3xl {
+      border-radius: 2px !important;
+    }
+    .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xs, .shadow-xs {
+      box-shadow: none !important;
     }
     @media print {
       @page {
