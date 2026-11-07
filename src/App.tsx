@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, Loader2 } from 'lucide-react';
+import { RefreshCw, Loader2, Shield, LogIn, ArrowLeft } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import PublicPortal from './components/PublicPortal';
@@ -229,15 +229,41 @@ const getHashFromState = (view: string, adminTab?: string, staffTab?: string, sa
   return 'home';
 };
 
+// Helper: synchronously resolve initial session from storage
+const getInitialSession = (): UserSession | null => {
+  try {
+    const raw = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.role) return parsed;
+    }
+  } catch (e) {}
+  return null;
+};
+
 export default function App() {
   const initialHashRoute = typeof window !== 'undefined' ? parseUrlHash(window.location.hash) : null;
+  const initialSession = typeof window !== 'undefined' ? getInitialSession() : null;
+
+  const [session, setSession] = React.useState<UserSession | null>(initialSession);
 
   const [currentView, setViewState] = React.useState<string>(() => {
-    if (initialHashRoute?.view) return initialHashRoute.view;
-    try {
-      const saved = sessionStorage.getItem('pesantren_current_view');
-      if (saved) return saved;
-    } catch (e) {}
+    const target = initialHashRoute?.view || (() => {
+      try { return sessionStorage.getItem('pesantren_current_view'); } catch (e) { return null; }
+    })();
+
+    if (target) {
+      if (target === 'admin-dashboard' && initialSession?.role !== 'admin') {
+        return 'home';
+      }
+      if (target === 'staff-dashboard' && !['keamanan', 'ketertiban', 'kesehatan'].includes(initialSession?.role || '')) {
+        return 'home';
+      }
+      if (target === 'santri-dashboard' && initialSession?.role !== 'santri') {
+        return 'home';
+      }
+      return target;
+    }
     return 'home';
   });
 
@@ -247,8 +273,6 @@ export default function App() {
       sessionStorage.setItem('pesantren_current_view', view);
     } catch (e) {}
   };
-
-  const [session, setSession] = React.useState<UserSession | null>(null);
   const [isLoginOpen, setIsLoginOpen] = React.useState(false);
   const [isAccountOpen, setIsAccountOpen] = React.useState(false);
 
@@ -425,6 +449,24 @@ export default function App() {
       const parsed = parseUrlHash(window.location.hash);
       if (!parsed) return;
       if (parsed.view && parsed.view !== currentView) {
+        if (parsed.view === 'admin-dashboard' && session?.role !== 'admin') {
+          setIsLoginOpen(true);
+          setViewState('home');
+          try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
+          return;
+        }
+        if (parsed.view === 'staff-dashboard' && !['keamanan', 'ketertiban', 'kesehatan'].includes(session?.role || '')) {
+          setIsLoginOpen(true);
+          setViewState('home');
+          try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
+          return;
+        }
+        if (parsed.view === 'santri-dashboard' && session?.role !== 'santri') {
+          setIsLoginOpen(true);
+          setViewState('home');
+          try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
+          return;
+        }
         setViewState(parsed.view);
       }
       if (parsed.adminTab) {
@@ -1342,12 +1384,12 @@ export default function App() {
     window.addEventListener('pesantren_settings_updated', handleSettingsUpdated);
     window.addEventListener('focus', handleWindowFocus);
 
-    // Restore login session: gunakan HANYA sessionStorage agar saat tab ditutup/dihapus, aplikasi otomatis keluar
-    const storedSession = sessionStorage.getItem('pesantren_session');
+    // Restore login session: periksa sessionStorage dengan fallback ke localStorage (agar reload tab mobile tetap aman)
+    const storedSession = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
     if (storedSession) {
       try {
-        const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || '0', 10);
-        const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+        const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || localStorage.getItem('pesantren_last_activity') || '0', 10);
+        const INACTIVITY_TIMEOUT_MS = 24 * 60 * 60 * 1000; // Toleransi sesi wajar untuk mobile
         if (lastActivity > 0 && Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS) {
           sessionStorage.removeItem('pesantren_session');
           sessionStorage.removeItem('pesantren_current_view');
@@ -1374,9 +1416,10 @@ export default function App() {
         }
         setSession(parsedSess);
         sessionStorage.setItem('pesantren_session', JSON.stringify(parsedSess));
+        localStorage.setItem('pesantren_session', JSON.stringify(parsedSess));
         sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
 
-        // CRITICAL: Preserve active menu on refresh! Do not force reset to overview/dashboard
+        // Preserve active menu on refresh
         const savedView = sessionStorage.getItem('pesantren_current_view');
         if (savedView) {
           setView(savedView);
@@ -1396,6 +1439,13 @@ export default function App() {
       }
     } else {
       setSession(null);
+      setViewState(prev => {
+        if (['admin-dashboard', 'staff-dashboard', 'santri-dashboard'].includes(prev)) {
+          try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
+          return 'home';
+        }
+        return prev;
+      });
     }
 
     return () => {
@@ -1468,8 +1518,12 @@ export default function App() {
 
   const handleLoginSuccess = (newSession: UserSession) => {
     setSession(newSession);
-    sessionStorage.setItem('pesantren_session', JSON.stringify(newSession));
-    sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
+    try {
+      sessionStorage.setItem('pesantren_session', JSON.stringify(newSession));
+      localStorage.setItem('pesantren_session', JSON.stringify(newSession));
+      sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
+      localStorage.setItem('pesantren_last_activity', Date.now().toString());
+    } catch (e) {}
     
     // Always open first/statistics tab on fresh login
     setAdminTab('overview');
@@ -1488,10 +1542,16 @@ export default function App() {
 
   const handleLogout = () => {
     setSession(null);
-    sessionStorage.removeItem('pesantren_session');
-    sessionStorage.removeItem('pesantren_current_view');
-    sessionStorage.removeItem('pesantren_last_activity');
-    localStorage.removeItem('pesantren_session');
+    try {
+      sessionStorage.removeItem('pesantren_session');
+      sessionStorage.removeItem('pesantren_current_view');
+      sessionStorage.removeItem('pesantren_last_activity');
+      localStorage.removeItem('pesantren_session');
+      localStorage.removeItem('pesantren_last_activity');
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    } catch (e) {}
     setView('home');
   };
 
@@ -1792,16 +1852,16 @@ export default function App() {
             <div className="flex-grow flex flex-col bg-emerald-950">
               <Hero 
                 onJoinPCSB={() => setView('ppdb')} 
-                schoolName={settings.schoolName}
-                tagline={settings.tagline}
-                ppdbOpen={settings.ppdbOpen}
-                ppdbStartDate={settings.ppdbStartDate}
-                ppdbEndDate={settings.ppdbEndDate}
+                schoolName={settings?.schoolName || DEFAULT_SETTINGS.schoolName}
+                tagline={settings?.tagline || DEFAULT_SETTINGS.tagline}
+                ppdbOpen={settings?.ppdbOpen ?? DEFAULT_SETTINGS.ppdbOpen}
+                ppdbStartDate={settings?.ppdbStartDate || ''}
+                ppdbEndDate={settings?.ppdbEndDate || ''}
               />
               <PublicPortal 
                 news={news}
                 announcements={announcements}
-                settings={settings}
+                settings={settings || DEFAULT_SETTINGS}
                 setView={setView}
                 onOpenLogin={() => setIsLoginOpen(true)}
                 session={session}
@@ -1898,15 +1958,40 @@ export default function App() {
                 />
               </ErrorBoundary>
             ) : (
-              <div className="max-w-md mx-auto p-12 text-center space-y-4">
-                <h2 className="text-xl font-bold text-red-700">Akses Ditolak</h2>
-                <p className="text-xs text-gray-500">Anda harus masuk dengan akun administrator muarifsamsul082@gmail.com</p>
-                <button 
-                  onClick={() => setIsLoginOpen(true)} 
-                  className="px-4 py-2 bg-emerald-800 text-white rounded font-bold text-xs"
-                >
-                  Log In Admin
-                </button>
+              <div className="min-h-[70vh] flex items-center justify-center p-4">
+                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200 p-8 text-center space-y-6 animate-fade-in font-sans">
+                  <div className="w-16 h-16 bg-emerald-50 text-emerald-800 rounded-2xl flex items-center justify-center mx-auto border border-emerald-200 shadow-xs">
+                    <Shield className="h-8 w-8 text-emerald-750" />
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-mono uppercase tracking-widest font-black text-amber-650 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                      Otoritas Khusus Administrator
+                    </span>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 font-sans pt-1">
+                      Masuk ke Panel Administrasi
+                    </h2>
+                    <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+                      Menu ini memerlukan autentikasi akun resmi Administrator (<span className="font-mono text-emerald-850 font-bold">muarifsamsul082@gmail.com</span>). Silakan masuk untuk mengelola portal pesantren.
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                    <button 
+                      onClick={() => setIsLoginOpen(true)} 
+                      className="flex-1 py-3 px-4 bg-emerald-850 hover:bg-emerald-900 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <LogIn className="h-4 w-4" /> Masuk Sebagai Admin
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setView('home');
+                        try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
+                      }} 
+                      className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 border border-slate-200"
+                    >
+                      <ArrowLeft className="h-4 w-4" /> Beranda
+                    </button>
+                  </div>
+                </div>
               </div>
             )
           )}

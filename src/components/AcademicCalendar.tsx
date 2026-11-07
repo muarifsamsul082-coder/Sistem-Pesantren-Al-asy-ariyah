@@ -290,6 +290,7 @@ export default function AcademicCalendar({ settings }: AcademicCalendarProps) {
 
   // Filter events by selected category and active month/year
   const filteredEvents = eventsList.filter(evt => {
+    if (!evt || !evt.startDate || !evt.endDate) return false;
     if (selectedCategory !== 'all' && evt.category !== selectedCategory) {
       return false;
     }
@@ -307,27 +308,36 @@ export default function AcademicCalendar({ settings }: AcademicCalendarProps) {
   // Check if a date string lands inside an event's bounds
   const getEventsForDate = (dateStr: string) => {
     return eventsList.filter(evt => {
+      if (!evt || !evt.startDate || !evt.endDate) return false;
       return dateStr >= evt.startDate && dateStr <= evt.endDate;
     });
   };
 
   // Helper to determine status tag (Countdown or active) based on real date
   const getEventStatus = (evt: AcademicEvent) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const start = new Date(evt.startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(evt.endDate);
-    end.setHours(23, 59, 59, 999);
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const start = new Date(evt.startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(evt.endDate);
+      end.setHours(23, 59, 59, 999);
 
-    if (today >= start && today <= end) {
-      return { label: 'Sedang Berlangsung', color: 'bg-emerald-600 text-white animate-pulse' };
-    } else if (today < start) {
-      const diffTime = Math.abs(start.getTime() - today.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return { label: `Mulai ${diffDays} Hari Lagi`, color: 'bg-amber-100 text-amber-900 border border-amber-300' };
-    } else {
-      return { label: 'Telah Selesai', color: 'bg-gray-100 text-gray-500' };
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return { label: 'Terjadwal', color: 'bg-emerald-600 text-white' };
+      }
+
+      if (today >= start && today <= end) {
+        return { label: 'Sedang Berlangsung', color: 'bg-emerald-600 text-white animate-pulse' };
+      } else if (today < start) {
+        const diffTime = Math.abs(start.getTime() - today.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return { label: `Mulai ${diffDays} Hari Lagi`, color: 'bg-amber-100 text-amber-900 border border-amber-300' };
+      } else {
+        return { label: 'Telah Selesai', color: 'bg-gray-100 text-gray-500' };
+      }
+    } catch {
+      return { label: 'Terjadwal', color: 'bg-emerald-600 text-white' };
     }
   };
 

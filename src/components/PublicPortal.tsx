@@ -20,8 +20,8 @@ interface PublicPortalProps {
 }
 
 export default function PublicPortal({ 
-  news, 
-  announcements, 
+  news = [], 
+  announcements = [], 
   settings, 
   setView, 
   onOpenLogin, 
@@ -34,18 +34,40 @@ export default function PublicPortal({
   const [currentAnnIndex, setCurrentAnnIndex] = React.useState(0);
   const [annFilter, setAnnFilter] = React.useState<'all' | 'high' | 'medium' | 'low'>('all');
 
+  // Defensive array sanitization
+  const safeNews = React.useMemo(() => {
+    return Array.isArray(news) ? news.filter(n => n && typeof n === 'object' && n.title) : [];
+  }, [news]);
+
+  const safeAnnouncements = React.useMemo(() => {
+    return Array.isArray(announcements) ? announcements.filter(a => a && typeof a === 'object' && a.title) : [];
+  }, [announcements]);
+
   const ppdbStatus = isPpdbCurrentlyActive(settings);
 
-  const publicAnnouncements = announcements.filter(a => a.targetRole === 'all' || !a.targetRole);
+  const publicAnnouncements = React.useMemo(() => {
+    return safeAnnouncements.filter(a => a && (a.targetRole === 'all' || !a.targetRole));
+  }, [safeAnnouncements]);
+
+  // Clamp currentSlide safely within range
+  const safeSlide = safeNews.length > 0 ? Math.min(Math.max(0, currentSlide), safeNews.length - 1) : 0;
+  const currentNewsItem = safeNews[safeSlide] || safeNews[0];
 
   // Auto slide news every 5 seconds
   React.useEffect(() => {
-    if (news.length <= 1) return;
+    if (safeNews.length <= 1) return;
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % news.length);
+      setCurrentSlide((prev) => (prev + 1) % safeNews.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, [news.length]);
+  }, [safeNews.length]);
+
+  // Reset slide if out of bounds
+  React.useEffect(() => {
+    if (currentSlide >= safeNews.length && safeNews.length > 0) {
+      setCurrentSlide(0);
+    }
+  }, [safeNews.length, currentSlide]);
 
   // Auto slide announcements every 6 seconds
   React.useEffect(() => {
@@ -57,18 +79,18 @@ export default function PublicPortal({
   }, [publicAnnouncements.length]);
 
   const handlePrevSlide = () => {
-    if (news.length <= 1) return;
-    setCurrentSlide((prev) => (prev - 1 + news.length) % news.length);
+    if (safeNews.length <= 1) return;
+    setCurrentSlide((prev) => (prev - 1 + safeNews.length) % safeNews.length);
   };
 
   const handleNextSlide = () => {
-    if (news.length <= 1) return;
-    setCurrentSlide((prev) => (prev + 1) % news.length);
+    if (safeNews.length <= 1) return;
+    setCurrentSlide((prev) => (prev + 1) % safeNews.length);
   };
 
   const filteredAnnouncements = annFilter === 'all' 
     ? publicAnnouncements 
-    : publicAnnouncements.filter(a => a.priority === annFilter);
+    : publicAnnouncements.filter(a => a && a.priority === annFilter);
 
   return (
     <div className={`flex flex-col min-h-full ${className}`}>
@@ -244,7 +266,7 @@ export default function PublicPortal({
               <div className="w-16 h-1 bg-amber-400 mx-auto mt-2 rounded-full shadow-sm" />
             </div>
 
-            {news.length > 0 ? (
+            {safeNews.length > 0 && currentNewsItem ? (
               <div className="space-y-8">
                 {/* Carousel with AnimatePresence image & text transitions */}
                 <div className="relative overflow-hidden bg-emerald-900/40 backdrop-blur-md rounded-3xl border border-emerald-700/50 shadow-xl max-w-5xl mx-auto text-white">
@@ -254,9 +276,9 @@ export default function PublicPortal({
                     <div className="relative w-full md:w-1/2 h-64 md:h-auto overflow-hidden shrink-0 bg-slate-900">
                       <AnimatePresence mode="wait">
                         <motion.img 
-                          key={`img-${currentSlide}-${news[currentSlide]?.id}`}
-                          src={news[currentSlide].image} 
-                          alt={news[currentSlide].title} 
+                          key={`img-${safeSlide}-${currentNewsItem.id || safeSlide}`}
+                          src={currentNewsItem.image || '/pesantren_logo.jpg'} 
+                          alt={currentNewsItem.title || 'Kabar Berita'} 
                           initial={{ opacity: 0, scale: 1.1 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 1.05 }}
@@ -266,7 +288,7 @@ export default function PublicPortal({
                         />
                       </AnimatePresence>
                       <span className="absolute top-4 left-4 bg-amber-400 text-emerald-950 font-black text-[9px] uppercase px-3 py-1 rounded-full tracking-wider shadow-sm z-10">
-                        {news[currentSlide].category}
+                        {currentNewsItem.category || 'Kabar'}
                       </span>
                     </div>
 
@@ -274,19 +296,19 @@ export default function PublicPortal({
                     <div className="p-8 md:p-12 flex-1 flex flex-col justify-between space-y-4 text-left bg-gradient-to-br from-emerald-950/70 to-emerald-900/40">
                       <AnimatePresence mode="wait">
                         <motion.div 
-                          key={`info-${currentSlide}-${news[currentSlide]?.id}`}
+                          key={`info-${safeSlide}-${currentNewsItem.id || safeSlide}`}
                           initial={{ opacity: 0, y: 15 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -15 }}
                           transition={{ duration: 0.55, ease: "easeOut" }}
                           className="space-y-3"
                         >
-                          <div className="text-[10px] text-amber-300 font-mono font-bold tracking-wider">{news[currentSlide].date}</div>
+                          <div className="text-[10px] text-amber-300 font-mono font-bold tracking-wider">{currentNewsItem.date || ''}</div>
                           <h4 className="text-white text-xl md:text-2xl font-black font-sans leading-tight">
-                            {news[currentSlide].title}
+                            {currentNewsItem.title || ''}
                           </h4>
                           <p className="text-emerald-100/90 font-sans text-xs md:text-sm leading-relaxed line-clamp-3 md:line-clamp-4">
-                            {news[currentSlide].excerpt}
+                            {currentNewsItem.excerpt || ''}
                           </p>
                         </motion.div>
                       </AnimatePresence>
@@ -295,7 +317,7 @@ export default function PublicPortal({
                         <motion.button
                           whileHover={{ scale: 1.04 }}
                           whileTap={{ scale: 0.96 }}
-                          onClick={() => setSelectedArticle(news[currentSlide])}
+                          onClick={() => setSelectedArticle(currentNewsItem)}
                           className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-emerald-950 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm hover:shadow cursor-pointer"
                         >
                           Baca Selengkapnya
@@ -326,14 +348,14 @@ export default function PublicPortal({
                     </div>
                   </div>
 
-                  {news.length > 1 && (
+                  {safeNews.length > 1 && (
                     <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex gap-1.5 z-20 md:left-auto md:right-12 md:transform-none">
-                      {news.map((_, idx) => (
+                      {safeNews.map((_, idx) => (
                         <button
                           key={idx}
                           onClick={() => setCurrentSlide(idx)}
                           className={`h-2.5 rounded-full transition-all cursor-pointer ${
-                            idx === currentSlide ? 'w-6 bg-emerald-800' : 'w-2.5 bg-gray-300 hover:bg-gray-400'
+                            idx === safeSlide ? 'w-6 bg-emerald-800' : 'w-2.5 bg-gray-300 hover:bg-gray-400'
                           }`}
                           title={`Slide ${idx + 1}`}
                         />
@@ -347,9 +369,9 @@ export default function PublicPortal({
                   <div className="max-w-6xl mx-auto pt-8">
                     <h4 className="text-sm font-bold text-amber-200 uppercase tracking-wider mb-4">Arsip Berita & Kegiatan</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {news.map((item, idx) => (
+                      {safeNews.map((item, idx) => (
                         <motion.div 
-                          key={item.id}
+                          key={item.id || idx}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.4, delay: idx * 0.08 }}
@@ -358,18 +380,18 @@ export default function PublicPortal({
                         >
                           <div>
                             <div className="relative h-44 w-full bg-slate-900 overflow-hidden">
-                              <img src={item.image} alt={item.title} className="w-full h-full object-cover hover:scale-105 transition duration-500" referrerPolicy="no-referrer" />
+                              <img src={item.image || '/pesantren_logo.jpg'} alt={item.title || 'Berita'} className="w-full h-full object-cover hover:scale-105 transition duration-500" referrerPolicy="no-referrer" />
                               <span className="absolute top-2.5 left-2.5 bg-amber-400 text-emerald-950 text-[8px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider shadow-xs">
-                                {item.category}
+                                {item.category || 'Kabar'}
                               </span>
                             </div>
                             <div className="p-4 space-y-2 text-left">
-                              <span className="text-[9px] font-mono font-semibold text-emerald-300">{item.date}</span>
+                              <span className="text-[9px] font-mono font-semibold text-emerald-300">{item.date || ''}</span>
                               <h5 className="font-extrabold text-sm text-white leading-snug line-clamp-2 hover:text-amber-300 transition-colors cursor-pointer" onClick={() => setSelectedArticle(item)}>
-                                {item.title}
+                                {item.title || ''}
                               </h5>
                               <p className="text-emerald-150/90 text-xs leading-relaxed line-clamp-3 font-sans">
-                                {item.excerpt}
+                                {item.excerpt || ''}
                               </p>
                             </div>
                           </div>
@@ -443,9 +465,9 @@ export default function PublicPortal({
                 {/* Announcement cards with entry animation */}
                 <div className="space-y-3.5">
                   <AnimatePresence>
-                    {filteredAnnouncements.map((ann, idx) => (
+                    {filteredAnnouncements.filter(Boolean).map((ann, idx) => (
                       <motion.div 
-                        key={ann.id} 
+                        key={ann.id || idx} 
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
@@ -479,10 +501,10 @@ export default function PublicPortal({
                             }`}>
                               {ann.priority === 'high' ? 'Penting' : ann.priority === 'medium' ? 'Sedang' : 'Informasi'}
                             </span>
-                            <span className="text-[10px] font-mono text-emerald-200/70 font-semibold">{ann.date}</span>
+                            <span className="text-[10px] font-mono text-emerald-200/70 font-semibold">{ann.date || ''}</span>
                           </div>
-                          <h4 className="font-extrabold text-sm text-white leading-snug">{ann.title}</h4>
-                          <p className="text-xs text-emerald-100/90 leading-relaxed whitespace-pre-line">{ann.content}</p>
+                          <h4 className="font-extrabold text-sm text-white leading-snug">{ann.title || ''}</h4>
+                          <p className="text-xs text-emerald-100/90 leading-relaxed whitespace-pre-line">{ann.content || ''}</p>
                         </div>
                       </motion.div>
                     ))}

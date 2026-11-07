@@ -12,7 +12,14 @@ interface HeroProps {
   ppdbEndDate?: string;
 }
 
-export default function Hero({ onJoinPCSB, schoolName, tagline, ppdbOpen, ppdbStartDate, ppdbEndDate }: HeroProps) {
+export default function Hero({ 
+  onJoinPCSB, 
+  schoolName = "Pondok Pesantren Al-Asy'ariyah", 
+  tagline = "Mencetak Generasi Qur'ani, Berakhlakul Karimah, Unggul, dan Mandiri", 
+  ppdbOpen, 
+  ppdbStartDate, 
+  ppdbEndDate 
+}: HeroProps) {
   const ppdbStatus = isPpdbCurrentlyActive({ ppdbOpen, ppdbStartDate, ppdbEndDate });
 
   const containerVariants = {

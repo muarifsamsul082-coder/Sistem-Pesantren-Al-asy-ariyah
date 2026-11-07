@@ -33,6 +33,8 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
+    } else {
+      window.location.reload();
     }
   };
 
@@ -42,6 +44,24 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
       sessionStorage.setItem('pesantren_current_view', 'home');
       sessionStorage.setItem('pesantren_admin_active_tab', 'overview');
       localStorage.setItem('pesantren_admin_active_tab', 'overview');
+    } catch (e) {}
+    try {
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    } catch (e) {}
+    window.location.href = window.location.pathname;
+  };
+
+  public handleClearCacheAndRecover = () => {
+    try {
+      sessionStorage.removeItem('pesantren_current_view');
+      sessionStorage.removeItem('pesantren_admin_active_tab');
+      sessionStorage.removeItem('pesantren_staff_active_tab');
+      sessionStorage.removeItem('pesantren_santri_active_tab');
+    } catch (e) {}
+    try {
+      window.history.replaceState(null, '', window.location.pathname);
     } catch (e) {}
     window.location.href = window.location.pathname;
   };
@@ -77,6 +97,14 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
             >
               <Home className="h-3.5 w-3.5" />
               <span>Kembali ke Beranda</span>
+            </button>
+            <button
+              type="button"
+              onClick={this.handleClearCacheAndRecover}
+              className="px-3 py-2 text-slate-500 hover:text-emerald-850 hover:bg-emerald-50 rounded-xl text-[11px] font-semibold transition cursor-pointer"
+              title="Bersihkan status memori sementara dan kembali ke beranda"
+            >
+              <span>Perbaiki Tampilan</span>
             </button>
           </div>
         </div>
