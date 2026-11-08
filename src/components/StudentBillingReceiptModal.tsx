@@ -271,7 +271,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
               >
                 {allStudents.map(s => (
                   <option key={s.id} value={s.id}>
-                    {s.status === 'Alumni' ? '🎓 [ALUMNI] ' : ''}{s.fullName} ({s.nis}) - {s.status === 'Alumni' ? `Lulus ${(s as any).tahunKeluar || ''}` : (s.class || s.gender)}
+                    {s.fullName} ({s.nis}) - {(s as any).tahunKeluar ? `Angkatan ${(s as any).tahunKeluar}` : (s.class || s.gender)}
                   </option>
                 ))}
               </select>
@@ -351,7 +351,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
             <div className="text-center mb-6">
               <h3 className="text-base sm:text-lg font-black text-emerald-950 uppercase tracking-wide underline underline-offset-4">
                 {isAlumni
-                  ? (isAlumniBebasTanggungan ? 'SURAT KETERANGAN BEBAS TANGGUNGAN PENDIDIKAN' : 'REKAPITULASI SISA TUNGGAKAN MASA PENDIDIKAN ALUMNI')
+                  ? (isAlumniBebasTanggungan ? 'SURAT KETERANGAN BEBAS TANGGUNGAN PENDIDIKAN' : 'REKAPITULASI SISA TUNGGAKAN MASA PENDIDIKAN')
                   : 'REKAPITULASI TAGIHAN & PEMBAYARAN SANTRI'}
               </h3>
               <div className="flex items-center justify-center gap-2 mt-1.5 flex-wrap">
@@ -365,7 +365,7 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                     : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
                 }`}>
                   {isAlumni 
-                    ? `🎓 ALUMNI (${(activeStudent as any).tahunKeluar ? `Angkatan ${(activeStudent as any).tahunKeluar}` : 'Telah Lulus'})` 
+                    ? `Santri ${(activeStudent as any).tahunKeluar ? `Angkatan ${(activeStudent as any).tahunKeluar}` : 'Purna Studi'}` 
                     : '🟢 Santri Aktif'}
                 </span>
               </div>
@@ -381,17 +381,17 @@ export const StudentBillingReceiptModal: React.FC<StudentBillingReceiptModalProp
                         ✓ SURAT RESMI: BEBAS DARI SELURUH TANGGUNGAN (LUNAS 100%)
                       </p>
                       <p className="text-xs text-emerald-850 leading-relaxed max-w-xl mx-auto">
-                        Menerangkan dengan sebenarnya bahwa Alumni atas nama <strong>{activeStudent.fullName}</strong> (NIS: {activeStudent.nis}) telah menyelesaikan seluruh kewajiban administrasi keuangan selama masa pendidikan di Pondok Pesantren dan dinyatakan <strong>BEBAS TANGGUNGAN</strong> untuk keperluan kelulusan, pengambilan ijazah/syahadah, maupun keperluan administrasi lainnya.
+                        Menerangkan dengan sebenarnya bahwa Santri atas nama <strong>{activeStudent.fullName}</strong> (NIS: {activeStudent.nis}) telah menyelesaikan seluruh kewajiban administrasi keuangan selama masa pendidikan di Pondok Pesantren dan dinyatakan <strong>BEBAS TANGGUNGAN</strong> untuk keperluan kelulusan, pengambilan ijazah/syahadah, maupun keperluan administrasi lainnya.
                       </p>
                     </div>
                   ) : (
                     <div className="space-y-1">
                       <p className="font-extrabold text-amber-950 text-xs flex items-center justify-between flex-wrap gap-1">
-                        <span>⚠️ CATATAN KEBIJAKAN ADMINISTRASI ALUMNI:</span>
+                        <span>⚠️ CATATAN KEBIJAKAN ADMINISTRASI KELULUSAN:</span>
                         <span className="font-mono text-rose-800 font-black">Sisa: Rp {unpaidAmount.toLocaleString('id-ID')}</span>
                       </p>
                       <p className="text-[11px] text-amber-900 leading-relaxed">
-                        Siswa ini berstatus <strong>ALUMNI</strong> dan tidak lagi dibebankan tagihan syahriyah bulanan berjalan. Rincian tagihan di bawah ini merupakan sisa kewajiban dari masa aktif pendidikan yang belum terselesaikan.
+                        Siswa ini telah menyelesaikan masa belajar dan tidak lagi dibebankan tagihan syahriyah bulanan berjalan. Rincian tagihan di bawah ini merupakan sisa kewajiban dari masa aktif pendidikan yang belum terselesaikan.
                       </p>
                     </div>
                   )}

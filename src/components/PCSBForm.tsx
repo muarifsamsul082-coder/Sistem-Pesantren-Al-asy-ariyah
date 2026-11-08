@@ -89,6 +89,7 @@ export default function PCSBForm({
   const [statusSearchQuery, setStatusSearchQuery] = React.useState('');
   const [statusSearchResult, setStatusSearchResult] = React.useState<any>(null);
   const [statusSearchError, setStatusSearchError] = React.useState('');
+  const [statusSearchLoading, setStatusSearchLoading] = React.useState(false);
 
   // Check if user already has a saved registration in this browser
   const [existingRegistration, setExistingRegistration] = React.useState<any>(null);
@@ -136,7 +137,7 @@ export default function PCSBForm({
     });
   };
 
-  // Form State - Cleaned of bloodType, hafalan, tahfidz, enriched with complete pesantren fields
+  // Form State - Complete pesantren fields with strict validation & arrival planning
   const [formData, setFormData] = React.useState({
     fullName: '',
     gender: 'Laki-laki' as 'Laki-laki' | 'Perempuan',
@@ -159,7 +160,7 @@ export default function PCSBForm({
     pekerjaanAyah: '',
     pekerjaanIbu: '',
     penghasilanOrtu: 'Rp 1.500.000 - Rp 3.000.000',
-    ukuranSeragam: 'M' as 'S' | 'M' | 'L' | 'XL' | 'XXL',
+    rencanaDatang: '',
     healthHistory: '',
     paymentType: 'Cicilan Bulanan' as 'Cicilan Bulanan' | 'Langsung Lunas'
   });
@@ -180,22 +181,74 @@ export default function PCSBForm({
     }
   }, [viewingSlip, isGuideOpen, isCheckStatusOpen]);
 
-  // Validate Step 1 before moving to Step 2
+  // Validate Step 1 before moving to Step 2 (Mandatory fields: Nama, Gender, Jenjang, Tempat Lahir, Tgl Lahir, NIK, Asal Sekolah)
   const handleNextStep1 = () => {
     setStepError('');
     if (!formData.fullName.trim()) {
-      setStepError('Mohon lengkapi Nama Lengkap Calon Santri untuk melanjutkan ke langkah berikutnya.');
+      setStepError('Mohon isi Nama Lengkap Calon Santri.');
+      return;
+    }
+    if (!formData.gender) {
+      setStepError('Mohon pilih Jenis Kelamin calon santri.');
+      return;
+    }
+    if (!formData.jenjangPendidikan) {
+      setStepError('Mohon pilih Pilihan Jenjang & Program Pendidikan.');
+      return;
+    }
+    if (!formData.birthPlace.trim()) {
+      setStepError('Mohon isi Tempat Lahir calon santri.');
+      return;
+    }
+    if (!formData.birthDate.trim()) {
+      setStepError('Mohon tentukan Tanggal Lahir calon santri.');
+      return;
+    }
+    if (!formData.nik.trim()) {
+      setStepError('Mohon isi NIK Calon Santri (16 digit) sesuai KK/Akta.');
+      return;
+    }
+    if (formData.nik.trim().length < 16) {
+      setStepError('NIK Calon Santri harus terdiri dari 16 digit angka.');
+      return;
+    }
+    if (!formData.previousSchool.trim()) {
+      setStepError('Mohon isi Sekolah Asal calon santri.');
       return;
     }
     setCurrentStep(2);
     window.scrollTo({ top: 180, behavior: 'smooth' });
   };
 
-  // Validate Step 2 before moving to Step 3
+  // Validate Step 2 before moving to Step 3 (Mandatory fields: Ayah, Ibu, WA Wali, KK, Alamat)
   const handleNextStep2 = () => {
     setStepError('');
+    if (!formData.fatherName.trim()) {
+      setStepError('Mohon isi Nama Ayah Kandung.');
+      return;
+    }
+    if (!formData.motherName.trim()) {
+      setStepError('Mohon isi Nama Ibu Kandung.');
+      return;
+    }
     if (!formData.parentPhone.trim()) {
-      setStepError('Mohon isi Nomor WhatsApp Wali aktif agar panitia dapat menghubungi.');
+      setStepError('Mohon isi Nomor WhatsApp Wali Aktif untuk komunikasi panitia.');
+      return;
+    }
+    if (formData.parentPhone.trim().replace(/\D/g, '').length < 9) {
+      setStepError('Nomor WhatsApp Wali tidak valid (minimal 10 digit).');
+      return;
+    }
+    if (!formData.kk.trim()) {
+      setStepError('Mohon isi Nomor Kartu Keluarga (KK) (16 digit).');
+      return;
+    }
+    if (formData.kk.trim().length < 16) {
+      setStepError('Nomor Kartu Keluarga (KK) harus terdiri dari 16 digit angka.');
+      return;
+    }
+    if (!formData.address.trim()) {
+      setStepError('Mohon isi Alamat Tempat Tinggal Lengkap.');
       return;
     }
     setCurrentStep(3);
@@ -209,8 +262,14 @@ export default function PCSBForm({
     const resolvedParentName = formData.fatherName || formData.motherName || 'Wali Santri';
     const finalData = { ...formData, parentName: resolvedParentName };
 
-    if (!finalData.fullName.trim() || !finalData.parentPhone.trim()) {
-      setStepError('Mohon lengkapi seluruh isian wajib.');
+    // Mandatory check on Step 3: Rencana Datang
+    if (!finalData.rencanaDatang.trim()) {
+      setStepError('Mohon tentukan perkiraan Rencana Tanggal Datang / Sowan ke Pesantren.');
+      return;
+    }
+
+    if (!finalData.fullName.trim() || !finalData.parentPhone.trim() || !finalData.nik.trim()) {
+      setStepError('Mohon lengkapi seluruh kolom wajib yang bertanda (*).');
       return;
     }
 
@@ -228,15 +287,17 @@ export default function PCSBForm({
 
     try {
       const existingList = JSON.parse(localStorage.getItem('pesantren_ppdb_list') || '[]');
-      existingList.unshift(newEntry);
-      localStorage.setItem('pesantren_ppdb_list', JSON.stringify(existingList));
+      const filteredExisting = Array.isArray(existingList) ? existingList.filter((item: any) => item && item.id !== generatedId) : [];
+      filteredExisting.unshift(newEntry);
+      localStorage.setItem('pesantren_ppdb_list', JSON.stringify(filteredExisting));
       localStorage.setItem('last_pcsb_registration', JSON.stringify(newEntry));
       setExistingRegistration(newEntry);
     } catch (err) {
       console.warn('Local storage save error:', err);
     }
 
-    onSubmit(finalData);
+    // Pass generatedId to ensure same ID across client, server, and Supabase
+    onSubmit({ ...finalData, id: generatedId } as any);
     setSubmitted(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -264,7 +325,7 @@ export default function PCSBForm({
       pekerjaanAyah: '',
       pekerjaanIbu: '',
       penghasilanOrtu: 'Rp 1.500.000 - Rp 3.000.000',
-      ukuranSeragam: 'M',
+      rencanaDatang: '',
       healthHistory: '',
       paymentType: 'Cicilan Bulanan'
     });
@@ -275,33 +336,94 @@ export default function PCSBForm({
     setViewingSlip(false);
   };
 
-  const handleSearchStatus = (e: React.FormEvent) => {
+  // Cross-device PPDB Status Search (queries localStorage AND live /api/ppdb server)
+  const handleSearchStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusSearchError('');
     setStatusSearchResult(null);
 
     const query = statusSearchQuery.trim().toLowerCase();
+    const cleanNumber = statusSearchQuery.replace(/\D/g, '');
+
     if (!query) {
-      setStatusSearchError('Masukkan NIK, No. WA, atau Kode Pendaftaran.');
+      setStatusSearchError('Masukkan NIK, Nomor WhatsApp, atau Kode Registrasi (PCSB-XXXXXX).');
       return;
     }
 
-    try {
-      const list = JSON.parse(localStorage.getItem('pesantren_ppdb_list') || '[]');
-      const found = list.find((item: any) => 
-        (item.id && item.id.toLowerCase().includes(query)) ||
-        (item.nik && item.nik.includes(query)) ||
-        (item.parentPhone && item.parentPhone.includes(query)) ||
-        (item.fullName && item.fullName.toLowerCase().includes(query))
+    setStatusSearchLoading(true);
+
+    const matchRegistration = (item: any) => {
+      if (!item) return false;
+      const itemId = (item.id || '').toLowerCase();
+      const itemNik = (item.nik || '').replace(/\D/g, '');
+      const itemNisn = (item.nisn || '').replace(/\D/g, '');
+      const itemPhone = (item.parentPhone || '').replace(/\D/g, '');
+      const itemAltPhone = (item.waAlternatif || '').replace(/\D/g, '');
+      const itemName = (item.fullName || '').toLowerCase();
+
+      return (
+        itemId.includes(query) ||
+        (cleanNumber.length >= 4 && itemNik.includes(cleanNumber)) ||
+        (cleanNumber.length >= 4 && itemNisn.includes(cleanNumber)) ||
+        (cleanNumber.length >= 6 && itemPhone.includes(cleanNumber)) ||
+        (cleanNumber.length >= 6 && itemAltPhone.includes(cleanNumber)) ||
+        (query.length >= 3 && itemName.includes(query))
       );
+    };
+
+    try {
+      // 1. Search local list first
+      let localList: any[] = [];
+      try {
+        const stored = localStorage.getItem('pesantren_ppdb_list');
+        if (stored) localList = JSON.parse(stored);
+      } catch (e) {}
+
+      let found = localList.find(matchRegistration);
+
+      // If not in pesantren_ppdb_list, check pesantren_ppdb
+      if (!found) {
+        try {
+          const ppdbStored = localStorage.getItem('pesantren_ppdb');
+          if (ppdbStored) {
+            const parsed = JSON.parse(ppdbStored);
+            if (Array.isArray(parsed)) found = parsed.find(matchRegistration);
+          }
+        } catch (e) {}
+      }
+
+      // 2. Query server /api/ppdb for cross-device access (registered on phone, checked on PC or other browser)
+      if (!found) {
+        try {
+          const res = await fetch('/api/ppdb');
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.ppdb)) {
+              found = data.ppdb.find(matchRegistration);
+              if (found) {
+                // Cache into local storage so subsequent searches are instant
+                try {
+                  const combined = [found, ...localList.filter((x: any) => x && x.id !== found.id)];
+                  localStorage.setItem('pesantren_ppdb_list', JSON.stringify(combined));
+                } catch (e) {}
+              }
+            }
+          }
+        } catch (serverErr) {
+          console.warn('Failed to query /api/ppdb:', serverErr);
+        }
+      }
 
       if (found) {
         setStatusSearchResult(found);
       } else {
-        setStatusSearchError('Data pendaftaran tidak ditemukan. Pastikan NIK atau nomor WhatsApp sesuai.');
+        setStatusSearchError('Data pendaftaran tidak ditemukan. Pastikan Kode Pendaftaran (PCSB-XXXXXX), NIK (16 digit), atau Nomor WhatsApp sesuai saat mendaftar.');
       }
     } catch (err) {
-      setStatusSearchError('Terjadi kesalahan saat memeriksa data.');
+      console.error(err);
+      setStatusSearchError('Terjadi kendala saat memeriksa database. Silakan coba kembali.');
+    } finally {
+      setStatusSearchLoading(false);
     }
   };
 
@@ -601,8 +723,8 @@ export default function PCSBForm({
                     <div className="col-span-8 text-slate-900">{formData.previousSchool || '-'}</div>
                   </div>
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
-                    <div className="col-span-4 text-slate-500 font-medium">Ukuran Seragam:</div>
-                    <div className="col-span-8 text-slate-900 font-bold">Ukuran {formData.ukuranSeragam || 'M'}</div>
+                    <div className="col-span-4 text-slate-500 font-medium">Rencana Sowan/Tiba:</div>
+                    <div className="col-span-8 text-emerald-950 font-bold font-mono">{formData.rencanaDatang || '-'}</div>
                   </div>
                   <div className="grid grid-cols-12 gap-2 py-1.5 border-b border-slate-100">
                     <div className="col-span-4 text-slate-500 font-medium">Alamat:</div>
@@ -711,7 +833,7 @@ export default function PCSBForm({
                 pekerjaanAyah: existingRegistration.pekerjaanAyah || '',
                 pekerjaanIbu: existingRegistration.pekerjaanIbu || '',
                 penghasilanOrtu: existingRegistration.penghasilanOrtu || 'Rp 1.500.000 - Rp 3.000.000',
-                ukuranSeragam: existingRegistration.ukuranSeragam || 'M',
+                rencanaDatang: existingRegistration.rencanaDatang || '',
                 healthHistory: existingRegistration.healthHistory || '',
                 paymentType: existingRegistration.paymentType || 'Cicilan Bulanan'
               });
@@ -886,35 +1008,7 @@ export default function PCSBForm({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
-              {/* Pilihan Jenjang / Program Pendidikan */}
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  Pilihan Jenjang & Program Pendidikan <span className="text-rose-600">*</span>
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {[
-                    { val: 'Madrasah Diniyah', label: 'Madrasah Diniyah', desc: 'Kajian kitab kuning, fiqh, & akhlakul karimah' },
-                    { val: 'SMP', label: 'SMP', desc: 'Sekolah Menengah Pertama formal terakreditasi' },
-                    { val: 'SMA', label: 'SMA', desc: 'Sekolah Menengah Atas formal terakreditasi' }
-                  ].map((p) => (
-                    <button
-                      key={p.val}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, jenjangPendidikan: p.val as any })}
-                      className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
-                        formData.jenjangPendidikan === p.val
-                          ? 'bg-emerald-50 border-emerald-700 ring-2 ring-emerald-700/20 text-emerald-950 font-bold'
-                          : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <span className="text-xs font-bold">{p.label}</span>
-                      <span className="text-[10.5px] text-slate-500 mt-1">{p.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Full Name */}
+              {/* 1. Full Name Calon Santri */}
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-800 mb-1">
                   Nama Lengkap Calon Santri <span className="text-rose-600">*</span>
@@ -932,7 +1026,7 @@ export default function PCSBForm({
                 </div>
               </div>
 
-              {/* Gender Toggle */}
+              {/* 2. Jenis Kelamin */}
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
                   Jenis Kelamin <span className="text-rose-600">*</span>
@@ -960,6 +1054,34 @@ export default function PCSBForm({
                   >
                     <span>👧 Santri Putri (Perempuan)</span>
                   </button>
+                </div>
+              </div>
+
+              {/* 3. Pilihan Jenjang & Program Pendidikan (Taruh di bawah Jenis Kelamin) */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  Pilihan Jenjang & Program Pendidikan <span className="text-rose-600">*</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {[
+                    { val: 'Madrasah Diniyah', label: 'Madrasah Diniyah', desc: 'Kajian kitab kuning, fiqh, & akhlakul karimah' },
+                    { val: 'SMP', label: 'SMP', desc: 'Sekolah Menengah Pertama formal terakreditasi' },
+                    { val: 'SMA', label: 'SMA', desc: 'Sekolah Menengah Atas formal terakreditasi' }
+                  ].map((p) => (
+                    <button
+                      key={p.val}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, jenjangPendidikan: p.val as any })}
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                        formData.jenjangPendidikan === p.val
+                          ? 'bg-emerald-50 border-emerald-700 ring-2 ring-emerald-700/20 text-emerald-950 font-bold'
+                          : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <span className="text-xs font-bold">{p.label}</span>
+                      <span className="text-[10.5px] text-slate-500 mt-1">{p.desc}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1327,34 +1449,8 @@ export default function PCSBForm({
                 3
               </div>
               <div>
-                <h2 className="text-base font-extrabold text-slate-900">Ringkasan Biaya Masuk, Seragam & Berkas</h2>
-                <p className="text-xs text-slate-500">Transparansi rincian biaya awal, ukuran seragam, dan kelengkapan berkas calon santri.</p>
-              </div>
-            </div>
-
-            {/* Pilihan Ukuran Seragam Santri */}
-            <div className="p-4 rounded-2xl border border-slate-250 bg-slate-50/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-900">
-                  Ukuran Seragam Calon Santri (Paket 3 Stel):
-                </label>
-                <span className="text-[11px] text-slate-500 font-medium">Bisa ditukar saat fitting di pondok</span>
-              </div>
-              <div className="grid grid-cols-5 gap-2">
-                {(['S', 'M', 'L', 'XL', 'XXL'] as const).map((sz) => (
-                  <button
-                    key={sz}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, ukuranSeragam: sz })}
-                    className={`py-2 px-3 rounded-xl border text-xs font-extrabold transition cursor-pointer text-center ${
-                      formData.ukuranSeragam === sz
-                        ? 'bg-emerald-800 text-white border-emerald-800 shadow-xs'
-                        : 'bg-white border-slate-250 text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    Size {sz}
-                  </button>
-                ))}
+                <h2 className="text-base font-extrabold text-slate-900">Ringkasan Biaya Masuk & Berkas</h2>
+                <p className="text-xs text-slate-500">Transparansi rincian biaya awal dan kelengkapan berkas calon santri.</p>
               </div>
             </div>
 
@@ -1482,6 +1578,29 @@ export default function PCSBForm({
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Rencana Datang ke Pesantren (Bagian Terakhir) */}
+            <div className="p-4 sm:p-5 rounded-2xl border border-emerald-300 bg-emerald-50/60 space-y-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-emerald-800 shrink-0" />
+                <label className="text-xs font-bold text-emerald-950">
+                  Rencana Tanggal Datang / Sowan ke Pesantren <span className="text-rose-600">*</span>
+                </label>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Tentukan perkiraan tanggal santri beserta wali datang ke pondok untuk sowan kepada Pengasuh, wawancara, dan penyerahan berkas fisik.
+              </p>
+              <div className="relative max-w-xs pt-1">
+                <input
+                  type="date"
+                  required
+                  min={new Date().toISOString().split('T')[0]}
+                  value={formData.rencanaDatang}
+                  onChange={(e) => setFormData({ ...formData, rencanaDatang: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 bg-white font-medium text-slate-900"
+                />
               </div>
             </div>
 
@@ -1733,14 +1852,15 @@ export default function PCSBForm({
         </div>
       )}
 
-      {/* CEK STATUS PENDAFTARAN MODAL (Triggered via Hamburger Menu) */}
+      {/* CEK STATUS PENDAFTARAN MODAL (Centered, Concise & Direct Cross-Device Access) */}
       {isCheckStatusOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in overflow-y-auto">
-          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-5 sm:p-7 border border-emerald-100 space-y-4 my-auto mx-auto max-h-[90vh] overflow-y-auto text-left">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-5 sm:p-6 border border-emerald-100 space-y-4 my-auto mx-auto max-h-[90vh] overflow-y-auto text-left">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-150">
               <div className="flex items-center gap-2">
-                <Search className="h-5 w-5 text-amber-600" />
-                <h3 className="font-extrabold text-slate-900 text-base">Cek Status Pendaftaran</h3>
+                <Search className="h-5 w-5 text-emerald-800" />
+                <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">Cek Status Pendaftaran</h3>
               </div>
               <button
                 type="button"
@@ -1749,7 +1869,8 @@ export default function PCSBForm({
                   setStatusSearchResult(null);
                   setStatusSearchError('');
                 }}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition"
+                title="Tutup"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1758,7 +1879,7 @@ export default function PCSBForm({
             <form onSubmit={handleSearchStatus} className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Masukkan NIK, No. WA, atau Kode Pendaftaran:
+                  Nomor Registrasi / NIK / No. WhatsApp:
                 </label>
                 <div className="relative">
                   <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
@@ -1767,47 +1888,111 @@ export default function PCSBForm({
                     required
                     value={statusSearchQuery}
                     onChange={(e) => setStatusSearchQuery(e.target.value)}
-                    placeholder="Contoh: PCSB-123456 atau 08123456789"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-250 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    placeholder="Contoh: PCSB-123456 atau 0812..."
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium"
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+                disabled={statusSearchLoading}
+                className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 disabled:bg-slate-300 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm flex items-center justify-center gap-2"
               >
-                <Search className="h-3.5 w-3.5" />
-                <span>Cari Status</span>
+                {statusSearchLoading ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Mencari di Database...</span>
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-3.5 w-3.5" />
+                    <span>Periksa Status</span>
+                  </>
+                )}
               </button>
             </form>
 
             {statusSearchError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">
-                {statusSearchError}
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-start gap-2 animate-shake">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{statusSearchError}</span>
               </div>
             )}
 
             {statusSearchResult && (
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-2.5 animate-fade-in text-left">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-3 animate-fade-in text-left">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="font-mono font-bold text-emerald-950 text-[11px]">{statusSearchResult.id}</span>
-                  {renderStatusBadge((statusSearchResult.status as RegistrationStatusType) || 'Diproses')}
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold block">KODE PENDAFTARAN</span>
+                    <span className="font-mono font-black text-emerald-950 text-xs">{statusSearchResult.id}</span>
+                  </div>
+                  <div>
+                    {renderStatusBadge((statusSearchResult.status as RegistrationStatusType) || 'Diproses')}
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-500 block text-[10px]">Nama Santri:</span>
-                  <strong className="text-slate-900 text-sm">{statusSearchResult.fullName}</strong>
+
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Nama Calon:</span>
+                    <strong className="text-slate-900">{statusSearchResult.fullName}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Jenjang:</span>
+                    <span className="text-emerald-900 font-bold">{statusSearchResult.jenjangPendidikan || 'Madrasah Diniyah'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Wali & WhatsApp:</span>
+                    <span className="font-mono text-slate-800">{statusSearchResult.parentPhone || '-'}</span>
+                  </div>
+                  {statusSearchResult.rencanaDatang && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Rencana Datang:</span>
+                      <span className="font-mono font-bold text-emerald-950">{statusSearchResult.rencanaDatang}</span>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <span className="text-slate-500 block text-[10px]">Wali Santri / Telepon:</span>
-                  <span className="text-slate-800">{statusSearchResult.parentName || statusSearchResult.fatherName} • {statusSearchResult.parentPhone}</span>
-                </div>
-                <div className="pt-1 text-[11px] font-medium text-slate-700">
-                  {statusSearchResult.status === 'Diterima' 
-                    ? '🎉 Selamat! Calon santri telah dinyatakan Lulus & Diterima. Silakan hubungi panitia untuk kedatangan asrama.'
-                    : statusSearchResult.status === 'Perlu Dokumen'
-                    ? '⚠️ Masih ada berkas pendukung fisik yang perlu dilengkapi saat verifikasi di pondok.'
-                    : '⏳ Berkas pendaftaran sedang dalam antrean verifikasi administrasi oleh panitia.'}
+
+                <div className="pt-2 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegistrationId(statusSearchResult.id);
+                      setCurrentLiveStatus((statusSearchResult.status as RegistrationStatusType) || 'Diproses');
+                      setFormData({
+                        fullName: statusSearchResult.fullName || '',
+                        gender: statusSearchResult.gender || 'Laki-laki',
+                        jenjangPendidikan: statusSearchResult.jenjangPendidikan || 'Madrasah Diniyah',
+                        birthPlace: statusSearchResult.birthPlace || '',
+                        birthDate: statusSearchResult.birthDate || '',
+                        parentName: statusSearchResult.parentName || '',
+                        parentPhone: statusSearchResult.parentPhone || '',
+                        waAlternatif: statusSearchResult.waAlternatif || '',
+                        address: statusSearchResult.address || '',
+                        previousSchool: statusSearchResult.previousSchool || '',
+                        kk: statusSearchResult.kk || '',
+                        nik: statusSearchResult.nik || '',
+                        nisn: statusSearchResult.nisn || '',
+                        anakKe: statusSearchResult.anakKe || '1',
+                        jumlahSaudara: statusSearchResult.jumlahSaudara || '1',
+                        statusKeluarga: statusSearchResult.statusKeluarga || 'Lengkap',
+                        fatherName: statusSearchResult.fatherName || '',
+                        motherName: statusSearchResult.motherName || '',
+                        pekerjaanAyah: statusSearchResult.pekerjaanAyah || '',
+                        pekerjaanIbu: statusSearchResult.pekerjaanIbu || '',
+                        penghasilanOrtu: statusSearchResult.penghasilanOrtu || 'Rp 1.500.000 - Rp 3.000.000',
+                        rencanaDatang: statusSearchResult.rencanaDatang || '',
+                        healthHistory: statusSearchResult.healthHistory || '',
+                        paymentType: statusSearchResult.paymentType || 'Cicilan Bulanan'
+                      });
+                      setIsCheckStatusOpen(false);
+                      setViewingSlip(true);
+                    }}
+                    className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    <span>Cetak / Unduh Slip Pendaftaran</span>
+                  </button>
                 </div>
               </div>
             )}

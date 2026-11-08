@@ -1556,17 +1556,21 @@ export default function App() {
   };
 
   // Submit PCSB Online
-  const handlePpdbSubmit = async (newReg: Omit<PCSBRegistration, 'id' | 'registrationDate' | 'status'>) => {
+  const handlePpdbSubmit = async (newReg: Omit<PCSBRegistration, 'id' | 'registrationDate' | 'status'> & { id?: string; registrationDate?: string; status?: string }) => {
+    const regId = newReg.id || `PCSB-${Math.floor(Math.random() * 900000 + 100000)}`;
     const regWithId: PCSBRegistration = {
       ...newReg,
-      id: `ppdb-${Date.now()}`,
-      registrationDate: new Date().toISOString().split('T')[0],
-      status: 'Pending'
+      id: regId,
+      registrationDate: newReg.registrationDate || new Date().toISOString().split('T')[0],
+      status: (newReg.status as any) || 'Diproses'
     };
-    const updatedList = [regWithId, ...ppdbList];
+    const updatedList = [regWithId, ...ppdbList.filter(p => p && p.id !== regId)];
     setPpdbList(updatedList);
     try {
       localStorage.setItem('pesantren_ppdb', JSON.stringify(updatedList));
+      const existingPPDBList = JSON.parse(localStorage.getItem('pesantren_ppdb_list') || '[]');
+      const filteredExisting = Array.isArray(existingPPDBList) ? existingPPDBList.filter((p: any) => p && p.id !== regId) : [];
+      localStorage.setItem('pesantren_ppdb_list', JSON.stringify([regWithId, ...filteredExisting]));
     } catch (e) {
       console.error(e);
     }

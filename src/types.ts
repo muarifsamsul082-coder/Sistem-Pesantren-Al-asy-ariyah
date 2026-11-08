@@ -55,8 +55,8 @@ export interface PCSBRegistration {
   statusKeluarga?: string; // Lengkap / Yatim / Piatu / Yatim Piatu
   pekerjaanAyah?: string;
   pekerjaanIbu?: string;
-  penghasilanOrtu?: string;
-  ukuranSeragam?: string; // S / M / L / XL / XXL
+  ukuranSeragam?: string; // Optional legacy
+  rencanaDatang?: string; // Tanggal rencana tiba / sowan ke pesantren
   waAlternatif?: string;
   paymentStatus?: string;
   paymentProof?: string;
