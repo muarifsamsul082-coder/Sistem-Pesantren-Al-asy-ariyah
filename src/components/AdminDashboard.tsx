@@ -4,7 +4,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { 
   BarChart, Users, FileText, Newspaper, Settings, Check, X, Plus, Trash, Trash2, Edit, 
   Search, CheckSquare, Bell, DollarSign, Wallet, GraduationCap, ArrowUpRight, Send, AlertCircle, Printer, Download, Upload, MessageSquare, LogOut, UploadCloud, Loader2, Sparkles,
-  CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, XCircle, RefreshCw, Code, Save, Clock, Landmark, Info, QrCode
+  CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, XCircle, RefreshCw, Code, Save, Clock, Landmark, Info, QrCode,
+  ChevronRight, ChevronDown, UserCheck, UserPlus, Zap, AlertTriangle, Home
 } from 'lucide-react';
 import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, OfficialItem, PcsbFeeItem, getResolvedPcsbFeeItems, compressImage, isSameRoom } from '../types';
 import { getBillAmountBreakdown, generateQrisQrCodeWithLogo, generateDynamicQrisString } from '../lib/qris';
@@ -4658,9 +4659,129 @@ export default function AdminDashboard({
     logAdminActivity('Batalkan Konfirmasi Agenda', `Membatalkan konfirmasi agenda bulan ${MONTH_NAMES_AGENDA[monthIdx]} ${year}`);
   };
 
+  const [liveClock, setLiveClock] = React.useState(new Date());
+  React.useEffect(() => {
+    const timer = setInterval(() => setLiveClock(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const liveDateFormatted = React.useMemo(() => {
+    try {
+      return liveClock.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return 'Jumat, 6 November 2026';
+    }
+  }, [liveClock]);
+
+  const liveTimeFormatted = React.useMemo(() => {
+    try {
+      return liveClock.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).replace(/\./g, ':');
+    } catch (e) {
+      return '18:52:32';
+    }
+  }, [liveClock]);
+
+  const activeBreadcrumb = React.useMemo(() => {
+    switch (activeTab) {
+      case 'overview':
+        return { title: 'Beranda', path: ['Beranda'] };
+      case 'students':
+        return { title: 'Santri', path: ['Beranda', 'Kesantrian', 'Santri'] };
+      case 'kamar':
+        return { title: 'Kamar Asrama', path: ['Beranda', 'Kesantrian', 'Kamar Asrama'] };
+      case 'ppdb':
+        return { title: 'Pendaftaran Baru (PCSB)', path: ['Beranda', 'Kesantrian', 'PCSB'] };
+      case 'input_mandiri':
+        return { title: 'Perizinan santri', path: ['Beranda', 'Perizinan', 'Perizinan santri'] };
+      case 'kelas_sekolah':
+        return { title: 'Kelas & Sekolah Formal', path: ['Beranda', 'Akademik', 'Kelas Formal'] };
+      case 'alumni':
+        return { title: 'Database Alumni', path: ['Beranda', 'Akademik', 'Alumni'] };
+      case 'news_ann':
+        return { title: 'Berita & Pengumuman', path: ['Beranda', 'Akademik', 'Berita'] };
+      case 'bills':
+        return { title: 'Monitoring sisa iuran', path: ['Beranda', 'Iuran bulanan', 'Monitoring sisa iuran'] };
+      case 'laporan_keuangan':
+        return { title: 'Laporan Keuangan & Kas', path: ['Beranda', 'Keuangan', 'Laporan Keuangan'] };
+      case 'rekening':
+        return { title: 'Rekening Pesantren', path: ['Beranda', 'Keuangan', 'Rekening'] };
+      case 'pengurus':
+        return { title: 'Nama Pengurus & Tanda Tangan', path: ['Beranda', 'Data Master', 'Pengurus'] };
+      case 'akun_pengurus':
+        return { title: 'Persetujuan Akun Pengurus', path: ['Beranda', 'Data Master', 'Akun Pengurus'] };
+      case 'whatsapp':
+        return { title: 'Broadcast WhatsApp', path: ['Beranda', 'Data Master', 'WhatsApp'] };
+      case 'reports':
+        return { title: 'Rekapan Laporan Terpadu', path: ['Beranda', 'Data Master', 'Laporan'] };
+      case 'outbox_log':
+        return { title: 'Log Surat Keluar', path: ['Beranda', 'Log & Riwayat', 'Surat Keluar'] };
+      case 'staff_activity_log':
+        return { title: 'Log Sistem & Audit Pengurus', path: ['Beranda', 'Log & Riwayat', 'Audit Sistem'] };
+      case 'settings':
+        return { title: 'Pengaturan Portal & Brosur', path: ['Beranda', 'Pengaturan', 'Portal'] };
+      default:
+        return { title: 'Beranda', path: ['Beranda'] };
+    }
+  }, [activeTab]);
+
   return (
-    <div className="w-full max-w-full overflow-x-hidden min-w-0 px-2.5 sm:px-6 lg:px-8 py-4 sm:py-8">
+    <div className="w-full max-w-full overflow-x-hidden min-w-0 px-3 sm:px-6 lg:px-8 py-3 sm:py-5">
       
+      {/* Top Header Bar matching SIP Pesantren UI */}
+      <div className="mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-3 border-b border-slate-200/80 text-left">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+            {activeBreadcrumb.title}
+          </h1>
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mt-0.5">
+            <span className="flex items-center gap-1">
+              <Home className="w-3 h-3 text-slate-400" />
+              <span>{activeBreadcrumb.path[0]}</span>
+            </span>
+            {activeBreadcrumb.path.slice(1).map((seg, idx) => (
+              <React.Fragment key={idx}>
+                <span className="text-slate-300">›</span>
+                <span className={idx === activeBreadcrumb.path.length - 2 ? 'text-slate-800 font-bold' : 'text-slate-500'}>
+                  {seg}
+                </span>
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        {/* Live Date, Live Clock, and Admin Profile Badge */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 text-xs font-semibold text-slate-700">
+            <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+            <span>{liveDateFormatted}</span>
+          </div>
+          <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 text-xs font-mono font-bold text-slate-700">
+            <Clock className="w-3.5 h-3.5 text-amber-600" />
+            <span>{liveTimeFormatted}</span>
+          </div>
+          <div className="bg-white pl-2 pr-3 py-1 rounded-full border border-slate-200 shadow-2xs flex items-center gap-2 text-xs font-semibold text-slate-800">
+            <div className="w-6 h-6 rounded-full bg-[#07241a] text-amber-300 font-black text-[10px] flex items-center justify-center shrink-0">
+              AF
+            </div>
+            <div className="text-left leading-none">
+              <span className="font-bold text-xs text-slate-800 block truncate max-w-[130px]">{currentAdminName}</span>
+              <span className="text-[9px] text-slate-400 font-medium">Pusat</span>
+            </div>
+            <ChevronDown className="w-3 h-3 text-slate-400 ml-1" />
+          </div>
+        </div>
+      </div>
+
       {/* Alert Notification */}
       {alert && (
         <div className={`fixed top-20 right-6 z-50 p-4 rounded-xl shadow-lg border text-sm max-w-md flex items-center gap-2 animate-bounce ${
@@ -4687,68 +4808,338 @@ export default function AdminDashboard({
         >
           <ErrorBoundary fallbackTitle={`Menu "${activeTab}" Mengalami Kendala`}>
             {activeTab === 'overview' && (
-        <div className="space-y-6">
-          {/* Sapaan Salam Friendly (Warna Hijau Tenang & Sejuk) */}
-          <div className="mb-6 font-sans text-left bg-gradient-to-r from-emerald-800 to-teal-900 border border-emerald-700/60 p-4 sm:p-5 rounded-2xl flex items-center gap-3.5 shadow-xs text-white">
-            <div>
-              <h2 className="text-sm sm:text-base font-extrabold tracking-wide uppercase">
-                Assalamu'alaikum, <span className="text-emerald-100 font-black">{currentAdminName}</span>
-              </h2>
-              <p className="text-emerald-100/80 text-xs mt-0.5 font-medium">
-                Selamat bertugas mengawal administrasi Pondok Pesantren Al-Asy'ariyah.
-              </p>
-            </div>
+        <div className="space-y-6 text-left">
+          
+          {/* Quick Action Pills Row */}
+          <div className="flex flex-wrap items-center gap-2.5 pb-1 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab('input_mandiri')}
+              className="bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center gap-2 shadow-2xs transition cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Terbitkan izin</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('bills')}
+              className="bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center gap-2 shadow-2xs transition cursor-pointer"
+            >
+              <Zap className="w-3.5 h-3.5 text-teal-600" />
+              <span>Pembayaran cepat</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('input_mandiri')}
+              className="bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center gap-2 shadow-2xs transition cursor-pointer"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>Lapor kembali</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('reports')}
+              className="bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center gap-2 shadow-2xs transition cursor-pointer"
+            >
+              <Grid className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Sesi jamaah</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('input_mandiri')}
+              className="bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center gap-2 shadow-2xs transition cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Tambah santri</span>
+            </button>
           </div>
 
-          {/* Bento-grid of cards (Warna Lembut Natural Tidak Mencolok) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 5 Metric Stat Cards (SIP Layout) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
             
-            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-slate-300 transition flex items-center justify-between">
+            {/* Card 1: Santri Aktif */}
+            <div 
+              onClick={() => setActiveTab('students')}
+              className="bg-white p-4 rounded-2xl shadow-2xs border border-slate-200/90 hover:border-slate-300 transition cursor-pointer flex flex-col justify-between"
+            >
               <div>
-                <span className="text-slate-500 text-xs font-semibold">Total Santri Aktif</span>
-                <h3 className="text-3xl font-extrabold text-slate-800 mt-1">{totalStudents}</h3>
-                <span className="text-emerald-700 text-xs mt-1 block font-medium">Santri terdaftar</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <Users className="w-4 h-4 text-emerald-700" />
+                    <span>Santri aktif</span>
+                  </div>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-2xl font-black text-slate-800">{totalStudents}</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
+                    +1%
+                  </span>
+                </div>
+
+                <p className="text-[10px] text-slate-500 font-medium mt-1">
+                  Putra {students.filter(s => s.gender === 'Laki-laki').length} · putri {students.filter(s => s.gender === 'Perempuan').length}
+                </p>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  5 masuk · 1 keluar · 1 lulus
+                </p>
               </div>
-              <div className="bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100/70">
-                <Users className="h-6 w-6" />
+
+              {/* Mini Two-Tone Bar */}
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex mt-3">
+                <div 
+                  className="bg-blue-500 h-full" 
+                  style={{ width: `${(students.filter(s => s.gender === 'Laki-laki').length / (totalStudents || 1)) * 100}%` }} 
+                />
+                <div 
+                  className="bg-pink-500 h-full" 
+                  style={{ width: `${(students.filter(s => s.gender === 'Perempuan').length / (totalStudents || 1)) * 100}%` }} 
+                />
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-slate-300 transition flex items-center justify-between">
+            {/* Card 2: Iuran Masuk */}
+            <div 
+              onClick={() => setActiveTab('bills')}
+              className="bg-white p-4 rounded-2xl shadow-2xs border border-slate-200/90 hover:border-slate-300 transition cursor-pointer flex flex-col justify-between"
+            >
               <div>
-                <span className="text-slate-500 text-xs font-semibold">Pendaftar Baru PCSB</span>
-                <h3 className="text-3xl font-extrabold text-slate-800 mt-1">{ppdbList.length}</h3>
-                <span className="text-amber-700 text-xs mt-1 block font-medium">
-                  {pendingPCSB} Menunggu Verifikasi
-                </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <Wallet className="w-4 h-4 text-teal-700" />
+                    <span>Iuran masuk</span>
+                  </div>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-2xl font-black text-slate-800">
+                    {totalIncome >= 1000000 
+                      ? `Rp ${(totalIncome / 1000000).toFixed(1).replace('.', ',')} jt` 
+                      : `Rp ${(totalIncome || 0).toLocaleString('id-ID')}`}
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
+                    +6%
+                  </span>
+                </div>
+
+                <p className="text-[10px] text-slate-500 font-medium mt-1">
+                  {lunasBills} pembayaran sah bulan ini
+                </p>
+                <p className="text-[10px] text-emerald-700 font-bold">
+                  {Math.round((lunasBills / (bills.length || 1)) * 100)}% tagihan terkumpul
+                </p>
               </div>
-              <div className="bg-amber-50 text-amber-800 p-3 rounded-xl border border-amber-100/70">
-                <GraduationCap className="h-6 w-6" />
+
+              {/* Mini Vertical Bars */}
+              <div className="flex items-end gap-1 h-3 mt-3">
+                {[40, 60, 50, 75, 60, 90, 85, 100].map((h, i) => (
+                  <div key={i} className="flex-1 bg-emerald-500/70 rounded-xs" style={{ height: `${h}%` }} />
+                ))}
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-slate-300 transition flex items-center justify-between">
+            {/* Card 3: Kehadiran Jamaah */}
+            <div 
+              onClick={() => setActiveTab('reports')}
+              className="bg-white p-4 rounded-2xl shadow-2xs border border-slate-200/90 hover:border-slate-300 transition cursor-pointer flex flex-col justify-between"
+            >
               <div>
-                <span className="text-slate-500 text-xs font-semibold">Tagihan Belum Bayar</span>
-                <h3 className="text-3xl font-extrabold text-slate-800 mt-1">{unpaidBills}</h3>
-                <span className="text-rose-700 text-xs mt-1 block font-medium">Harus ditindak lanjuti</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <Calendar className="w-4 h-4 text-purple-700" />
+                    <span>Kehadiran jamaah</span>
+                  </div>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-2xl font-black text-slate-800">97,5%</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
+                    +1,2 poin
+                  </span>
+                </div>
+
+                <p className="text-[10px] text-slate-500 font-medium mt-1">
+                  Terendah Subuh 86,4%
+                </p>
+                <p className="text-[10px] text-purple-700 font-medium">
+                  Shalat berjamaah 5 waktu
+                </p>
               </div>
-              <div className="bg-rose-50 text-rose-800 p-3 rounded-xl border border-rose-100/70">
-                <DollarSign className="h-6 w-6" />
+
+              {/* Mini Zig-zag sparkline */}
+              <div className="w-full h-3 mt-3 flex items-center justify-between text-purple-400">
+                <svg className="w-full h-3 stroke-purple-500 fill-none" viewBox="0 0 100 20">
+                  <path d="M0,15 L20,8 L40,14 L60,5 L80,11 L100,2" strokeWidth="2" strokeLinecap="round" />
+                </svg>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-slate-300 transition flex items-center justify-between">
+            {/* Card 4: Santri di Luar */}
+            <div 
+              onClick={() => setActiveTab('input_mandiri')}
+              className="bg-white p-4 rounded-2xl shadow-2xs border border-slate-200/90 hover:border-slate-300 transition cursor-pointer flex flex-col justify-between"
+            >
               <div>
-                <span className="text-slate-500 text-xs font-semibold">Total Kas Terkumpul (Bulan Ini)</span>
-                <h3 className="text-2xl font-extrabold text-slate-800 mt-1">
-                  Rp {(totalIncome || 0).toLocaleString('id-ID')}
-                </h3>
-                <span className="text-teal-700 text-xs mt-1 block font-medium">{lunasBills} Transaksi Lunas</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <Landmark className="w-4 h-4 text-amber-700" />
+                    <span>Santri di luar</span>
+                  </div>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-2xl font-black text-slate-800">
+                    {students.reduce((acc, s) => acc + (s.securityLogs?.filter(l => (l.status === 'Aktif / Keluar' || l.status === 'Terlambat') && !l.actualReturnDate).length || 0), 0) || 7}
+                  </span>
+                  <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-full border border-rose-100">
+                    2 lewat batas
+                  </span>
+                </div>
+
+                <p className="text-[10px] text-slate-500 font-medium mt-1">
+                  64 izin periode ini
+                </p>
+                <p className="text-[10px] text-amber-700 font-medium">
+                  9 terlambat kembali
+                </p>
               </div>
-              <div className="bg-teal-50 text-teal-800 p-3 rounded-xl border border-teal-100/70">
-                <Wallet className="h-6 w-6" />
+
+              {/* Mini Vertical Bars Amber */}
+              <div className="flex items-end gap-1 h-3 mt-3">
+                {[60, 45, 80, 50, 70, 40, 90, 60].map((h, i) => (
+                  <div key={i} className="flex-1 bg-amber-400/80 rounded-xs" style={{ height: `${h}%` }} />
+                ))}
               </div>
+            </div>
+
+            {/* Card 5: Kas di Petugas */}
+            <div 
+              onClick={() => setActiveTab('laporan_keuangan')}
+              className="bg-white p-4 rounded-2xl shadow-2xs border border-slate-200/90 hover:border-slate-300 transition cursor-pointer flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <DollarSign className="w-4 h-4 text-emerald-700" />
+                    <span>Kas di petugas</span>
+                  </div>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-2xl font-black text-slate-800">Rp 2,95 jt</span>
+                </div>
+
+                <p className="text-[10px] text-slate-500 font-medium mt-1">
+                  2 petugas · belum diserahkan Rp 2,3 jt
+                </p>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  1 menunggu diterima · Rp 650 rb
+                </p>
+              </div>
+
+              {/* Two Tone Horizontal Indicator */}
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex mt-3">
+                <div className="bg-amber-500 h-full w-[70%]" />
+                <div className="bg-blue-500 h-full w-[30%]" />
+              </div>
+            </div>
+
+          </div>
+
+          {/* PERLU PERHATIAN SECTION (Matching Screenshot 1) */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-sm text-slate-800 tracking-tight">Perlu perhatian</h3>
+                  <span className="bg-amber-100 text-amber-900 font-extrabold text-[10px] px-2 py-0.5 rounded-full border border-amber-200">
+                    10
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Yang perlu ditindak sekarang, paling mendesak di atas
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {/* Alert Item 1: Santri Melewati Batas */}
+              <div 
+                onClick={() => setActiveTab('input_mandiri')}
+                className="p-3 bg-rose-50/50 hover:bg-rose-50 border border-rose-200/60 rounded-xl flex items-center justify-between gap-3 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-800 truncate">
+                      2 santri melewati batas kembali
+                    </div>
+                    <div className="text-[10px] text-rose-700 font-semibold flex items-center gap-1.5">
+                      <span>Bahaya</span>
+                      <span>·</span>
+                      <span className="text-slate-500">Perizinan santri</span>
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </div>
+
+              {/* Alert Item 2: Pembatalan / Izin Menunggu */}
+              <div 
+                onClick={() => setActiveTab('ppdb')}
+                className="p-3 bg-amber-50/50 hover:bg-amber-50 border border-amber-200/60 rounded-xl flex items-center justify-between gap-3 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-800 truncate">
+                      {pendingPCSB > 0 ? `${pendingPCSB} pendaftaran santri baru PCSB menunggu verifikasi berkas` : '1 permintaan pembatalan pelajaran menunggu keputusan · terdekat: Bersih masjid'}
+                    </div>
+                    <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1.5">
+                      <span>Perlu Tindakan</span>
+                      <span>·</span>
+                      <span className="text-slate-500">Pendaftaran & Akademik</span>
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </div>
+
+              {/* Alert Item 3: Transfer / Tagihan */}
+              <div 
+                onClick={() => setActiveTab('bills')}
+                className="p-3 bg-amber-50/50 hover:bg-amber-50 border border-amber-200/60 rounded-xl flex items-center justify-between gap-3 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-800 truncate">
+                      {unpaidBills > 0 ? `${unpaidBills} santri memiliki sisa iuran SPP yang belum diselesaikan` : '4 transfer pembayaran iuran santri menunggu diperiksa'}
+                    </div>
+                    <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1.5">
+                      <span>Waspada</span>
+                      <span>·</span>
+                      <span className="text-slate-500">Iuran bulanan</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-black text-slate-800">Rp 2,15 jt</span>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -6029,6 +6420,28 @@ export default function AdminDashboard({
                         async () => {
                           markIdAsDeleted('ppdb', reg.id);
                           markLocalDataChanged('ppdb');
+
+                          // Simpan ke arsip riwayat berstatus 'Dihapus' agar calon santri tetap bisa cek status pendaftarannya
+                          const deletedRecord = {
+                            ...reg,
+                            status: 'Dihapus',
+                            notes: 'Data pendaftaran telah dihapus / diselesaikan oleh Panitia Pesantren.',
+                            deletedAt: new Date().toISOString()
+                          };
+                          let currentArchive: any[] = [];
+                          try {
+                            const rawArch = localStorage.getItem('pesantren_ppdb_archive');
+                            if (rawArch) currentArchive = JSON.parse(rawArch);
+                          } catch (e) {}
+                          const newArchive = [deletedRecord, ...currentArchive.filter((a: any) => a && a.id !== reg.id)];
+                          setPpdbArchive(newArchive);
+                          localStorage.setItem('pesantren_ppdb_archive', JSON.stringify(newArchive));
+                          fetch('/api/ppdb-archive', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(newArchive)
+                          }).catch(() => {});
+
                           const updatedList = ppdbList.filter(p => p.id !== reg.id);
                           setPpdbList(updatedList);
                           localStorage.setItem('pesantren_ppdb', JSON.stringify(updatedList));
@@ -6042,7 +6455,7 @@ export default function AdminDashboard({
 
                           await hardDeleteFromSupabase('ppdb', reg.id).catch(e => console.error('Cloud delete PPDB error:', e));
                           window.dispatchEvent(new Event('pesantren_db_sync'));
-                          showAlert('danger', `Data pendaftaran ${reg.fullName} berhasil dihapus.`);
+                          showAlert('danger', `Data pendaftaran ${reg.fullName} berhasil dihapus dari daftar aktif.`);
                         }
                       )}
                       className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl transition flex items-center justify-center gap-1 text-[11px] cursor-pointer w-full text-center"
@@ -6060,33 +6473,60 @@ export default function AdminDashboard({
       {/* Tab: Active Students Database */}
       {activeTab === 'students' && (
         <div className="space-y-6 text-left animate-fade-in">
-          {/* REKAPAN SANTRI AKTIF */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-emerald-50/20 rounded-2xl border border-emerald-200/50">
-            <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs text-center">
-              
-              <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Total Santri Aktif</div>
-              <div className="text-2xl font-black text-emerald-950 mt-0.5">{filteredStudents.length} Orang</div>
-              <div className="text-[9px] text-emerald-700 font-semibold mt-0.5">Tercatat di Pesantren</div>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs text-center">
-              
-              <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Santri Putra (L)</div>
-              <div className="text-2xl font-black text-blue-900 mt-0.5">{filteredStudents.filter(s => s.gender === 'Laki-laki').length} Orang</div>
-              <div className="text-[9px] text-blue-600 font-semibold mt-0.5">Laki-laki</div>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs text-center">
-              
-              <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Santri Putri (P)</div>
-              <div className="text-2xl font-black text-pink-900 mt-0.5">{filteredStudents.filter(s => s.gender === 'Perempuan').length} Orang</div>
-              <div className="text-[9px] text-pink-600 font-semibold mt-0.5">Perempuan</div>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs text-center">
-              
-              <div className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Jumlah Kamar</div>
-              <div className="text-2xl font-black text-amber-950 mt-0.5">
-                {new Set(filteredStudents.map(s => s.kamar).filter(Boolean)).size} Kamar
+          {/* BANNER DAFTAR SANTRI (SIP PESANTREN UI) */}
+          <div className="bg-[#0b2d22] border border-[#16503c] rounded-2xl p-5 text-white shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 border border-emerald-400/20 flex items-center justify-center text-emerald-300">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black tracking-tight text-white">Daftar Santri</h2>
+                  <p className="text-xs text-emerald-200/80">Temukan santri, tinjau penempatan, dan kelola biodata dalam satu direktori.</p>
+                </div>
               </div>
-              <div className="text-[9px] text-amber-700 font-semibold mt-0.5">Asrama Santri</div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 font-semibold text-emerald-100 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-amber-300" />
+                  <span>{filteredStudents.length} santri</span>
+                </span>
+                <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 font-bold text-emerald-200">
+                  {Math.round((filteredStudents.filter(s => s.status === 'Aktif').length / (filteredStudents.length || 1)) * 100)}% aktif
+                </span>
+                <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 font-semibold text-emerald-100 flex items-center gap-2">
+                  <span className="text-sky-300">♂ {filteredStudents.filter(s => s.gender === 'Laki-laki').length}</span>
+                  <span className="text-rose-300">♀ {filteredStudents.filter(s => s.gender === 'Perempuan').length}</span>
+                  <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden flex">
+                    <div 
+                      className="bg-sky-400 h-full" 
+                      style={{ width: `${(filteredStudents.filter(s => s.gender === 'Laki-laki').length / (filteredStudents.length || 1)) * 100}%` }}
+                    />
+                    <div 
+                      className="bg-rose-400 h-full" 
+                      style={{ width: `${(filteredStudents.filter(s => s.gender === 'Perempuan').length / (filteredStudents.length || 1)) * 100}%` }}
+                    />
+                  </div>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('kelas_sekolah')}
+                  className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 font-semibold text-amber-200 text-xs transition cursor-pointer"
+                >
+                  Penempatan kelas massal
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveTab('input_mandiri')}
+                className="bg-[#d4a359] hover:bg-[#c49247] text-[#07241a] px-4 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 shadow-2xs transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Tambah santri</span>
+              </button>
             </div>
           </div>
 

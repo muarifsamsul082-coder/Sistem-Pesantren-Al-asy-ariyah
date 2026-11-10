@@ -19,7 +19,7 @@ interface PCSBFormProps {
   onBackToHome?: () => void;
 }
 
-export type RegistrationStatusType = 'Diproses' | 'Diterima' | 'Perlu Dokumen' | 'Ditolak';
+export type RegistrationStatusType = 'Diproses' | 'Diterima' | 'Perlu Dokumen' | 'Ditolak' | 'Dihapus';
 
 export default function PCSBForm({ 
   onSubmit, 
@@ -486,6 +486,49 @@ export default function PCSBForm({
         }
       }
 
+      // 3. Search archive & deleted records if not found in active list
+      // "Data PCSB yang sudah dihapus tetap bisa di cek status walaupun datanya sudah tidak ada"
+      if (!found) {
+        let archiveList: any[] = [];
+        try {
+          const archRes = await fetch('/api/ppdb-archive');
+          if (archRes.ok) {
+            const archData = await archRes.json();
+            if (archData && archData.success && Array.isArray(archData.archive)) {
+              archiveList = archData.archive;
+            }
+          }
+        } catch (e) {}
+
+        if (archiveList.length === 0) {
+          try {
+            const localArch = localStorage.getItem('pesantren_ppdb_archive');
+            if (localArch) archiveList = JSON.parse(localArch);
+          } catch (e) {}
+        }
+
+        const matchArchive = Array.isArray(archiveList) ? archiveList.find(matchRegistration) : null;
+        if (matchArchive) {
+          found = {
+            ...matchArchive,
+            status: matchArchive.status === 'Diterima' ? 'Diterima' : (matchArchive.status === 'Ditolak' ? 'Ditolak' : 'Dihapus'),
+            isDeletedOrArchived: true,
+            statusNote: matchArchive.notes || (matchArchive.status === 'Ditolak' ? 'Pendaftaran belum dapat diterima oleh panitia seleksi.' : 'Data pendaftaran ini telah dihapus / diselesaikan oleh Panitia Pesantren.')
+          };
+        }
+      }
+
+      // 4. Fallback: jika nomor registrasi cocok dengan ID yang pernah dihapus
+      if (!found && isRecordDeleted(query.toUpperCase())) {
+        found = {
+          id: query.toUpperCase(),
+          fullName: 'Calon Santri (Data Telah Dihapus)',
+          status: 'Dihapus',
+          isDeletedOrArchived: true,
+          statusNote: 'Data pendaftaran dengan kode ini telah dibatalkan atau dihapus dari sistem oleh Panitia Pesantren.'
+        };
+      }
+
       if (found) {
         setStatusSearchResult(found);
       } else {
@@ -547,7 +590,7 @@ export default function PCSBForm({
       case 'Diterima':
         return (
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-xs font-black text-xs uppercase tracking-wide">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping" />
+            <span className="w-2 h-2 rounded-full bg-emerald-600" />
             <CheckCircle className="h-4 w-4 text-emerald-700" />
             <span>Status: Diterima (Resmi Lulus Seleksi)</span>
           </div>
@@ -555,7 +598,7 @@ export default function PCSBForm({
       case 'Perlu Dokumen':
         return (
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-100 text-amber-950 border border-amber-300 shadow-xs font-black text-xs uppercase tracking-wide">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-amber-600" />
             <AlertCircle className="h-4 w-4 text-amber-700" />
             <span>Status: Perlu Dokumen (Lengkapi Berkas)</span>
           </div>
@@ -567,11 +610,19 @@ export default function PCSBForm({
             <span>Status: Tidak Memenuhi Syarat</span>
           </div>
         );
+      case 'Dihapus':
+        return (
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100 text-slate-800 border border-slate-300 shadow-xs font-black text-xs uppercase tracking-wide">
+            <span className="w-2 h-2 rounded-full bg-slate-500" />
+            <X className="h-4 w-4 text-slate-600" />
+            <span>Status: Dibatalkan / Dihapus oleh Panitia</span>
+          </div>
+        );
       case 'Diproses':
       default:
         return (
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-900 border border-amber-250 shadow-xs font-black text-xs uppercase tracking-wide">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+            <span className="w-2 h-2 rounded-full bg-amber-600" />
             <Clock className="h-4 w-4 text-amber-600" />
             <span>Status: Diproses (Sedang Diverifikasi)</span>
           </div>
@@ -961,7 +1012,7 @@ export default function PCSBForm({
               Formulir Pendaftaran Calon Santri Baru
             </h1>
             <p className="text-xs sm:text-sm text-emerald-100 font-medium max-w-xl mt-1 drop-shadow-xs">
-              {settings.schoolName || "Pondok Pesantren Al-Asy'ariyah"} • Mancengan Barat, Modung, Bangkalan
+              <span className="whitespace-nowrap">Pondok Pesantren Al-Asy'ariyah</span> • Mancengan Barat, Modung, Bangkalan
             </p>
           </div>
         </div>
@@ -2046,46 +2097,66 @@ export default function PCSBForm({
                   )}
                 </div>
 
+                {/* Notice for Deleted / Archived Records */}
+                {statusSearchResult.isDeletedOrArchived && (
+                  <div className="p-3 bg-amber-50/90 border border-amber-250 text-amber-950 text-xs rounded-xl flex items-start gap-2">
+                    <Info className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block font-bold">Catatan Panitia PPDB:</strong>
+                      <span>{statusSearchResult.statusNote || 'Data pendaftaran ini telah dihapus atau diselesaikan dari sistem seleksi aktif oleh Panitia Penerimaan Santri Baru Pondok Pesantren Al-Asy\'ariyah. Silakan hubungi nomor kontak panitia jika memerlukan bantuan pendaftaran ulang.'}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="pt-2 border-t border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRegistrationId(statusSearchResult.id);
-                      setCurrentLiveStatus((statusSearchResult.status as RegistrationStatusType) || 'Diproses');
-                      setFormData({
-                        fullName: statusSearchResult.fullName || '',
-                        gender: statusSearchResult.gender || 'Laki-laki',
-                        jenjangPendidikan: statusSearchResult.jenjangPendidikan || 'Madrasah Diniyah',
-                        birthPlace: statusSearchResult.birthPlace || '',
-                        birthDate: statusSearchResult.birthDate || '',
-                        parentName: statusSearchResult.parentName || '',
-                        parentPhone: statusSearchResult.parentPhone || '',
-                        waAlternatif: statusSearchResult.waAlternatif || '',
-                        address: statusSearchResult.address || '',
-                        previousSchool: statusSearchResult.previousSchool || '',
-                        kk: statusSearchResult.kk || '',
-                        nik: statusSearchResult.nik || '',
-                        nisn: statusSearchResult.nisn || '',
-                        anakKe: statusSearchResult.anakKe || '1',
-                        jumlahSaudara: statusSearchResult.jumlahSaudara || '1',
-                        statusKeluarga: statusSearchResult.statusKeluarga || 'Lengkap',
-                        fatherName: statusSearchResult.fatherName || '',
-                        motherName: statusSearchResult.motherName || '',
-                        pekerjaanAyah: statusSearchResult.pekerjaanAyah || '',
-                        pekerjaanIbu: statusSearchResult.pekerjaanIbu || '',
-                        penghasilanOrtu: statusSearchResult.penghasilanOrtu || 'Rp 1.500.000 - Rp 3.000.000',
-                        rencanaDatang: statusSearchResult.rencanaDatang || '',
-                        healthHistory: statusSearchResult.healthHistory || '',
-                        paymentType: statusSearchResult.paymentType || 'Cicilan Bulanan'
-                      });
-                      setIsCheckStatusOpen(false);
-                      setViewingSlip(true);
-                    }}
-                    className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    <span>Cetak / Unduh Slip Pendaftaran</span>
-                  </button>
+                  {!statusSearchResult.isDeletedOrArchived && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRegistrationId(statusSearchResult.id);
+                        setCurrentLiveStatus((statusSearchResult.status as RegistrationStatusType) || 'Diproses');
+                        setFormData({
+                          fullName: statusSearchResult.fullName || '',
+                          gender: statusSearchResult.gender || 'Laki-laki',
+                          jenjangPendidikan: statusSearchResult.jenjangPendidikan || 'Madrasah Diniyah',
+                          birthPlace: statusSearchResult.birthPlace || '',
+                          birthDate: statusSearchResult.birthDate || '',
+                          parentName: statusSearchResult.parentName || '',
+                          parentPhone: statusSearchResult.parentPhone || '',
+                          waAlternatif: statusSearchResult.waAlternatif || '',
+                          address: statusSearchResult.address || '',
+                          previousSchool: statusSearchResult.previousSchool || '',
+                          kk: statusSearchResult.kk || '',
+                          nik: statusSearchResult.nik || '',
+                          nisn: statusSearchResult.nisn || '',
+                          anakKe: statusSearchResult.anakKe || '1',
+                          jumlahSaudara: statusSearchResult.jumlahSaudara || '1',
+                          statusKeluarga: statusSearchResult.statusKeluarga || 'Lengkap',
+                          fatherName: statusSearchResult.fatherName || '',
+                          motherName: statusSearchResult.motherName || '',
+                          pekerjaanAyah: statusSearchResult.pekerjaanAyah || '',
+                          pekerjaanIbu: statusSearchResult.pekerjaanIbu || '',
+                          penghasilanOrtu: statusSearchResult.penghasilanOrtu || 'Rp 1.500.000 - Rp 3.000.000',
+                          rencanaDatang: statusSearchResult.rencanaDatang || '',
+                          healthHistory: statusSearchResult.healthHistory || '',
+                          paymentType: statusSearchResult.paymentType || 'Cicilan Bulanan'
+                        });
+                        setSubmitted(true);
+                        setIsCheckStatusOpen(false);
+                      }}
+                      className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Eye className="h-4 w-4" />
+                      <span>Buka Lembar Konfirmasi & Slip Pendaftaran</span>
+                    </button>
+                  )}
+                  {statusSearchResult.isDeletedOrArchived && (
+                    <div className="text-center pt-1">
+                      <span className="text-[11px] text-slate-500">
+                        Status tersimpan dalam arsip database Pondok Pesantren Al-Asy'ariyah.
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

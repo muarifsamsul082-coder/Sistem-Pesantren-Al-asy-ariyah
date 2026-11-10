@@ -274,9 +274,18 @@ export default function App() {
     } catch (e) {}
   };
   const [isLoginOpen, setIsLoginOpen] = React.useState(false);
-  const [isAccountOpen, setIsAccountOpen] = React.useState(false);
+  const [isAccountOpen, setIsAccountOpen] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return false;
+  });
 
-  // Note: Account sidebar is not auto-opened on initial load to keep entry view clean and safe
+  React.useEffect(() => {
+    if (session && typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setIsAccountOpen(true);
+    }
+  }, [session]);
 
   const [viewArticleId, setViewArticleId] = React.useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);

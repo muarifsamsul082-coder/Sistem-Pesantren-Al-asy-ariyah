@@ -89,17 +89,12 @@ export default function Hero({
 
           <motion.h1 
             variants={itemVariants}
-            className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight"
+            className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight"
           >
-            Selamat Datang di <br />
-            <motion.span 
-              initial={{ backgroundPosition: '0% 50%' }}
-              animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
-              transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
-              className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-100 to-amber-400 bg-[length:200%_auto] inline-block"
-            >
-              {schoolName}
-            </motion.span>
+            Selamat Datang di Portal Resmi <br />
+            <span className="text-amber-300 inline-block mt-1 font-black">
+              Pondok Pesantren <span className="whitespace-nowrap">Al-Asy'ariyah</span>
+            </span>
           </motion.h1>
 
           <motion.p 

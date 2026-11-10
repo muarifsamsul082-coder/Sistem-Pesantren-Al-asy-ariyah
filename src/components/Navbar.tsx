@@ -62,9 +62,10 @@ export default function Navbar({
   const [logoImgError, setLogoImgError] = React.useState(false);
 
   // Admin menu accordions: only for Pembayaran, Log Surat & Sistem, and Persetujuan & Daftar Pengurus
+  const [navSearchQuery, setNavSearchQuery] = React.useState('');
   const [adminMenuAccordions, setAdminMenuAccordions] = React.useState<Record<string, boolean>>({
-    pembayaran: false,
-    pengurus: false,
+    pembayaran: true,
+    pengurus: true,
     log: false,
   });
 
@@ -657,53 +658,13 @@ export default function Navbar({
                 </div>
               )}
 
-              <div className="flex flex-col items-start justify-center min-w-0">
-                {/* Tampilan HP/Mobile: 2 baris jika namanya diawali Pondok Pesantren */}
-                {schoolName.toLowerCase().startsWith('pondok pesantren') ? (
-                  <div className="flex flex-col items-start md:hidden leading-tight">
-                    <span className="text-[10px] min-[360px]:text-[11px] font-black uppercase text-amber-200/90 tracking-wider font-sans">
-                      Pondok Pesantren
-                    </span>
-                    <span className="text-[14px] min-[360px]:text-[16px] sm:text-[18px] font-black text-white tracking-wide font-sans truncate max-w-[125px] min-[360px]:max-w-[155px] min-[375px]:max-w-[175px] min-[414px]:max-w-[205px]">
-                      {schoolName.slice(16).trim()}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-start md:hidden leading-tight">
-                    {schoolName.length > 16 ? (
-                      <>
-                        <span className="text-[10px] min-[360px]:text-[11px] font-black uppercase text-amber-200/90 tracking-wider font-sans">
-                          Pesantren
-                        </span>
-                        <span className="text-[14px] min-[360px]:text-[16px] sm:text-[18px] font-black text-white tracking-wide font-sans truncate max-w-[125px] min-[360px]:max-w-[155px] min-[375px]:max-w-[175px] min-[414px]:max-w-[205px]">
-                          {schoolName}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-[14px] min-[360px]:text-[16px] sm:text-[18px] font-black text-white tracking-wide font-sans truncate max-w-[125px] min-[360px]:max-w-[155px] min-[375px]:max-w-[175px] min-[414px]:max-w-[205px]">
-                        {schoolName}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Tampilan Desktop (Tablet ke atas): Lengkap tanpa pemotongan/truncate */}
-                <div className="hidden md:flex flex-col justify-center leading-tight">
-                  {schoolName.toLowerCase().startsWith('pondok pesantren') ? (
-                    <>
-                      <span className="text-[10px] lg:text-[11px] font-black uppercase text-amber-200/90 tracking-widest font-sans">
-                        Pondok Pesantren
-                      </span>
-                      <span className="text-[16px] lg:text-[20px] xl:text-[22px] font-black text-white hover:text-amber-100 transition tracking-wide font-sans whitespace-nowrap">
-                        {schoolName.slice(16).trim()}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-base md:text-[17px] lg:text-[20px] xl:text-[22px] font-black text-amber-100 hover:text-white transition whitespace-nowrap tracking-wide font-sans">
-                      {schoolName}
-                    </span>
-                  )}
-                </div>
+              <div className="flex flex-col items-start justify-center min-w-0 leading-tight">
+                <span className="text-[13.5px] min-[360px]:text-[15px] sm:text-[17px] md:text-[19px] font-black text-white hover:text-amber-200 transition tracking-wide font-sans whitespace-nowrap">
+                  Pondok Pesantren Al-Asy'ariyah
+                </span>
+                <span className="text-[9px] min-[360px]:text-[10px] sm:text-[11px] font-medium text-emerald-200/80 tracking-wider font-sans whitespace-nowrap">
+                  Mancengan Barat, Modung, Bangkalan
+                </span>
               </div>
             </div>
           </div>
@@ -1015,388 +976,442 @@ export default function Navbar({
             onClick={() => setIsAccountOpen(false)}
           />
 
-          <div className="fixed left-0 top-0 bottom-0 w-64 bg-white dark:bg-slate-950 shadow-2xl z-50 flex flex-col divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-100 text-left animate-fade-in lg:top-16 lg:h-[calc(100vh-4rem)] lg:shadow-none lg:border-r lg:border-slate-150 dark:lg:border-slate-850 lg:z-30">
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-[#07241a] text-slate-100 shadow-2xl z-50 flex flex-col text-left animate-fade-in lg:top-16 lg:h-[calc(100vh-4rem)] lg:shadow-none lg:border-r lg:border-[#0d3f2d] lg:z-30">
             
-            {/* Header inside drawer */}
-            <div className="px-4 py-4 bg-gradient-to-r from-emerald-800 to-teal-900 text-white flex items-center justify-between">
-              <div>
-                <div className="text-[13px] uppercase font-black tracking-wider text-amber-200">
-                  Menu Utama
+            {/* Header inside drawer - SIP Monogram */}
+            <div className="px-4 py-3.5 bg-[#051c14] border-b border-[#0d3f2d] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 border border-emerald-500/20 flex items-center justify-center shadow-xs">
+                  <span className="text-amber-300 font-black text-xs tracking-wider">SIP</span>
                 </div>
-                {session && (
-                  <div className="text-[11px] font-bold text-emerald-100 truncate max-w-[170px] mt-0.5">
-                    {userName}
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-white font-extrabold text-xs tracking-wide">SIP</span>
+                    <span className="text-[9px] text-amber-300 font-bold px-1.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/25">v2.6</span>
                   </div>
-                )}
+                  <div className="text-[10px] text-emerald-200/70 truncate max-w-[130px]">
+                    Sistem Informasi Pesantren
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAccountOpen(false)}
-                className="text-white/60 hover:text-white transition p-1 rounded-lg"
+                className="text-emerald-300/60 hover:text-white transition p-1 rounded-lg hover:bg-emerald-900/50 lg:hidden"
                 title="Tutup Menu"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
+            {/* Quick Search */}
+            <div className="px-3 pt-3 pb-2 bg-[#07241a] shrink-0">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-emerald-300/50" />
+                <input 
+                  type="text" 
+                  placeholder="Cari menu... Ctrl K" 
+                  value={navSearchQuery} 
+                  onChange={(e) => setNavSearchQuery(e.target.value)} 
+                  className="w-full bg-[#0c3325] text-white placeholder:text-emerald-200/40 text-xs rounded-xl pl-9 pr-3 py-2 border border-[#16503c] focus:outline-none focus:border-amber-400/60 transition"
+                />
+              </div>
+            </div>
+
             {/* Drawer Menu Content (Scroll Area) */}
-            <div className="flex-1 overflow-y-auto py-2 divide-y divide-slate-50 dark:divide-slate-900">
+            <div className="flex-1 overflow-y-auto px-2 py-1 space-y-3 custom-scrollbar">
               
-              {/* ADMIN MENU OPTIONS - SEPARATED INDIVIDUALLY EXCEPT PEMBAYARAN, LOG, & PENGURUS */}
-              {session.role === 'admin' && (
-                <div className="py-1 space-y-0.5">
-                  <div className="px-4 py-1.5 text-[10px] uppercase font-bold text-slate-400">
-                    Menu Administrasi
-                  </div>
+              {/* ADMIN MENU OPTIONS - GROUPED INTO CLEAN CATEGORIES */}
+              {session.role === 'admin' && (() => {
+                const q = navSearchQuery.toLowerCase().trim();
+                const matches = (label: string) => !q || label.toLowerCase().includes(q);
 
-                  {/* 1. Beranda */}
-                  <a
-                    href="#admin/overview"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('overview'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'overview' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Beranda</span>
-                  </a>
-
-                  {/* 2. Data Santri */}
-                  <a
-                    href="#admin/santri"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('students'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'students' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Data Santri</span>
-                  </a>
-
-                  {/* 3. Kamar Asrama */}
-                  <a
-                    href="#admin/kamar"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('kamar'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'kamar' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Kamar Asrama</span>
-                  </a>
-
-                  {/* 4. Kelas & Sekolah Formal */}
-                  <a
-                    href="#admin/kelas"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('kelas_sekolah'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'kelas_sekolah' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Kelas & Sekolah Formal</span>
-                  </a>
-
-                  {/* 5. Database Alumni */}
-                  <a
-                    href="#admin/alumni"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('alumni'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'alumni' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Database Alumni</span>
-                  </a>
-
-                  {/* 6. Pendaftaran Santri Baru (PSB) */}
-                  <a
-                    href="#admin/ppdb"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('ppdb'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'ppdb' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Pendaftaran Santri Baru</span>
-                    {pendingPcsbCount > 0 && (
-                      <span className="bg-amber-400 text-slate-950 font-bold text-[9px] px-2 py-0.5 rounded-full animate-pulse">
-                        Perlu Verifikasi ({pendingPcsbCount})
-                      </span>
+                return (
+                  <div className="space-y-3">
+                    {/* Beranda Overview */}
+                    {matches('Beranda Overview Dashboard') && (
+                      <a
+                        href="#admin/overview"
+                        onClick={(e) => { e.preventDefault(); handleAdminTabClick('overview'); }}
+                        className={`w-full text-left px-3.5 py-2.5 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                          adminTab === 'overview' && currentView === 'admin-dashboard' 
+                            ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                            : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Home className="w-4 h-4 text-emerald-300/70" />
+                          <span>Beranda</span>
+                        </span>
+                      </a>
                     )}
-                  </a>
 
-                  {/* 7. Pendaftaran Offline Santri */}
-                  <a
-                    href="#admin/input-mandiri"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('input_mandiri'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'input_mandiri' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Pendaftaran Offline Santri</span>
-                  </a>
+                    {/* CATEGORY: SANTRI */}
+                    {(matches('santri') || matches('kamar') || matches('ppdb') || matches('offline')) && (
+                      <div className="space-y-0.5">
+                        <div className="px-3 pt-2 pb-1 text-[10px] uppercase font-black tracking-wider text-amber-400/90 flex items-center justify-between">
+                          <span>SANTRI</span>
+                        </div>
 
-                  {/* 8. Berita & Pengumuman */}
-                  <a
-                    href="#admin/berita"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('news_ann'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'news_ann' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Berita & Pengumuman</span>
-                  </a>
-
-                  {/* 9. Broadcast WhatsApp */}
-                  <a
-                    href="#admin/whatsapp"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('whatsapp'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'whatsapp' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Broadcast WhatsApp</span>
-                  </a>
-
-                  {/* 10. Rekapan Laporan Terpadu */}
-                  <a
-                    href="#admin/reports"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('reports'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'reports' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Rekapan Laporan Terpadu</span>
-                  </a>
-
-                  {/* 11. DISATUKAN: Pembayaran */}
-                  <div className="space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleAdminAccordion('pembayaran')}
-                      className="w-full px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
-                    >
-                      <span>Pembayaran</span>
-                      <span className="text-slate-400">
-                        {adminMenuAccordions.pembayaran ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      </span>
-                    </button>
-                    {adminMenuAccordions.pembayaran && (
-                      <div className="ml-4 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
-                        <a
-                          href="#admin/tagihan"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('bills'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
-                            adminTab === 'bills' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          <span>Tagihan & Keuangan SPP</span>
-                        </a>
-                        <a
-                          href="#admin/keuangan"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('laporan_keuangan'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
-                            adminTab === 'laporan_keuangan' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          <span>Laporan Keuangan & Kas</span>
-                        </a>
-                        <a
-                          href="#admin/rekening"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('rekening'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
-                            adminTab === 'rekening' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          <span>Rekening Pesantren</span>
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 12. DISATUKAN: Persetujuan Akun Pengurus & Daftar Pengurus */}
-                  <div className="space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleAdminAccordion('pengurus')}
-                      className="w-full px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
-                    >
-                      <span>Pengurus</span>
-                      <span className="flex items-center gap-1.5 text-slate-400">
-                        {pendingStaffCount > 0 && (
-                          <span className="bg-amber-400 text-slate-950 font-bold text-[9px] px-1.5 py-0.5 rounded-full animate-pulse">
-                            Perlu Verifikasi ({pendingStaffCount})
-                          </span>
+                        {matches('Data Santri Kesantrian') && (
+                          <a
+                            href="#admin/santri"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('students'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'students' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Kesantrian / Data Santri</span>
+                          </a>
                         )}
-                        {adminMenuAccordions.pengurus ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      </span>
-                    </button>
-                    {adminMenuAccordions.pengurus && (
-                      <div className="ml-4 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
-                        <a
-                          href="#admin/akun-pengurus"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('akun_pengurus'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
-                            adminTab === 'akun_pengurus' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          <span>Persetujuan & Akun Pengurus</span>
-                          {pendingStaffCount > 0 && (
-                            <span className="bg-amber-400 text-slate-950 font-bold text-[9px] px-1.5 py-0.5 rounded-full animate-pulse">
-                              Perlu Verifikasi
-                            </span>
-                          )}
-                        </a>
-                        <a
-                          href="#admin/pengurus"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('pengurus'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
-                            adminTab === 'pengurus' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          <span>Daftar Pengurus & Tanda Tangan</span>
-                        </a>
+
+                        {matches('Kamar Asrama') && (
+                          <a
+                            href="#admin/kamar"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('kamar'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'kamar' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Kamar Asrama</span>
+                          </a>
+                        )}
+
+                        {matches('Pendaftaran Santri Baru PPDB PCSB') && (
+                          <a
+                            href="#admin/ppdb"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('ppdb'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'ppdb' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Pendaftaran Baru (PCSB)</span>
+                            {pendingPcsbCount > 0 && (
+                              <span className="bg-amber-400 text-slate-950 font-bold text-[9px] px-1.5 py-0.5 rounded-full">
+                                {pendingPcsbCount}
+                              </span>
+                            )}
+                          </a>
+                        )}
+
+                        {matches('Pendaftaran Offline Santri Input Mandiri') && (
+                          <a
+                            href="#admin/input-mandiri"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('input_mandiri'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'input_mandiri' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Pendaftaran Offline Santri</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CATEGORY: AKADEMIK */}
+                    {(matches('akademik') || matches('kelas') || matches('sekolah') || matches('alumni') || matches('berita')) && (
+                      <div className="space-y-0.5">
+                        <div className="px-3 pt-2 pb-1 text-[10px] uppercase font-black tracking-wider text-amber-400/90 flex items-center justify-between">
+                          <span>AKADEMIK</span>
+                        </div>
+
+                        {matches('Kelas & Sekolah Formal') && (
+                          <a
+                            href="#admin/kelas"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('kelas_sekolah'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'kelas_sekolah' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Kelas & Sekolah Formal</span>
+                          </a>
+                        )}
+
+                        {matches('Database Alumni Kelulusan') && (
+                          <a
+                            href="#admin/alumni"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('alumni'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'alumni' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Database Alumni</span>
+                          </a>
+                        )}
+
+                        {matches('Berita & Pengumuman Agenda') && (
+                          <a
+                            href="#admin/berita"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('news_ann'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'news_ann' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Berita & Pengumuman</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CATEGORY: KEUANGAN */}
+                    {(matches('keuangan') || matches('tagihan') || matches('spp') || matches('rekening') || matches('kas')) && (
+                      <div className="space-y-0.5">
+                        <div className="px-3 pt-2 pb-1 text-[10px] uppercase font-black tracking-wider text-amber-400/90 flex items-center justify-between">
+                          <span>KEUANGAN</span>
+                        </div>
+
+                        {matches('Tagihan & Keuangan SPP Iuran Bulanan') && (
+                          <a
+                            href="#admin/tagihan"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('bills'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'bills' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Iuran Bulanan / Tagihan SPP</span>
+                          </a>
+                        )}
+
+                        {matches('Laporan Keuangan & Kas') && (
+                          <a
+                            href="#admin/keuangan"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('laporan_keuangan'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'laporan_keuangan' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Laporan Keuangan & Kas</span>
+                          </a>
+                        )}
+
+                        {matches('Rekening Pesantren Pembayaran') && (
+                          <a
+                            href="#admin/rekening"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('rekening'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'rekening' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Rekening Pesantren</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CATEGORY: DATA MASTER & SISTEM */}
+                    {(matches('master') || matches('pengurus') || matches('whatsapp') || matches('laporan') || matches('log') || matches('settings') || matches('portal')) && (
+                      <div className="space-y-0.5">
+                        <div className="px-3 pt-2 pb-1 text-[10px] uppercase font-black tracking-wider text-amber-400/90 flex items-center justify-between">
+                          <span>DATA MASTER & SISTEM</span>
+                        </div>
+
+                        {matches('Daftar Pengurus & Tanda Tangan') && (
+                          <a
+                            href="#admin/pengurus"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('pengurus'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'pengurus' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Nama Pengurus & Tanda Tangan</span>
+                          </a>
+                        )}
+
+                        {matches('Persetujuan Akun Pengurus Hak Akses') && (
+                          <a
+                            href="#admin/akun-pengurus"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('akun_pengurus'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'akun_pengurus' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Persetujuan Akun Pengurus</span>
+                            {pendingStaffCount > 0 && (
+                              <span className="bg-amber-400 text-slate-950 font-bold text-[9px] px-1.5 py-0.5 rounded-full">
+                                {pendingStaffCount}
+                              </span>
+                            )}
+                          </a>
+                        )}
+
+                        {matches('Broadcast WhatsApp Pesan') && (
+                          <a
+                            href="#admin/whatsapp"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('whatsapp'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'whatsapp' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Broadcast WhatsApp</span>
+                          </a>
+                        )}
+
+                        {matches('Rekapan Laporan Terpadu Cetak A4') && (
+                          <a
+                            href="#admin/reports"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('reports'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'reports' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Rekapan Laporan Terpadu</span>
+                          </a>
+                        )}
+
+                        {matches('Log Surat Keluar') && (
+                          <a
+                            href="#admin/surat-keluar"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('outbox_log'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'outbox_log' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Log Surat Keluar</span>
+                          </a>
+                        )}
+
+                        {matches('Log Sistem Audit Pengurus') && (
+                          <a
+                            href="#admin/audit-log"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('staff_activity_log'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'staff_activity_log' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Log Sistem & Audit</span>
+                          </a>
+                        )}
+
+                        {matches('Pengaturan Portal Brosur Supabase') && (
+                          <a
+                            href="#admin/settings"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('settings'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'settings' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Pengaturan Portal & Brosur</span>
+                          </a>
+                        )}
                       </div>
                     )}
                   </div>
-
-                  {/* 13. DISATUKAN: Log Surat Keluar & Log Sistem */}
-                  <div className="space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleAdminAccordion('log')}
-                      className="w-full px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between transition cursor-pointer"
-                    >
-                      <span>Log & Riwayat</span>
-                      <span className="text-slate-400">
-                        {adminMenuAccordions.log ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      </span>
-                    </button>
-                    {adminMenuAccordions.log && (
-                      <div className="ml-4 pl-3 border-l-2 border-emerald-500/40 space-y-0.5 py-1">
-                        <a
-                          href="#admin/surat-keluar"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('outbox_log'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
-                            adminTab === 'outbox_log' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          <span>Log Surat Keluar</span>
-                        </a>
-                        <a
-                          href="#admin/audit-log"
-                          onClick={(e) => { e.preventDefault(); handleAdminTabClick('staff_activity_log'); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center justify-between cursor-pointer ${
-                            adminTab === 'staff_activity_log' && currentView === 'admin-dashboard' 
-                              ? 'bg-emerald-800 text-white font-bold' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          <span>Log Sistem & Audit Pengurus</span>
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 14. Pengaturan Portal & Brosur */}
-                  <a
-                    href="#admin/settings"
-                    onClick={(e) => { e.preventDefault(); handleAdminTabClick('settings'); }}
-                    className={`w-full text-left px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                      adminTab === 'settings' && currentView === 'admin-dashboard' 
-                        ? 'bg-emerald-800 text-white font-bold' 
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <span>Pengaturan Portal & Brosur</span>
-                  </a>
-
-                </div>
-              )}
+                );
+              })()}
 
               {/* STAFF MENU OPTIONS */}
               {['keamanan', 'ketertiban', 'kesehatan'].includes(session.role) && (
-                <div className="py-1">
-                  <div className="px-4 py-1 text-[9px] uppercase font-mono font-bold text-slate-400">
+                <div className="space-y-1">
+                  <div className="px-3 pt-2 pb-1 text-[10px] uppercase font-black tracking-wider text-amber-400/90">
                     Biro {session.role.toUpperCase()}
                   </div>
                   <a
                     href="#staff/santri"
                     onClick={(e) => { e.preventDefault(); handleStaffTabClick('students'); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                      staffTab === 'students' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center gap-2 cursor-pointer ${
+                      staffTab === 'students' && currentView === 'staff-dashboard' 
+                        ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                        : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
                     }`}
                   >
-                    Dashboard & Input Santri
+                    <span>Monitoring & Input Santri</span>
                   </a>
                   <a
                     href="#staff/riwayat"
                     onClick={(e) => { e.preventDefault(); handleStaffTabClick('history'); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                      staffTab === 'history' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center gap-2 cursor-pointer ${
+                      staffTab === 'history' && currentView === 'staff-dashboard' 
+                        ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                        : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
                     }`}
                   >
-                    Riwayat & Laporan Bulanan
+                    <span>Riwayat & Laporan Bulanan</span>
                   </a>
                   <a
                     href="#staff/surat"
                     onClick={(e) => { e.preventDefault(); handleStaffTabClick('letters'); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                      (staffTab === 'letters' || staffTab === 'skck' || staffTab === 'takzir_letter') && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center gap-2 cursor-pointer ${
+                      (staffTab === 'letters' || staffTab === 'skck' || staffTab === 'takzir_letter') && currentView === 'staff-dashboard' 
+                        ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                        : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
                     }`}
                   >
-                    Penerbitan & Draf Surat
+                    <span>Penerbitan & Draf Surat</span>
                   </a>
                   <a
                     href="#staff/profil"
                     onClick={(e) => { e.preventDefault(); handleStaffTabClick('profile'); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                      staffTab === 'profile' && currentView === 'staff-dashboard' ? 'bg-emerald-800 text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center gap-2 cursor-pointer ${
+                      staffTab === 'profile' && currentView === 'staff-dashboard' 
+                        ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                        : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
                     }`}
                   >
-                    Profil & Tanda Tangan
+                    <span>Profil & Tanda Tangan</span>
                   </a>
                 </div>
               )}
             </div>
 
-            {/* Footer inside drawer with logout */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-900 shrink-0">
+            {/* Bottom Quote Card & Session Logout */}
+            <div className="p-3 bg-[#051c14] border-t border-[#0d3f2d] shrink-0 space-y-2.5">
+              <div className="p-2.5 rounded-xl bg-[#092b1f] border border-[#134e38] text-left flex items-start gap-2.5">
+                <div className="w-6 h-6 rounded-lg bg-emerald-900/80 flex items-center justify-center shrink-0 text-amber-300">
+                  <Moon className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] italic font-medium text-emerald-100/90 leading-tight">
+                    "Bersama membangun generasi berakhlak mulia."
+                  </p>
+                  <span className="text-[8px] text-amber-300/80 font-bold block mt-1 whitespace-nowrap">
+                    Pondok Pesantren Al-Asy'ariyah
+                  </span>
+                </div>
+              </div>
+
               <button
                 type="button"
                 onClick={() => {
                   onLogout();
                   setIsAccountOpen(false);
                 }}
-                className="w-full text-left px-4 py-2.5 text-xs font-extrabold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition flex items-center justify-center gap-2 cursor-pointer border border-rose-200 dark:border-rose-950/40 rounded-xl"
+                className="w-full text-left px-3 py-2 text-xs font-bold text-rose-300 hover:text-white hover:bg-rose-950/40 transition flex items-center justify-center gap-2 cursor-pointer border border-rose-900/50 rounded-xl"
               >
+                <LogOut className="w-3.5 h-3.5" />
                 <span>Keluar Sesi</span>
               </button>
             </div>
