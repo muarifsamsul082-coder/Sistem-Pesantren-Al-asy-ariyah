@@ -3,11 +3,12 @@ import {
   User, Phone, MapPin, Calendar, Award, CheckCircle, Sparkles, Send, 
   Printer, Download, Upload, FileText, X, BookOpen, Search, HelpCircle, 
   ArrowLeft, Check, ShieldCheck, Clock, FileCheck, AlertCircle, ChevronRight,
-  Eye, RefreshCw
+  Eye, RefreshCw, Info
 } from 'lucide-react';
 import { PCSBRegistration, PortalSettings, PcsbFeeItem, getResolvedPcsbFeeItems } from '../types';
 import { downloadPrintableHTML, PrintGuideAlert } from './PrintHelper';
 import { isPpdbCurrentlyActive } from '../lib/dateUtils';
+import { getDeletedIdsSet } from '../lib/supabase';
 
 interface PCSBFormProps {
   onSubmit: (registration: Omit<PCSBRegistration, 'id' | 'registrationDate' | 'status'>) => void;
@@ -91,16 +92,79 @@ export default function PCSBForm({
   const [statusSearchError, setStatusSearchError] = React.useState('');
   const [statusSearchLoading, setStatusSearchLoading] = React.useState(false);
 
-  // Check if user already has a saved registration in this browser
+  // Check if user already has a saved registration in this browser (verified against deleted records & server)
   const [existingRegistration, setExistingRegistration] = React.useState<any>(null);
 
   React.useEffect(() => {
-    try {
-      const stored = localStorage.getItem('last_pcsb_registration');
-      if (stored) {
-        setExistingRegistration(JSON.parse(stored));
+    let isCancelled = false;
+
+    const verifySavedRegistration = async () => {
+      try {
+        const stored = localStorage.getItem('last_pcsb_registration');
+        if (!stored) {
+          if (!isCancelled) setExistingRegistration(null);
+          return;
+        }
+
+        const parsed = JSON.parse(stored);
+        if (!parsed || !parsed.id) {
+          localStorage.removeItem('last_pcsb_registration');
+          if (!isCancelled) setExistingRegistration(null);
+          return;
+        }
+
+        // Cek apakah ID sudah masuk daftar hapus admin
+        const deletedIds = getDeletedIdsSet('ppdb');
+        let rawDeleted: string[] = [];
+        try {
+          rawDeleted = JSON.parse(localStorage.getItem('pesantren_deleted_ppdb_ids') || '[]');
+        } catch (e) {}
+
+        if (deletedIds.has(parsed.id) || (Array.isArray(rawDeleted) && rawDeleted.includes(parsed.id))) {
+          // Data telah dihapus oleh admin, hapus peringatan lama
+          localStorage.removeItem('last_pcsb_registration');
+          if (!isCancelled) setExistingRegistration(null);
+          return;
+        }
+
+        // Validasi ke server backend /api/ppdb untuk cross-device status
+        try {
+          const res = await fetch('/api/ppdb');
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.ppdb)) {
+              const match = data.ppdb.find((p: any) => p && p.id === parsed.id);
+              if (!match) {
+                // Tidak ada di database server (sudah dihapus), bersihkan cache
+                localStorage.removeItem('last_pcsb_registration');
+                if (!isCancelled) setExistingRegistration(null);
+                return;
+              } else {
+                // Perbarui data dengan status terbaru
+                if (!isCancelled) setExistingRegistration(match);
+                localStorage.setItem('last_pcsb_registration', JSON.stringify(match));
+                return;
+              }
+            }
+          }
+        } catch (serverErr) {
+          console.warn('Gagal memverifikasi status pendaftaran ke server:', serverErr);
+        }
+
+        if (!isCancelled) {
+          setExistingRegistration(parsed);
+        }
+      } catch (e) {
+        localStorage.removeItem('last_pcsb_registration');
+        if (!isCancelled) setExistingRegistration(null);
       }
-    } catch (e) {}
+    };
+
+    verifySavedRegistration();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   // Listen to navigation events from Navbar hamburger menu
@@ -371,52 +435,65 @@ export default function PCSBForm({
       );
     };
 
+    const deletedIds = getDeletedIdsSet('ppdb');
+    let rawDeleted: string[] = [];
     try {
-      // 1. Search local list first
-      let localList: any[] = [];
+      rawDeleted = JSON.parse(localStorage.getItem('pesantren_deleted_ppdb_ids') || '[]');
+    } catch (e) {}
+    const isRecordDeleted = (id: string) => deletedIds.has(id) || (Array.isArray(rawDeleted) && rawDeleted.includes(id));
+
+    try {
+      let found: any = null;
+
+      // 1. Query server /api/ppdb first for real-time cross-device accuracy
       try {
-        const stored = localStorage.getItem('pesantren_ppdb_list');
-        if (stored) localList = JSON.parse(stored);
-      } catch (e) {}
-
-      let found = localList.find(matchRegistration);
-
-      // If not in pesantren_ppdb_list, check pesantren_ppdb
-      if (!found) {
-        try {
-          const ppdbStored = localStorage.getItem('pesantren_ppdb');
-          if (ppdbStored) {
-            const parsed = JSON.parse(ppdbStored);
-            if (Array.isArray(parsed)) found = parsed.find(matchRegistration);
+        const res = await fetch('/api/ppdb');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.ppdb)) {
+            const activeList = data.ppdb.filter((item: any) => item && item.id && !isRecordDeleted(item.id));
+            found = activeList.find(matchRegistration);
+            try {
+              localStorage.setItem('pesantren_ppdb_list', JSON.stringify(activeList));
+            } catch (e) {}
           }
-        } catch (e) {}
+        }
+      } catch (serverErr) {
+        console.warn('Failed to query /api/ppdb:', serverErr);
       }
 
-      // 2. Query server /api/ppdb for cross-device access (registered on phone, checked on PC or other browser)
+      // 2. If not found on server or offline, check local list (excluding deleted records)
       if (!found) {
+        let localList: any[] = [];
         try {
-          const res = await fetch('/api/ppdb');
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.success && Array.isArray(data.ppdb)) {
-              found = data.ppdb.find(matchRegistration);
-              if (found) {
-                // Cache into local storage so subsequent searches are instant
-                try {
-                  const combined = [found, ...localList.filter((x: any) => x && x.id !== found.id)];
-                  localStorage.setItem('pesantren_ppdb_list', JSON.stringify(combined));
-                } catch (e) {}
+          const stored = localStorage.getItem('pesantren_ppdb_list');
+          if (stored) localList = JSON.parse(stored);
+        } catch (e) {}
+
+        const cleanLocal = localList.filter((x: any) => x && x.id && !isRecordDeleted(x.id));
+        found = cleanLocal.find(matchRegistration);
+
+        if (!found) {
+          try {
+            const ppdbStored = localStorage.getItem('pesantren_ppdb');
+            if (ppdbStored) {
+              const parsed = JSON.parse(ppdbStored);
+              if (Array.isArray(parsed)) {
+                found = parsed.filter((x: any) => x && x.id && !isRecordDeleted(x.id)).find(matchRegistration);
               }
             }
-          }
-        } catch (serverErr) {
-          console.warn('Failed to query /api/ppdb:', serverErr);
+          } catch (e) {}
         }
       }
 
       if (found) {
         setStatusSearchResult(found);
       } else {
+        // If searched registration matches existingRegistration and wasn't found, clean stored notification
+        if (existingRegistration && matchRegistration(existingRegistration)) {
+          localStorage.removeItem('last_pcsb_registration');
+          setExistingRegistration(null);
+        }
         setStatusSearchError('Data pendaftaran tidak ditemukan. Pastikan Kode Pendaftaran (PCSB-XXXXXX), NIK (16 digit), atau Nomor WhatsApp sesuai saat mendaftar.');
       }
     } catch (err) {
@@ -436,8 +513,8 @@ export default function PCSBForm({
   if (!activePPDB.isActive) {
     return (
       <div className="bg-white rounded-3xl shadow-xl p-8 max-w-2xl mx-auto border border-emerald-100 text-center space-y-6 my-12 animate-fade-in">
-        <div className="inline-flex p-4 bg-amber-100 text-amber-800 rounded-2xl text-2xl">
-          ⏳
+        <div className="inline-flex p-3.5 bg-amber-50 text-amber-800 rounded-2xl border border-amber-200">
+          <Clock className="h-6 w-6 text-amber-700" />
         </div>
         <div className="space-y-2">
           <h2 className="text-2xl font-bold text-slate-900">
@@ -793,57 +870,70 @@ export default function PCSBForm({
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       
-      {/* Active Submission Alert Banner if User Already Registered in this Browser */}
+      {/* Active Submission Alert Banner with Dismiss Option */}
       {existingRegistration && !submitted && (
-        <div className="bg-amber-50/90 border border-amber-250 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs font-sans">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-600 shrink-0" />
             <div className="text-xs">
-              <span className="font-bold text-amber-950">Pendaftaran Aktif Terakhir: </span>
+              <span className="font-bold text-slate-900">Pendaftaran Aktif Terakhir: </span>
               <span className="text-slate-800 font-semibold">{existingRegistration.fullName} ({existingRegistration.id})</span>
               <div className="mt-0.5">
                 {renderStatusBadge((existingRegistration.status as RegistrationStatusType) || 'Diproses')}
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setRegistrationId(existingRegistration.id);
-              setCurrentLiveStatus((existingRegistration.status as RegistrationStatusType) || 'Diproses');
-              setFormData({
-                fullName: existingRegistration.fullName || '',
-                gender: existingRegistration.gender || 'Laki-laki',
-                jenjangPendidikan: existingRegistration.jenjangPendidikan || 'Madrasah Diniyah',
-                birthPlace: existingRegistration.birthPlace || '',
-                birthDate: existingRegistration.birthDate || '',
-                parentName: existingRegistration.parentName || '',
-                parentPhone: existingRegistration.parentPhone || '',
-                waAlternatif: existingRegistration.waAlternatif || '',
-                address: existingRegistration.address || '',
-                previousSchool: existingRegistration.previousSchool || '',
-                kk: existingRegistration.kk || '',
-                nik: existingRegistration.nik || '',
-                nisn: existingRegistration.nisn || '',
-                anakKe: existingRegistration.anakKe || '1',
-                jumlahSaudara: existingRegistration.jumlahSaudara || '1',
-                statusKeluarga: existingRegistration.statusKeluarga || 'Lengkap',
-                fatherName: existingRegistration.fatherName || '',
-                motherName: existingRegistration.motherName || '',
-                pekerjaanAyah: existingRegistration.pekerjaanAyah || '',
-                pekerjaanIbu: existingRegistration.pekerjaanIbu || '',
-                penghasilanOrtu: existingRegistration.penghasilanOrtu || 'Rp 1.500.000 - Rp 3.000.000',
-                rencanaDatang: existingRegistration.rencanaDatang || '',
-                healthHistory: existingRegistration.healthHistory || '',
-                paymentType: existingRegistration.paymentType || 'Cicilan Bulanan'
-              });
-              setSubmitted(true);
-            }}
-            className="px-3 py-1.5 bg-amber-400 hover:bg-amber-350 text-emerald-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 shadow-xs cursor-pointer shrink-0"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            <span>Lihat Status & Slip</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setRegistrationId(existingRegistration.id);
+                setCurrentLiveStatus((existingRegistration.status as RegistrationStatusType) || 'Diproses');
+                setFormData({
+                  fullName: existingRegistration.fullName || '',
+                  gender: existingRegistration.gender || 'Laki-laki',
+                  jenjangPendidikan: existingRegistration.jenjangPendidikan || 'Madrasah Diniyah',
+                  birthPlace: existingRegistration.birthPlace || '',
+                  birthDate: existingRegistration.birthDate || '',
+                  parentName: existingRegistration.parentName || '',
+                  parentPhone: existingRegistration.parentPhone || '',
+                  waAlternatif: existingRegistration.waAlternatif || '',
+                  address: existingRegistration.address || '',
+                  previousSchool: existingRegistration.previousSchool || '',
+                  kk: existingRegistration.kk || '',
+                  nik: existingRegistration.nik || '',
+                  nisn: existingRegistration.nisn || '',
+                  anakKe: existingRegistration.anakKe || '1',
+                  jumlahSaudara: existingRegistration.jumlahSaudara || '1',
+                  statusKeluarga: existingRegistration.statusKeluarga || 'Lengkap',
+                  fatherName: existingRegistration.fatherName || '',
+                  motherName: existingRegistration.motherName || '',
+                  pekerjaanAyah: existingRegistration.pekerjaanAyah || '',
+                  pekerjaanIbu: existingRegistration.pekerjaanIbu || '',
+                  penghasilanOrtu: existingRegistration.penghasilanOrtu || 'Rp 1.500.000 - Rp 3.000.000',
+                  rencanaDatang: existingRegistration.rencanaDatang || '',
+                  healthHistory: existingRegistration.healthHistory || '',
+                  paymentType: existingRegistration.paymentType || 'Cicilan Bulanan'
+                });
+                setSubmitted(true);
+              }}
+              className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>Lihat Status & Slip</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem('last_pcsb_registration');
+                setExistingRegistration(null);
+              }}
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-amber-100 rounded-lg transition cursor-pointer"
+              title="Tutup & Sembunyikan Pesan Ini"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1041,7 +1131,7 @@ export default function PCSBForm({
                         : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    <span>👦 Santri Putra (Laki-laki)</span>
+                    <span>Santri Putra (Laki-laki)</span>
                   </button>
                   <button
                     type="button"
@@ -1052,7 +1142,7 @@ export default function PCSBForm({
                         : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    <span>👧 Santri Putri (Perempuan)</span>
+                    <span>Santri Putri (Perempuan)</span>
                   </button>
                 </div>
               </div>
@@ -1646,7 +1736,7 @@ export default function PCSBForm({
             <div className="flex items-start justify-between pb-4 border-b border-slate-150">
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-mono text-[10.5px] font-bold uppercase">
-                  <Sparkles className="h-3 w-3 text-amber-500" />
+                  <BookOpen className="h-3 w-3 text-emerald-800" />
                   <span>SOP & Panduan Resmi PPDB 2026/2027</span>
                 </div>
                 <h3 className="font-black text-slate-900 text-lg sm:text-xl">
@@ -1749,7 +1839,10 @@ export default function PCSBForm({
                     </li>
                   </ul>
                   <div className="pt-2 border-t border-emerald-200/60 text-[10.5px] text-emerald-900 font-medium">
-                    💡 <em>Catatan Khusus:</em> Sistem pendaftaran Al-Asy'ariyah <strong>tidak mempersyaratkan golongan darah</strong> dan <strong>tidak mewajibkan hafalan Al-Qur'an awal</strong>. Pondok menerima santri dari berbagai latar belakang untuk dibina dari tingkat dasar.
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
+                    <span><em>Catatan Khusus:</em> Sistem pendaftaran Al-Asy'ariyah <strong>tidak mempersyaratkan golongan darah</strong> dan <strong>tidak mewajibkan hafalan Al-Qur'an awal</strong>. Pondok menerima santri dari berbagai latar belakang untuk dibina dari tingkat dasar.</span>
+                  </div>
                   </div>
                 </div>
               </div>

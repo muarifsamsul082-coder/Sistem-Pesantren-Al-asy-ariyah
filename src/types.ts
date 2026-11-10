@@ -142,6 +142,7 @@ export interface Student {
   motherName?: string;
   birthPlace?: string;
   birthDate?: string;
+  entryDate?: string;
   bloodType?: string;
   healthHistory?: string;
 

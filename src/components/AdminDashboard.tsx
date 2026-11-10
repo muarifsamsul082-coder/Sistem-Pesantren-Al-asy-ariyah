@@ -70,6 +70,7 @@ import {
 import WhatsAppBroadcastPanel from './WhatsAppBroadcastPanel';
 import FinancialReportPanel from './FinancialReportPanel';
 import { StudentBillingReceiptModal } from './StudentBillingReceiptModal';
+import ExcelStudentImportModal from './ExcelStudentImportModal';
 
 interface AdminDashboardProps {
   students: Student[];
@@ -246,6 +247,9 @@ export default function AdminDashboard({
       localStorage.setItem('pesantren_admin_active_tab', tab);
     } catch (e) {}
   };
+
+  // Excel Bulk Import Modal State
+  const [isExcelImportModalOpen, setIsExcelImportModalOpen] = React.useState(false);
 
   // Supabase Database Config State
   const [supabaseUrlInput, setSupabaseUrlInput] = React.useState<string>(() => getSupabaseConfig().url);
@@ -1757,21 +1761,7 @@ export default function AdminDashboard({
   // Sync editSettings with upstream settings only if user does not have un-saved local changes
   React.useEffect(() => {
     if (!isSettingsDirty) {
-      let currentStored: Partial<PortalSettings> = {};
-      try {
-        const saved = localStorage.getItem('pesantren_settings');
-        if (saved) currentStored = JSON.parse(saved);
-      } catch (e) {}
-
-      const merged: PortalSettings = {
-        ...settings,
-        ...currentStored,
-        ppdbStartDate: currentStored.ppdbStartDate !== undefined ? currentStored.ppdbStartDate : (settings.ppdbStartDate || ''),
-        ppdbEndDate: currentStored.ppdbEndDate !== undefined ? currentStored.ppdbEndDate : (settings.ppdbEndDate || ''),
-        ppdbOpen: currentStored.ppdbOpen !== undefined ? currentStored.ppdbOpen : settings.ppdbOpen,
-      };
-
-      setEditSettings(autoAdjustPpdbSettings(merged));
+      setEditSettings(autoAdjustPpdbSettings(settings));
     }
   }, [settings, isSettingsDirty]);
 
@@ -6159,17 +6149,30 @@ export default function AdminDashboard({
                 </select>
 
                 <button
-                  onClick={() => downloadPrintableTableHTML('admin-students-printable-table', 'Database_Santri_Al_Asyariyah')}
-                  className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-700 text-white rounded-xl text-xs font-bold shadow-md hover:from-emerald-600 hover:to-emerald-800 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  type="button"
+                  onClick={() => setIsExcelImportModalOpen(true)}
+                  className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                  title="Impor Santri Massal dari Excel (.xlsx / .csv)"
                 >
-                  <Printer className="h-3.5 w-3.5" /> Cetak Data
+                  <Upload className="h-3.5 w-3.5" /> Impor dari Excel
                 </button>
 
                 <button
+                  type="button"
                   onClick={exportStudentsToExcel}
-                  className="px-4 py-2 bg-gradient-to-r from-teal-500 to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:from-teal-600 hover:to-teal-800 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                  title="Ekspor Data Santri ke Excel"
                 >
-                  <Download className="h-3.5 w-3.5" /> Ekspor ke Excel
+                  <Download className="h-3.5 w-3.5 text-emerald-700" /> Ekspor ke Excel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => downloadPrintableTableHTML('admin-students-printable-table', 'Database_Santri_Al_Asyariyah')}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-250 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5"
+                  title="Cetak Tabel Data Santri"
+                >
+                  <Printer className="h-3.5 w-3.5 text-slate-600" /> Cetak Data
                 </button>
               </div>
             </div>
@@ -14333,6 +14336,30 @@ export default function AdminDashboard({
             body: JSON.stringify(updatedBills)
           }).catch(() => {});
           showAlert('success', `Seluruh tanggungan untuk ${studentName} telah berhasil dilunaskan/dibebaskan.`);
+        }}
+      />
+
+      {/* MODAL: IMPOR MASSAL DATA SANTRI (EXCEL / CSV) */}
+      <ExcelStudentImportModal
+        isOpen={isExcelImportModalOpen}
+        onClose={() => setIsExcelImportModalOpen(false)}
+        existingStudents={students}
+        onImportSuccess={(updatedList, importedCount) => {
+          setStudents(updatedList);
+          try {
+            localStorage.setItem('pesantren_students', JSON.stringify(updatedList));
+          } catch (e) {}
+          markLocalDataChanged('students');
+          fetch('/api/students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedList)
+          }).catch(err => console.warn('Server update students error:', err));
+          if (isSupabaseConfigured()) {
+            pushAllStudentsToSupabase(updatedList).catch(err => console.error('Cloud update all students error:', err));
+          }
+          window.dispatchEvent(new Event('pesantren_db_sync'));
+          showAlert('success', `Alhamdulillah! Berhasil mengimpor ${importedCount} data santri secara massal ke dalam sistem.`);
         }}
       />
 

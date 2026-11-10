@@ -79,10 +79,10 @@ export default function Hero({
           {ppdbStatus.isActive && (
             <motion.div 
               variants={itemVariants}
-              whileHover={{ scale: 1.03 }}
+              whileHover={{ scale: 1.02 }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400 text-emerald-950 rounded-xl text-xs sm:text-sm font-extrabold tracking-wide shadow-md uppercase cursor-default"
             >
-              <Sparkles className="h-4 w-4 shrink-0 text-emerald-950 animate-pulse" />
+              <GraduationCap className="h-4 w-4 shrink-0 text-emerald-950" />
               <span>{ppdbStatus.unifiedNoticeText}</span>
             </motion.div>
           )}

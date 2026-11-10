@@ -493,8 +493,8 @@ export default function App() {
 
   // Enforce automatic session cleanup on tab close (via sessionStorage) and inactivity/away timeout
   React.useEffect(() => {
-    // Batas waktu inaktivitas atau keluar dari aplikasi (15 menit)
-    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+    // Batas waktu inaktivitas atau keluar dari aplikasi (7 hari agar sesi admin/staff di ponsel tidak terputus tiba-tiba)
+    const INACTIVITY_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 
     const recordActivity = () => {
       sessionStorage.setItem('pesantren_last_activity', Date.now().toString());
@@ -512,21 +512,21 @@ export default function App() {
     };
 
     const checkInactivity = () => {
-      const stored = sessionStorage.getItem('pesantren_session');
+      const stored = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
       if (!stored) return;
 
       const lastActivity = parseInt(sessionStorage.getItem('pesantren_last_activity') || '0', 10);
       if (lastActivity > 0 && Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS) {
-        performAutoLogout('Inaktivitas melebihi 15 menit');
+        performAutoLogout('Inaktivitas melebihi batas waktu sesi');
       }
     };
 
-    // Deteksi ketika pengguna keluar/berpindah dari tab/aplikasi untuk waktu yang lama
+    // Deteksi saat pengguna kembali ke aplikasi
     const handleVisibilityChange = () => {
       if (document.hidden) {
         sessionStorage.setItem('pesantren_tab_hidden_at', Date.now().toString());
       } else {
-        const stored = sessionStorage.getItem('pesantren_session');
+        const stored = sessionStorage.getItem('pesantren_session') || localStorage.getItem('pesantren_session');
         if (!stored) return;
 
         const hiddenAt = parseInt(sessionStorage.getItem('pesantren_tab_hidden_at') || '0', 10);
@@ -894,7 +894,7 @@ export default function App() {
         const currentLocal = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
         const lastModStr = localStorage.getItem('pesantren_settings_last_modified');
         const lastModTime = lastModStr ? parseInt(lastModStr, 10) : 0;
-        const isLocallyModifiedRecently = (Date.now() - lastModTime < 60000) || isLocalDataRecentlyChanged('settings', 60000);
+        const isLocallyModifiedRecently = (Date.now() - lastModTime < 4000) || isLocalDataRecentlyChanged('settings', 4000);
 
         if (isLocallyModifiedRecently) {
           // If locally changed recently, push local settings to server rather than overwriting
@@ -911,14 +911,14 @@ export default function App() {
           const json = await res.json();
           if (json && json.success && json.settings) {
             const remoteSettings = json.settings;
-            // Merge order: DEFAULT -> remoteSettings -> currentLocal (local modifications preserved)
+            // Remote server settings have authoritative precedence across devices
             const mergedSettings: PortalSettings = {
               ...DEFAULT_SETTINGS,
-              ...remoteSettings,
               ...currentLocal,
-              ppdbOpen: typeof currentLocal.ppdbOpen === 'boolean' ? currentLocal.ppdbOpen : (typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : DEFAULT_SETTINGS.ppdbOpen),
-              ppdbStartDate: currentLocal.ppdbStartDate !== undefined ? currentLocal.ppdbStartDate : (remoteSettings.ppdbStartDate || ''),
-              ppdbEndDate: currentLocal.ppdbEndDate !== undefined ? currentLocal.ppdbEndDate : (remoteSettings.ppdbEndDate || ''),
+              ...remoteSettings,
+              ppdbOpen: typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : (typeof currentLocal.ppdbOpen === 'boolean' ? currentLocal.ppdbOpen : DEFAULT_SETTINGS.ppdbOpen),
+              ppdbStartDate: remoteSettings.ppdbStartDate !== undefined ? remoteSettings.ppdbStartDate : (currentLocal.ppdbStartDate || ''),
+              ppdbEndDate: remoteSettings.ppdbEndDate !== undefined ? remoteSettings.ppdbEndDate : (currentLocal.ppdbEndDate || ''),
             };
             const adjusted = autoAdjustPpdbSettings(mergedSettings);
             setSettings(adjusted);
@@ -1263,15 +1263,16 @@ export default function App() {
         }
 
         const currentLocalSettings = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
-        if (!isLocalDataRecentlyChanged('settings', 60000)) {
+        if (!isLocalDataRecentlyChanged('settings', 4000)) {
           const remoteSettings = await syncSettingsWithSupabase(currentLocalSettings);
           if (remoteSettings) {
             const mergedSettings: PortalSettings = {
+              ...DEFAULT_SETTINGS,
               ...currentLocalSettings,
               ...remoteSettings,
-              ppdbOpen: typeof currentLocalSettings.ppdbOpen === 'boolean' ? currentLocalSettings.ppdbOpen : (typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : DEFAULT_SETTINGS.ppdbOpen),
-              ppdbStartDate: currentLocalSettings.ppdbStartDate !== undefined ? currentLocalSettings.ppdbStartDate : (remoteSettings.ppdbStartDate || ''),
-              ppdbEndDate: currentLocalSettings.ppdbEndDate !== undefined ? currentLocalSettings.ppdbEndDate : (remoteSettings.ppdbEndDate || ''),
+              ppdbOpen: typeof remoteSettings.ppdbOpen === 'boolean' ? remoteSettings.ppdbOpen : (typeof currentLocalSettings.ppdbOpen === 'boolean' ? currentLocalSettings.ppdbOpen : DEFAULT_SETTINGS.ppdbOpen),
+              ppdbStartDate: remoteSettings.ppdbStartDate !== undefined ? remoteSettings.ppdbStartDate : (currentLocalSettings.ppdbStartDate || ''),
+              ppdbEndDate: remoteSettings.ppdbEndDate !== undefined ? remoteSettings.ppdbEndDate : (currentLocalSettings.ppdbEndDate || ''),
             };
             const adjusted = autoAdjustPpdbSettings(mergedSettings);
             setSettings(adjusted);
