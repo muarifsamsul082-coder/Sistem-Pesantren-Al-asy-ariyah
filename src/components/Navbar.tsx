@@ -1,8 +1,8 @@
 import React from 'react';
 import { BookOpen, LogIn, LogOut, Shield, User, Menu, X, Landmark, GraduationCap, Users, Sun, Moon, CreditCard, Sparkles, Home, Search, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
-import { UserSession, Student, PortalSettings } from '../types';
+import { UserSession, Student, PortalSettings, PCSBRegistration } from '../types';
 import { isPpdbCurrentlyActive } from '../lib/dateUtils';
-import { isSupabaseConfigured, pushSettingsToSupabase, pushStaffConfigToSupabase, pushAllStaffUsersToSupabase } from '../lib/supabase';
+import { isSupabaseConfigured, pushSettingsToSupabase, pushStaffConfigToSupabase, pushAllStaffUsersToSupabase, getDeletedIdsSet } from '../lib/supabase';
 
 interface NavbarProps {
   currentView: string;
@@ -15,12 +15,13 @@ interface NavbarProps {
   darkMode?: boolean;
   setDarkMode?: (val: boolean) => void;
   students?: Student[];
+  ppdbList?: PCSBRegistration[];
   settings?: PortalSettings;
   ppdbOpen?: boolean;
   ppdbStartDate?: string;
   ppdbEndDate?: string;
   
-  adminTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log';
+  adminTab?: 'overview' | 'perizinan' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log';
   setAdminTab?: (tab: any) => void;
   staffTab?: 'students' | 'history' | 'profile' | 'skck' | 'takzir_letter' | 'letters';
   setStaffTab?: (tab: any) => void;
@@ -43,6 +44,7 @@ export default function Navbar({
   darkMode = false,
   setDarkMode = () => {},
   students = [],
+  ppdbList = [],
   settings,
   ppdbOpen,
   ppdbStartDate,
@@ -143,22 +145,32 @@ export default function Navbar({
     }
 
     try {
-      const savedPpdb = localStorage.getItem('pesantren_ppdb_list');
-      if (savedPpdb) {
-        const list = JSON.parse(savedPpdb);
-        if (Array.isArray(list)) {
-          const count = list.filter((p: any) => p && (p.status === 'Pending' || p.status === 'Diproses')).length;
-          setPendingPcsbCount(count);
+      const delPpdb = getDeletedIdsSet('ppdb');
+      if (Array.isArray(ppdbList)) {
+        const count = ppdbList.filter((p: any) => p && p.id && !delPpdb.has(p.id) && (p.status === 'Pending' || p.status === 'Diproses')).length;
+        setPendingPcsbCount(count);
+      } else {
+        const savedPpdb = localStorage.getItem('pesantren_ppdb');
+        if (savedPpdb) {
+          const list = JSON.parse(savedPpdb);
+          if (Array.isArray(list)) {
+            const count = list.filter((p: any) => p && p.id && !delPpdb.has(p.id) && (p.status === 'Pending' || p.status === 'Diproses')).length;
+            setPendingPcsbCount(count);
+          } else {
+            setPendingPcsbCount(0);
+          }
         } else {
           setPendingPcsbCount(0);
         }
-      } else {
-        setPendingPcsbCount(0);
       }
     } catch (e) {
       setPendingPcsbCount(0);
     }
-  }, []);
+  }, [ppdbList]);
+
+  React.useEffect(() => {
+    checkPendingCounts();
+  }, [ppdbList, checkPendingCounts]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -1064,6 +1076,20 @@ export default function Navbar({
                             }`}
                           >
                             <span>Kesantrian / Data Santri</span>
+                          </a>
+                        )}
+
+                        {matches('Perizinan Santri Keluar Masuk Pulang') && (
+                          <a
+                            href="#admin/perizinan"
+                            onClick={(e) => { e.preventDefault(); handleAdminTabClick('perizinan'); }}
+                            className={`w-full text-left px-3.5 py-2 text-xs rounded-xl transition flex items-center justify-between cursor-pointer ${
+                              adminTab === 'perizinan' && currentView === 'admin-dashboard' 
+                                ? 'bg-[#124b38] text-white font-bold border-l-4 border-emerald-400 pl-2.5 shadow-xs' 
+                                : 'text-emerald-100/75 hover:bg-[#0c3325] hover:text-white'
+                            }`}
+                          >
+                            <span>Perizinan Santri</span>
                           </a>
                         )}
 

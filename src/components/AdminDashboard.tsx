@@ -5,7 +5,7 @@ import {
   BarChart, Users, FileText, Newspaper, Settings, Check, X, Plus, Trash, Trash2, Edit, 
   Search, CheckSquare, Bell, DollarSign, Wallet, GraduationCap, ArrowUpRight, Send, AlertCircle, Printer, Download, Upload, MessageSquare, LogOut, UploadCloud, Loader2, Sparkles,
   CreditCard, Grid, Calendar, Database, Copy, CheckCircle2, XCircle, RefreshCw, Code, Save, Clock, Landmark, Info, QrCode,
-  ChevronRight, ChevronDown, UserCheck, UserPlus, Zap, AlertTriangle, Home
+  ChevronRight, ChevronDown, UserCheck, UserPlus, Zap, AlertTriangle, Home, Ticket
 } from 'lucide-react';
 import { Student, Bill, News, Announcement, PCSBRegistration, PortalSettings, ForgotPasswordRequest, HealthLog, SecurityLog, DisciplineLog, Room, UserSession, AcademicEvent, OfficialItem, PcsbFeeItem, getResolvedPcsbFeeItems, compressImage, isSameRoom } from '../types';
 import { getBillAmountBreakdown, generateQrisQrCodeWithLogo, generateDynamicQrisString } from '../lib/qris';
@@ -89,8 +89,8 @@ interface AdminDashboardProps {
   settings: PortalSettings;
   setSettings: (settings: PortalSettings) => void;
   onLogout?: () => void;
-  activeTab?: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log';
-  setActiveTab?: (tab: 'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log') => void;
+  activeTab?: 'overview' | 'perizinan' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log';
+  setActiveTab?: (tab: 'overview' | 'perizinan' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log') => void;
   session?: UserSession;
   availableFormalClasses?: string[];
   setAvailableFormalClasses?: React.Dispatch<React.SetStateAction<string[]>>;
@@ -233,7 +233,7 @@ export default function AdminDashboard({
   ],
   setAvailableMadrasahClasses = () => {}
 }: AdminDashboardProps) {
-  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log'>(() => {
+  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'perizinan' | 'news_ann' | 'ppdb' | 'students' | 'kamar' | 'alumni' | 'bills' | 'laporan_keuangan' | 'rekening' | 'settings' | 'whatsapp' | 'input_mandiri' | 'reports' | 'outbox_log' | 'kelas_sekolah' | 'pengurus' | 'akun_pengurus' | 'staff_activity_log'>(() => {
     try {
       const saved = localStorage.getItem('pesantren_admin_active_tab');
       if (saved) return saved as any;
@@ -248,6 +248,20 @@ export default function AdminDashboard({
       localStorage.setItem('pesantren_admin_active_tab', tab);
     } catch (e) {}
   };
+
+  // Perizinan States
+  const [perizinanSearch, setPerizinanSearch] = React.useState('');
+  const [perizinanStatusFilter, setPerizinanStatusFilter] = React.useState<'Semua' | 'Belum Kembali' | 'Melewati Batas' | 'Sedang Berlaku' | 'Belum Mulai' | 'Selesai' | 'Dibatalkan'>('Semua');
+  const [perizinanTypeFilter, setPerizinanTypeFilter] = React.useState<string>('all');
+  const [isCreatePermitOpen, setIsCreatePermitOpen] = React.useState(false);
+  const [permitStudentId, setPermitStudentId] = React.useState('');
+  const [permitType, setPermitType] = React.useState<'Pulang (Keluarga)' | 'Keluar Lingkungan'>('Pulang (Keluarga)');
+  const [permitDescription, setPermitDescription] = React.useState('');
+  const [permitDestination, setPermitDestination] = React.useState('');
+  const [permitOutDate, setPermitOutDate] = React.useState(() => new Date().toISOString().slice(0, 16));
+  const [permitExpectedReturnDate, setPermitExpectedReturnDate] = React.useState(() => new Date(Date.now() + 48 * 3600 * 1000).toISOString().slice(0, 16));
+  const [returnModalTarget, setReturnModalTarget] = React.useState<{ studentId: string; studentName: string; log: SecurityLog } | null>(null);
+  const [returnActualDate, setReturnActualDate] = React.useState(() => new Date().toISOString().slice(0, 16));
 
   // Excel Bulk Import Modal State
   const [isExcelImportModalOpen, setIsExcelImportModalOpen] = React.useState(false);
@@ -4347,6 +4361,11 @@ export default function AdminDashboard({
 
   // Calculated Stats
   const totalStudents = (students || []).filter(s => s && s.status !== 'Alumni' && s.status !== 'Berhenti').length;
+  const activeStudentsList = (students || []).filter(s => s && s.status === 'Aktif');
+  const activeStudentsCount = activeStudentsList.length;
+  const activeMaleCount = (students || []).filter(s => s && s.status !== 'Alumni' && s.status !== 'Berhenti' && s.gender === 'Laki-laki').length;
+  const activeFemaleCount = (students || []).filter(s => s && s.status !== 'Alumni' && s.status !== 'Berhenti' && s.gender === 'Perempuan').length;
+  const alumniStudentsCount = (students || []).filter(s => s && s.status === 'Alumni').length;
   const pendingPCSB = (ppdbList || []).filter(p => p && p.status === 'Pending').length;
   const totalBills = (bills || []).length;
   const lunasBills = (bills || []).filter(b => b && b.status === 'Lunas').length;
@@ -4356,6 +4375,155 @@ export default function AdminDashboard({
   const totalIncome = (bills || [])
     .filter(b => b && b.status === 'Lunas')
     .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+
+  const totalUnpaidAmount = (bills || [])
+    .filter(b => b && b.status === 'Belum Lunas')
+    .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+
+  const totalVerificationAmount = (bills || [])
+    .filter(b => b && b.status === 'Konfirmasi Pembayaran')
+    .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+
+  // All Security/Permit Logs flattened from active students
+  const allSecurityLogs = React.useMemo(() => {
+    const list: {
+      id: string;
+      studentId: string;
+      studentName: string;
+      nis?: string;
+      kamar?: string;
+      class?: string;
+      gender?: string;
+      parentPhone?: string;
+      permitType: string;
+      description: string;
+      destinationCity?: string;
+      outDate: string;
+      expectedReturnDate: string;
+      actualReturnDate?: string;
+      status: 'Aktif / Keluar' | 'Kembali' | 'Terlambat' | 'Menunggu Persetujuan' | 'Ditolak';
+      signedBy: string;
+    }[] = [];
+
+    (students || []).forEach(s => {
+      if (s && s.securityLogs) {
+        s.securityLogs.forEach(l => {
+          list.push({
+            id: l.id,
+            studentId: s.id,
+            studentName: s.fullName,
+            nis: s.nis,
+            kamar: s.kamar,
+            class: s.class,
+            gender: s.gender,
+            parentPhone: s.parentPhone,
+            permitType: l.permitType,
+            description: l.description,
+            destinationCity: l.destinationCity || l.destination,
+            outDate: l.outDate,
+            expectedReturnDate: l.expectedReturnDate,
+            actualReturnDate: l.actualReturnDate,
+            status: l.status,
+            signedBy: l.signedBy
+          });
+        });
+      }
+    });
+    return list;
+  }, [students]);
+
+  const nowMs = Date.now();
+
+  const activeOutPermits = allSecurityLogs.filter(l => 
+    !l.actualReturnDate && (l.status === 'Aktif / Keluar' || l.status === 'Terlambat')
+  );
+
+  const overduePermits = activeOutPermits.filter(l => {
+    if (!l.expectedReturnDate) return false;
+    const exp = new Date(l.expectedReturnDate.replace(' ', 'T')).getTime();
+    return !isNaN(exp) && nowMs > exp;
+  });
+
+  const validActivePermits = activeOutPermits.filter(l => {
+    if (!l.expectedReturnDate) return true;
+    const exp = new Date(l.expectedReturnDate.replace(' ', 'T')).getTime();
+    const out = l.outDate ? new Date(l.outDate.replace(' ', 'T')).getTime() : 0;
+    return (isNaN(exp) || nowMs <= exp) && (isNaN(out) || nowMs >= out);
+  });
+
+  const upcomingPermits = allSecurityLogs.filter(l => {
+    if (l.actualReturnDate) return false;
+    if (!l.outDate) return false;
+    const out = new Date(l.outDate.replace(' ', 'T')).getTime();
+    return !isNaN(out) && out > nowMs;
+  });
+
+  const returnedPermits = allSecurityLogs.filter(l => 
+    !!l.actualReturnDate || l.status === 'Kembali'
+  );
+
+  const harianCount = allSecurityLogs.filter(l => l.permitType?.toLowerCase().includes('pulang') || l.permitType?.toLowerCase().includes('harian')).length;
+  const jamCount = allSecurityLogs.filter(l => l.permitType?.toLowerCase().includes('lingkungan') || l.permitType?.toLowerCase().includes('jam')).length;
+  const khususCount = allSecurityLogs.filter(l => !l.permitType?.toLowerCase().includes('pulang') && !l.permitType?.toLowerCase().includes('harian') && !l.permitType?.toLowerCase().includes('lingkungan') && !l.permitType?.toLowerCase().includes('jam')).length;
+
+  const dynamicUrgentItems = React.useMemo(() => {
+    const items: { id: string; title: string; subtitle: string; tag: string; tagColor: string; icon: any; action: () => void; amountText?: string }[] = [];
+
+    if (overduePermits.length > 0) {
+      items.push({
+        id: 'overdue_permits',
+        title: `${overduePermits.length} santri melewati batas kembali izin keluar`,
+        subtitle: 'Perizinan santri',
+        tag: 'Bahaya',
+        tagColor: 'text-rose-700 bg-rose-100',
+        icon: AlertCircle,
+        action: () => {
+          setActiveTab('perizinan');
+          setPerizinanStatusFilter('Melewati Batas');
+        }
+      });
+    }
+
+    if (pendingPCSB > 0) {
+      items.push({
+        id: 'pending_pcsb',
+        title: `${pendingPCSB} pendaftaran santri baru PCSB menunggu verifikasi berkas`,
+        subtitle: 'Pendaftaran PCSB',
+        tag: 'Perlu Tindakan',
+        tagColor: 'text-amber-700 bg-amber-100',
+        icon: GraduationCap,
+        action: () => setActiveTab('ppdb')
+      });
+    }
+
+    if (verificationBills > 0) {
+      items.push({
+        id: 'verif_bills',
+        title: `${verificationBills} transfer pembayaran iuran santri menunggu diperiksa`,
+        subtitle: 'Iuran bulanan',
+        tag: 'Waspada',
+        tagColor: 'text-amber-700 bg-amber-100',
+        icon: DollarSign,
+        amountText: totalVerificationAmount >= 1000000 ? `Rp ${(totalVerificationAmount / 1000000).toFixed(2).replace('.', ',')} jt` : `Rp ${totalVerificationAmount.toLocaleString('id-ID')}`,
+        action: () => setActiveTab('bills')
+      });
+    }
+
+    if (unpaidBills > 0 && verificationBills === 0) {
+      items.push({
+        id: 'unpaid_bills',
+        title: `${unpaidBills} santri memiliki sisa iuran SPP yang belum diselesaikan`,
+        subtitle: 'Iuran bulanan',
+        tag: 'Waspada',
+        tagColor: 'text-amber-700 bg-amber-100',
+        icon: DollarSign,
+        amountText: totalUnpaidAmount >= 1000000 ? `Rp ${(totalUnpaidAmount / 1000000).toFixed(1).replace('.', ',')} jt` : `Rp ${totalUnpaidAmount.toLocaleString('id-ID')}`,
+        action: () => setActiveTab('bills')
+      });
+    }
+
+    return items;
+  }, [overduePermits.length, pendingPCSB, verificationBills, unpaidBills, totalVerificationAmount, totalUnpaidAmount]);
 
   const getMonthlyIncomeData = () => {
     const months = [
@@ -4814,7 +4982,10 @@ export default function AdminDashboard({
           <div className="flex flex-wrap items-center gap-2.5 pb-1 overflow-x-auto">
             <button
               type="button"
-              onClick={() => setActiveTab('input_mandiri')}
+              onClick={() => {
+                setActiveTab('perizinan');
+                setIsCreatePermitOpen(true);
+              }}
               className="bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center gap-2 shadow-2xs transition cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
@@ -4830,7 +5001,10 @@ export default function AdminDashboard({
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('input_mandiri')}
+              onClick={() => {
+                setActiveTab('perizinan');
+                setPerizinanStatusFilter('Belum Kembali');
+              }}
               className="bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center gap-2 shadow-2xs transition cursor-pointer"
             >
               <UserCheck className="w-3.5 h-3.5 text-amber-600" />
@@ -4838,15 +5012,7 @@ export default function AdminDashboard({
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('reports')}
-              className="bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center gap-2 shadow-2xs transition cursor-pointer"
-            >
-              <Grid className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Sesi jamaah</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('input_mandiri')}
+              onClick={() => setActiveTab('students')}
               className="bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center gap-2 shadow-2xs transition cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5 text-emerald-700" />
@@ -4854,7 +5020,7 @@ export default function AdminDashboard({
             </button>
           </div>
 
-          {/* 5 Metric Stat Cards (SIP Layout) */}
+          {/* 5 Metric Stat Cards (SIP Layout - Real Dynamic Data) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
             
             {/* Card 1: Santri Aktif */}
@@ -4874,15 +5040,15 @@ export default function AdminDashboard({
                 <div className="flex items-baseline gap-2 mt-2">
                   <span className="text-2xl font-black text-slate-800">{totalStudents}</span>
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
-                    +1%
+                    {Math.round((activeStudentsCount / (students.length || 1)) * 100)}% aktif
                   </span>
                 </div>
 
                 <p className="text-[10px] text-slate-500 font-medium mt-1">
-                  Putra {students.filter(s => s.gender === 'Laki-laki').length} · putri {students.filter(s => s.gender === 'Perempuan').length}
+                  Putra {activeMaleCount} · putri {activeFemaleCount}
                 </p>
                 <p className="text-[10px] text-slate-400 font-medium">
-                  5 masuk · 1 keluar · 1 lulus
+                  {activeStudentsCount} santri aktif · {alumniStudentsCount} alumni
                 </p>
               </div>
 
@@ -4890,11 +5056,11 @@ export default function AdminDashboard({
               <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex mt-3">
                 <div 
                   className="bg-blue-500 h-full" 
-                  style={{ width: `${(students.filter(s => s.gender === 'Laki-laki').length / (totalStudents || 1)) * 100}%` }} 
+                  style={{ width: `${(activeMaleCount / (totalStudents || 1)) * 100}%` }} 
                 />
                 <div 
                   className="bg-pink-500 h-full" 
-                  style={{ width: `${(students.filter(s => s.gender === 'Perempuan').length / (totalStudents || 1)) * 100}%` }} 
+                  style={{ width: `${(activeFemaleCount / (totalStudents || 1)) * 100}%` }} 
                 />
               </div>
             </div>
@@ -4920,15 +5086,15 @@ export default function AdminDashboard({
                       : `Rp ${(totalIncome || 0).toLocaleString('id-ID')}`}
                   </span>
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
-                    +6%
+                    {totalBills > 0 ? Math.round((lunasBills / totalBills) * 100) : 100}% lunas
                   </span>
                 </div>
 
                 <p className="text-[10px] text-slate-500 font-medium mt-1">
-                  {lunasBills} pembayaran sah bulan ini
+                  {lunasBills} dari {totalBills} tagihan lunas
                 </p>
                 <p className="text-[10px] text-emerald-700 font-bold">
-                  {Math.round((lunasBills / (bills.length || 1)) * 100)}% tagihan terkumpul
+                  Sisa: Rp {totalUnpaidAmount >= 1000000 ? (totalUnpaidAmount / 1000000).toFixed(1).replace('.', ',') + ' jt' : totalUnpaidAmount.toLocaleString('id-ID')}
                 </p>
               </div>
 
@@ -4940,32 +5106,34 @@ export default function AdminDashboard({
               </div>
             </div>
 
-            {/* Card 3: Kehadiran Jamaah */}
+            {/* Card 3: Santri di Pondok */}
             <div 
-              onClick={() => setActiveTab('reports')}
+              onClick={() => setActiveTab('students')}
               className="bg-white p-4 rounded-2xl shadow-2xs border border-slate-200/90 hover:border-slate-300 transition cursor-pointer flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                     <Calendar className="w-4 h-4 text-purple-700" />
-                    <span>Kehadiran jamaah</span>
+                    <span>Santri di pondok</span>
                   </div>
                   <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
                 </div>
 
                 <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-2xl font-black text-slate-800">97,5%</span>
+                  <span className="text-2xl font-black text-slate-800">
+                    {Math.max(0, activeStudentsCount - activeOutPermits.length)}
+                  </span>
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
-                    +1,2 poin
+                    {activeStudentsCount > 0 ? Math.round(((activeStudentsCount - activeOutPermits.length) / activeStudentsCount) * 100) : 100}% hadir
                   </span>
                 </div>
 
                 <p className="text-[10px] text-slate-500 font-medium mt-1">
-                  Terendah Subuh 86,4%
+                  {Math.max(0, activeStudentsCount - activeOutPermits.length)} santri berada di asrama
                 </p>
                 <p className="text-[10px] text-purple-700 font-medium">
-                  Shalat berjamaah 5 waktu
+                  {activeOutPermits.length > 0 ? `${activeOutPermits.length} santri sedang izin keluar` : 'Seluruh santri hadir lengkap'}
                 </p>
               </div>
 
@@ -4977,34 +5145,38 @@ export default function AdminDashboard({
               </div>
             </div>
 
-            {/* Card 4: Santri di Luar */}
+            {/* Card 4: Santri di Luar (Perizinan) */}
             <div 
-              onClick={() => setActiveTab('input_mandiri')}
+              onClick={() => setActiveTab('perizinan')}
               className="bg-white p-4 rounded-2xl shadow-2xs border border-slate-200/90 hover:border-slate-300 transition cursor-pointer flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                     <Landmark className="w-4 h-4 text-amber-700" />
-                    <span>Santri di luar</span>
+                    <span>Santri berizin keluar</span>
                   </div>
                   <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
                 </div>
 
                 <div className="flex items-baseline gap-2 mt-2">
                   <span className="text-2xl font-black text-slate-800">
-                    {students.reduce((acc, s) => acc + (s.securityLogs?.filter(l => (l.status === 'Aktif / Keluar' || l.status === 'Terlambat') && !l.actualReturnDate).length || 0), 0) || 7}
+                    {activeOutPermits.length}
                   </span>
-                  <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-full border border-rose-100">
-                    2 lewat batas
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                    overduePermits.length > 0 
+                      ? 'text-rose-700 bg-rose-50 border-rose-100' 
+                      : 'text-amber-700 bg-amber-50 border-amber-100'
+                  }`}>
+                    {overduePermits.length > 0 ? `${overduePermits.length} lewat batas` : (activeOutPermits.length > 0 ? `${activeOutPermits.length} aktif` : 'Tertib')}
                   </span>
                 </div>
 
                 <p className="text-[10px] text-slate-500 font-medium mt-1">
-                  64 izin periode ini
+                  {allSecurityLogs.length} total riwayat izin keluar
                 </p>
-                <p className="text-[10px] text-amber-700 font-medium">
-                  9 terlambat kembali
+                <p className={`text-[10px] font-medium ${overduePermits.length > 0 ? 'text-rose-700 font-bold' : 'text-amber-700'}`}>
+                  {overduePermits.length > 0 ? `${overduePermits.length} terlambat kembali` : 'Tidak ada keterlambatan'}
                 </p>
               </div>
 
@@ -5016,49 +5188,66 @@ export default function AdminDashboard({
               </div>
             </div>
 
-            {/* Card 5: Kas di Petugas */}
+            {/* Card 5: Tunggakan Iuran */}
             <div 
-              onClick={() => setActiveTab('laporan_keuangan')}
+              onClick={() => setActiveTab('bills')}
               className="bg-white p-4 rounded-2xl shadow-2xs border border-slate-200/90 hover:border-slate-300 transition cursor-pointer flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                     <DollarSign className="w-4 h-4 text-emerald-700" />
-                    <span>Kas di petugas</span>
+                    <span>Tunggakan iuran</span>
                   </div>
                   <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
                 </div>
 
                 <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-2xl font-black text-slate-800">Rp 2,95 jt</span>
+                  <span className="text-2xl font-black text-slate-800">
+                    {totalUnpaidAmount >= 1000000 
+                      ? `Rp ${(totalUnpaidAmount / 1000000).toFixed(1).replace('.', ',')} jt` 
+                      : `Rp ${(totalUnpaidAmount || 0).toLocaleString('id-ID')}`}
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-100">
+                    {unpaidBills} tagihan
+                  </span>
                 </div>
 
                 <p className="text-[10px] text-slate-500 font-medium mt-1">
-                  2 petugas · belum diserahkan Rp 2,3 jt
+                  {unpaidBills} santri belum melunasi
                 </p>
-                <p className="text-[10px] text-slate-400 font-medium">
-                  1 menunggu diterima · Rp 650 rb
+                <p className="text-[10px] text-slate-500 font-medium">
+                  {verificationBills > 0 ? `${verificationBills} transfer menunggu dicek` : 'Pembayaran tagihan lancar'}
                 </p>
               </div>
 
               {/* Two Tone Horizontal Indicator */}
               <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex mt-3">
-                <div className="bg-amber-500 h-full w-[70%]" />
-                <div className="bg-blue-500 h-full w-[30%]" />
+                <div 
+                  className="bg-emerald-500 h-full" 
+                  style={{ width: `${totalIncome + totalUnpaidAmount > 0 ? (totalIncome / (totalIncome + totalUnpaidAmount)) * 100 : 100}%` }} 
+                />
+                <div 
+                  className="bg-amber-500 h-full" 
+                  style={{ width: `${totalIncome + totalUnpaidAmount > 0 ? (totalUnpaidAmount / (totalIncome + totalUnpaidAmount)) * 100 : 0}%` }} 
+                />
               </div>
             </div>
 
           </div>
 
-          {/* PERLU PERHATIAN SECTION (Matching Screenshot 1) */}
+          {/* PERLU PERHATIAN SECTION (Real Dynamic Data) */}
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-extrabold text-sm text-slate-800 tracking-tight">Perlu perhatian</h3>
-                  <span className="bg-amber-100 text-amber-900 font-extrabold text-[10px] px-2 py-0.5 rounded-full border border-amber-200">
-                    10
+                  <span className={`font-extrabold text-[10px] px-2 py-0.5 rounded-full border ${
+                    dynamicUrgentItems.length > 0 
+                      ? 'bg-amber-100 text-amber-900 border-amber-200' 
+                      : 'bg-emerald-100 text-emerald-900 border-emerald-200'
+                  }`}>
+                    {dynamicUrgentItems.length}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -5068,78 +5257,48 @@ export default function AdminDashboard({
             </div>
 
             <div className="space-y-2">
-              {/* Alert Item 1: Santri Melewati Batas */}
-              <div 
-                onClick={() => setActiveTab('input_mandiri')}
-                className="p-3 bg-rose-50/50 hover:bg-rose-50 border border-rose-200/60 rounded-xl flex items-center justify-between gap-3 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-                    <AlertCircle className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-slate-800 truncate">
-                      2 santri melewati batas kembali
-                    </div>
-                    <div className="text-[10px] text-rose-700 font-semibold flex items-center gap-1.5">
-                      <span>Bahaya</span>
-                      <span>·</span>
-                      <span className="text-slate-500">Perizinan santri</span>
-                    </div>
+              {dynamicUrgentItems.length === 0 ? (
+                <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+                  <div>
+                    <div className="text-xs font-bold text-slate-800">Alhamdulillah, seluruh data pesantren tertib & terkendali!</div>
+                    <div className="text-[10px] text-slate-500">Tidak ada santri terlambat izin, antrean berkas, atau tunggakan mendesak.</div>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-              </div>
-
-              {/* Alert Item 2: Pembatalan / Izin Menunggu */}
-              <div 
-                onClick={() => setActiveTab('ppdb')}
-                className="p-3 bg-amber-50/50 hover:bg-amber-50 border border-amber-200/60 rounded-xl flex items-center justify-between gap-3 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                    <GraduationCap className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-slate-800 truncate">
-                      {pendingPCSB > 0 ? `${pendingPCSB} pendaftaran santri baru PCSB menunggu verifikasi berkas` : '1 permintaan pembatalan pelajaran menunggu keputusan · terdekat: Bersih masjid'}
+              ) : (
+                dynamicUrgentItems.map(item => {
+                  const ItemIcon = item.icon;
+                  return (
+                    <div 
+                      key={item.id}
+                      onClick={item.action}
+                      className="p-3 bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/70 rounded-xl flex items-center justify-between gap-3 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.tagColor}`}>
+                          <ItemIcon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-slate-800 truncate">
+                            {item.title}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-semibold flex items-center gap-1.5">
+                            <span className={item.tagColor.split(' ')[0]}>{item.tag}</span>
+                            <span>·</span>
+                            <span>{item.subtitle}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {item.amountText && (
+                          <span className="text-xs font-black text-slate-800">{item.amountText}</span>
+                        )}
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </div>
                     </div>
-                    <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1.5">
-                      <span>Perlu Tindakan</span>
-                      <span>·</span>
-                      <span className="text-slate-500">Pendaftaran & Akademik</span>
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-              </div>
-
-              {/* Alert Item 3: Transfer / Tagihan */}
-              <div 
-                onClick={() => setActiveTab('bills')}
-                className="p-3 bg-amber-50/50 hover:bg-amber-50 border border-amber-200/60 rounded-xl flex items-center justify-between gap-3 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                    <DollarSign className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-slate-800 truncate">
-                      {unpaidBills > 0 ? `${unpaidBills} santri memiliki sisa iuran SPP yang belum diselesaikan` : '4 transfer pembayaran iuran santri menunggu diperiksa'}
-                    </div>
-                    <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1.5">
-                      <span>Waspada</span>
-                      <span>·</span>
-                      <span className="text-slate-500">Iuran bulanan</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-black text-slate-800">Rp 2,15 jt</span>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
-                </div>
-              </div>
-
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -6421,19 +6580,13 @@ export default function AdminDashboard({
                           markIdAsDeleted('ppdb', reg.id);
                           markLocalDataChanged('ppdb');
 
-                          // Simpan ke arsip riwayat berstatus 'Dihapus' agar calon santri tetap bisa cek status pendaftarannya
-                          const deletedRecord = {
-                            ...reg,
-                            status: 'Dihapus',
-                            notes: 'Data pendaftaran telah dihapus / diselesaikan oleh Panitia Pesantren.',
-                            deletedAt: new Date().toISOString()
-                          };
+                          // Bersihkan dari arsip dan storage lokal agar tidak muncul lagi di Cek Status
                           let currentArchive: any[] = [];
                           try {
                             const rawArch = localStorage.getItem('pesantren_ppdb_archive');
                             if (rawArch) currentArchive = JSON.parse(rawArch);
                           } catch (e) {}
-                          const newArchive = [deletedRecord, ...currentArchive.filter((a: any) => a && a.id !== reg.id)];
+                          const newArchive = currentArchive.filter((a: any) => a && a.id !== reg.id);
                           setPpdbArchive(newArchive);
                           localStorage.setItem('pesantren_ppdb_archive', JSON.stringify(newArchive));
                           fetch('/api/ppdb-archive', {
@@ -6445,6 +6598,21 @@ export default function AdminDashboard({
                           const updatedList = ppdbList.filter(p => p.id !== reg.id);
                           setPpdbList(updatedList);
                           localStorage.setItem('pesantren_ppdb', JSON.stringify(updatedList));
+                          localStorage.setItem('pesantren_ppdb_list', JSON.stringify(updatedList));
+
+                          // Hapus histori cek status pada browser jika sesuai dengan pendaftar ini
+                          try {
+                            const lastSaved = localStorage.getItem('last_pcsb_registration');
+                            if (lastSaved) {
+                              const parsed = JSON.parse(lastSaved);
+                              if (parsed.id === reg.id || (reg.nisn && parsed.nisn === reg.nisn)) {
+                                localStorage.removeItem('last_pcsb_registration');
+                              }
+                            }
+                            if (updatedList.length === 0) {
+                              localStorage.removeItem('last_pcsb_registration');
+                            }
+                          } catch (e) {}
 
                           fetch(`/api/ppdb/${encodeURIComponent(reg.id)}`, { method: 'DELETE' }).catch(() => {});
                           fetch('/api/ppdb', {
@@ -6455,7 +6623,7 @@ export default function AdminDashboard({
 
                           await hardDeleteFromSupabase('ppdb', reg.id).catch(e => console.error('Cloud delete PPDB error:', e));
                           window.dispatchEvent(new Event('pesantren_db_sync'));
-                          showAlert('danger', `Data pendaftaran ${reg.fullName} berhasil dihapus dari daftar aktif.`);
+                          showAlert('danger', `Data pendaftaran ${reg.fullName} berhasil dihapus.`);
                         }
                       )}
                       className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl transition flex items-center justify-center gap-1 text-[11px] cursor-pointer w-full text-center"
@@ -6467,6 +6635,805 @@ export default function AdminDashboard({
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* TAB: PERIZINAN SANTRI (SIP UI Matching Screenshot 3) */}
+      {activeTab === 'perizinan' && (
+        <div className="space-y-6 text-left animate-fade-in">
+          {/* BANNER PERIZINAN SANTRI */}
+          <div className="bg-[#0b2d22] border border-[#16503c] rounded-2xl p-5 text-white shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 border border-emerald-400/20 flex items-center justify-center text-emerald-300">
+                  <Ticket className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black tracking-tight text-white">Perizinan santri</h2>
+                  <p className="text-xs text-emerald-200/80">Pantau izin, sambut kepulangan, dan jaga setiap perjalanan tetap tercatat.</p>
+                </div>
+              </div>
+
+              {/* Status Chips Row */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 font-semibold text-rose-200 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-rose-300" />
+                  <span>{overduePermits.length} melewati batas</span>
+                </span>
+                <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 font-semibold text-emerald-100 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>{validActivePermits.length} sedang berlaku</span>
+                </span>
+                <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 font-semibold text-amber-200 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-300" />
+                  <span>{upcomingPermits.length} belum mulai</span>
+                </span>
+                <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 font-semibold text-slate-200 flex items-center gap-1.5">
+                  <Grid className="w-3.5 h-3.5 text-slate-300" />
+                  <span>{harianCount} · {jamCount} · {khususCount} harian · jam · khusus</span>
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPermitOutDate(new Date().toISOString().slice(0, 16));
+                setPermitExpectedReturnDate(new Date(Date.now() + 48 * 3600 * 1000).toISOString().slice(0, 16));
+                setIsCreatePermitOpen(true);
+              }}
+              className="px-4 py-2.5 bg-[#d4a359] hover:bg-[#c39247] text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-sm transition cursor-pointer self-start md:self-auto shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Terbitkan izin</span>
+            </button>
+          </div>
+
+          {/* FILTER & SEARCH BAR */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={perizinanSearch}
+                  onChange={(e) => setPerizinanSearch(e.target.value)}
+                  placeholder="Cari nama, No. SIF, No. Induk, atau scan kartu"
+                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 transition outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={perizinanTypeFilter}
+                  onChange={(e) => setPerizinanTypeFilter(e.target.value)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer focus:bg-white"
+                >
+                  <option value="all">Semua jenis</option>
+                  <option value="harian">Izin Pulang (Harian)</option>
+                  <option value="jam">Izin Keluar (Jam)</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPerizinanSearch('');
+                    setPerizinanTypeFilter('all');
+                    setPerizinanStatusFilter('Semua');
+                  }}
+                  title="Reset Filter"
+                  className="p-2 border border-slate-200 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Status Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setPerizinanStatusFilter('Semua')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  perizinanStatusFilter === 'Semua'
+                    ? 'bg-emerald-950 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                }`}
+              >
+                <span>Semua</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/20">{allSecurityLogs.length}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPerizinanStatusFilter('Belum Kembali')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  perizinanStatusFilter === 'Belum Kembali'
+                    ? 'bg-emerald-950 text-white shadow-2xs'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                }`}
+              >
+                <span>Belum kembali</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-200/60 text-emerald-900 font-extrabold">{activeOutPermits.length}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPerizinanStatusFilter('Melewati Batas')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  perizinanStatusFilter === 'Melewati Batas'
+                    ? 'bg-rose-700 text-white shadow-2xs'
+                    : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                }`}
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>Melewati batas</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-200/60 text-rose-900 font-extrabold">{overduePermits.length}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPerizinanStatusFilter('Sedang Berlaku')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  perizinanStatusFilter === 'Sedang Berlaku'
+                    ? 'bg-blue-700 text-white shadow-2xs'
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Sedang berlaku</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-200/60 text-blue-900 font-extrabold">{validActivePermits.length}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPerizinanStatusFilter('Selesai')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  perizinanStatusFilter === 'Selesai'
+                    ? 'bg-emerald-950 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                }`}
+              >
+                <span>Selesai</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">{returnedPermits.length}</span>
+              </button>
+            </div>
+
+            <div className="text-[11px] text-slate-500 font-medium italic pt-1 flex items-center justify-between">
+              <span>Urutan: perlu perhatian dulu · Kondisi per {formatIndoDateUtil(getTodayDateString())}</span>
+              <span>Menampilkan {(() => {
+                return allSecurityLogs.filter(item => {
+                  if (perizinanSearch.trim()) {
+                    const q = perizinanSearch.toLowerCase().trim();
+                    const matchName = item.studentName.toLowerCase().includes(q);
+                    const matchNis = (item.nis || '').toLowerCase().includes(q);
+                    const matchSif = (item.studentId || '').toLowerCase().includes(q);
+                    const matchDesc = (item.description || '').toLowerCase().includes(q);
+                    if (!matchName && !matchNis && !matchSif && !matchDesc) return false;
+                  }
+                  if (perizinanTypeFilter === 'harian' && !item.permitType?.toLowerCase().includes('pulang') && !item.permitType?.toLowerCase().includes('harian')) return false;
+                  if (perizinanTypeFilter === 'jam' && !item.permitType?.toLowerCase().includes('lingkungan') && !item.permitType?.toLowerCase().includes('jam')) return false;
+                  if (perizinanStatusFilter === 'Belum Kembali' && (item.actualReturnDate || item.status === 'Kembali')) return false;
+                  if (perizinanStatusFilter === 'Melewati Batas') {
+                    if (item.actualReturnDate) return false;
+                    const exp = item.expectedReturnDate ? new Date(item.expectedReturnDate.replace(' ', 'T')).getTime() : 0;
+                    if (!exp || exp >= nowMs) return false;
+                  }
+                  if (perizinanStatusFilter === 'Sedang Berlaku') {
+                    if (item.actualReturnDate) return false;
+                    const exp = item.expectedReturnDate ? new Date(item.expectedReturnDate.replace(' ', 'T')).getTime() : 0;
+                    const out = item.outDate ? new Date(item.outDate.replace(' ', 'T')).getTime() : 0;
+                    if ((exp && exp < nowMs) || (out && out > nowMs)) return false;
+                  }
+                  if (perizinanStatusFilter === 'Selesai' && !item.actualReturnDate && item.status !== 'Kembali') return false;
+                  return true;
+                }).length;
+              })()} data perizinan</span>
+            </div>
+          </div>
+
+          {/* TABLE PERIZINAN */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-150 bg-slate-50/80 text-[11px] font-extrabold uppercase text-slate-500">
+                    <th className="py-3 px-4">Santri</th>
+                    <th className="py-3 px-4">Jenis</th>
+                    <th className="py-3 px-4">Mulai</th>
+                    <th className="py-3 px-4">Batas kembali</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(() => {
+                    const filtered = allSecurityLogs.filter(item => {
+                      if (perizinanSearch.trim()) {
+                        const q = perizinanSearch.toLowerCase().trim();
+                        const matchName = item.studentName.toLowerCase().includes(q);
+                        const matchNis = (item.nis || '').toLowerCase().includes(q);
+                        const matchSif = (item.studentId || '').toLowerCase().includes(q);
+                        const matchDesc = (item.description || '').toLowerCase().includes(q);
+                        if (!matchName && !matchNis && !matchSif && !matchDesc) return false;
+                      }
+                      if (perizinanTypeFilter === 'harian' && !item.permitType?.toLowerCase().includes('pulang') && !item.permitType?.toLowerCase().includes('harian')) return false;
+                      if (perizinanTypeFilter === 'jam' && !item.permitType?.toLowerCase().includes('lingkungan') && !item.permitType?.toLowerCase().includes('jam')) return false;
+                      if (perizinanStatusFilter === 'Belum Kembali' && (item.actualReturnDate || item.status === 'Kembali')) return false;
+                      if (perizinanStatusFilter === 'Melewati Batas') {
+                        if (item.actualReturnDate) return false;
+                        const exp = item.expectedReturnDate ? new Date(item.expectedReturnDate.replace(' ', 'T')).getTime() : 0;
+                        if (!exp || exp >= nowMs) return false;
+                      }
+                      if (perizinanStatusFilter === 'Sedang Berlaku') {
+                        if (item.actualReturnDate) return false;
+                        const exp = item.expectedReturnDate ? new Date(item.expectedReturnDate.replace(' ', 'T')).getTime() : 0;
+                        const out = item.outDate ? new Date(item.outDate.replace(' ', 'T')).getTime() : 0;
+                        if ((exp && exp < nowMs) || (out && out > nowMs)) return false;
+                      }
+                      if (perizinanStatusFilter === 'Selesai' && !item.actualReturnDate && item.status !== 'Kembali') return false;
+                      return true;
+                    }).sort((a, b) => {
+                      const aExp = a.expectedReturnDate ? new Date(a.expectedReturnDate.replace(' ', 'T')).getTime() : 0;
+                      const bExp = b.expectedReturnDate ? new Date(b.expectedReturnDate.replace(' ', 'T')).getTime() : 0;
+                      const aOverdue = !a.actualReturnDate && aExp && aExp < nowMs;
+                      const bOverdue = !b.actualReturnDate && bExp && bExp < nowMs;
+                      if (aOverdue && !bOverdue) return -1;
+                      if (!aOverdue && bOverdue) return 1;
+                      return (b.outDate || '').localeCompare(a.outDate || '');
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400">
+                            <Ticket className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                            <p className="font-semibold text-xs">Tidak ada data perizinan santri yang sesuai.</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Gunakan tombol "+ Terbitkan izin" untuk membuat surat izin baru.</p>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return filtered.map((item) => {
+                      const expTime = item.expectedReturnDate ? new Date(item.expectedReturnDate.replace(' ', 'T')).getTime() : 0;
+                      const outTime = item.outDate ? new Date(item.outDate.replace(' ', 'T')).getTime() : 0;
+                      const isReturned = !!item.actualReturnDate || item.status === 'Kembali';
+                      const isOverdue = !isReturned && expTime > 0 && expTime < nowMs;
+                      const isUpcoming = !isReturned && outTime > 0 && outTime > nowMs;
+                      const isValidActive = !isReturned && !isOverdue && !isUpcoming;
+
+                      // Time diff badges
+                      let overdueDiffText = '';
+                      if (isOverdue && expTime > 0) {
+                        const diffHours = Math.round((nowMs - expTime) / (3600 * 1000));
+                        const diffDays = Math.round(diffHours / 24);
+                        overdueDiffText = diffDays >= 1 ? `lewat ${diffDays} hari` : `lewat ${diffHours} jam`;
+                      }
+
+                      let remainingTimeText = '';
+                      if (isValidActive && expTime > 0) {
+                        const diffHours = Math.round((expTime - nowMs) / (3600 * 1000));
+                        const diffDays = Math.round(diffHours / 24);
+                        remainingTimeText = diffDays >= 1 ? `${diffDays} hari lagi` : `${diffHours} jam lagi`;
+                      }
+
+                      let upcomingTimeText = '';
+                      if (isUpcoming && outTime > 0) {
+                        const diffHours = Math.round((outTime - nowMs) / (3600 * 1000));
+                        const diffDays = Math.round(diffHours / 24);
+                        upcomingTimeText = diffDays >= 1 ? `mulai ${diffDays} hari lagi` : `mulai ${diffHours} jam lagi`;
+                      }
+
+                      const initials = item.studentName
+                        .split(' ')
+                        .map(n => n[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase();
+
+                      const isHarian = item.permitType?.toLowerCase().includes('pulang') || item.permitType?.toLowerCase().includes('harian');
+
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                          {/* Santri Info */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-black text-xs flex items-center justify-center shrink-0">
+                                {initials || 'ST'}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-extrabold text-slate-900 text-xs truncate">
+                                  {item.studentName}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                  SIF {item.studentId.toUpperCase()} · Induk {item.nis || '-'}
+                                </div>
+                                <div className="text-[11px] text-slate-600 italic mt-0.5 line-clamp-1">
+                                  {item.description || 'Izin santri'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Permit Type */}
+                          <td className="py-3 px-4">
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border inline-flex items-center gap-1 ${
+                              isHarian
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-cyan-50 text-cyan-800 border-cyan-200'
+                            }`}>
+                              <Calendar className="w-3 h-3" />
+                              <span>{isHarian ? 'Harian' : 'Jam'}</span>
+                            </span>
+                          </td>
+
+                          {/* Mulai / Departure Date */}
+                          <td className="py-3 px-4 font-mono">
+                            <div className="text-xs text-slate-800 font-semibold">
+                              {item.outDate ? item.outDate.replace('T', ' ').slice(0, 16) : '-'}
+                            </div>
+                            {isUpcoming && (
+                              <div className="text-[10px] text-amber-700 font-bold mt-0.5">
+                                {upcomingTimeText}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Batas Kembali / Expected Return */}
+                          <td className="py-3 px-4 font-mono">
+                            <div className="text-xs text-slate-800 font-semibold">
+                              {item.expectedReturnDate ? item.expectedReturnDate.replace('T', ' ').slice(0, 16) : '-'}
+                            </div>
+                            {isOverdue && (
+                              <div className="text-[10px] text-rose-700 font-black mt-0.5">
+                                {overdueDiffText}
+                              </div>
+                            )}
+                            {isValidActive && (
+                              <div className="text-[10px] text-blue-700 font-bold mt-0.5">
+                                {remainingTimeText}
+                              </div>
+                            )}
+                            {isReturned && (
+                              <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                                Kembali: {item.actualReturnDate ? item.actualReturnDate.replace('T', ' ').slice(0, 16) : 'Selesai'}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Status Badge */}
+                          <td className="py-3 px-4">
+                            {isOverdue ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 inline-flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" />
+                                <span>Melewati batas</span>
+                              </span>
+                            ) : isValidActive ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                <span>Sedang berlaku</span>
+                              </span>
+                            ) : isUpcoming ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                <span>Belum mulai</span>
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                                <Check className="w-3 h-3" />
+                                <span>{item.status === 'Terlambat' ? 'Kembali (Terlambat)' : 'Kembali (Tepat)'}</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {!isReturned && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setReturnModalTarget({
+                                      studentId: item.studentId,
+                                      studentName: item.studentName,
+                                      log: {
+                                        id: item.id,
+                                        studentId: item.studentId,
+                                        studentName: item.studentName,
+                                        permitType: item.permitType as any,
+                                        description: item.description,
+                                        destinationCity: item.destinationCity,
+                                        outDate: item.outDate,
+                                        expectedReturnDate: item.expectedReturnDate,
+                                        status: item.status,
+                                        signedBy: item.signedBy
+                                      }
+                                    });
+                                    setReturnActualDate(new Date().toISOString().slice(0, 16));
+                                  }}
+                                  className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[11px] font-extrabold transition cursor-pointer flex items-center gap-1"
+                                  title="Catat kedatangan santri kembali ke pondok"
+                                >
+                                  <UserCheck className="w-3.5 h-3.5" />
+                                  <span>Lapor Kembali</span>
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => setPrintSecurityLog({
+                                  ...item,
+                                  permitType: item.permitType as any
+                                })}
+                                className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs transition cursor-pointer"
+                                title="Lihat & Cetak Surat Izin Resmi"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => triggerConfirm(
+                                  'Hapus Catatan Izin',
+                                  `Apakah Anda yakin ingin menghapus catatan izin untuk ${item.studentName}?`,
+                                  () => {
+                                    let updatedStudents: Student[] = [];
+                                    setStudents(prev => {
+                                      const updated = prev.map(s => {
+                                        if (s.id === item.studentId) {
+                                          const logs = (s.securityLogs || []).filter(l => l.id !== item.id);
+                                          return { ...s, securityLogs: logs };
+                                        }
+                                        return s;
+                                      });
+                                      updatedStudents = updated;
+                                      return updated;
+                                    });
+                                    localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
+                                    if (isSupabaseConfigured()) {
+                                      const updatedObj = updatedStudents.find(s => s.id === item.studentId);
+                                      if (updatedObj) pushStudentToSupabase(updatedObj).catch(console.error);
+                                    }
+                                    window.dispatchEvent(new Event('pesantren_db_sync'));
+                                    showAlert('info', 'Catatan izin keluar santri berhasil dihapus.');
+                                  }
+                                )}
+                                className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs transition cursor-pointer"
+                                title="Hapus Riwayat Izin"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* MODAL: TERBITKAN IZIN BARU (Centered for Mobile & PC) */}
+          {isCreatePermitOpen && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-auto animate-scale-in">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                      <Ticket className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-900">Terbitkan Izin Santri</h3>
+                      <p className="text-[11px] text-slate-500">Buat surat perizinan keluar lingkungan atau pulang santri.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatePermitOpen(false)}
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!permitStudentId) {
+                      showAlert('danger', 'Silakan pilih santri terlebih dahulu.');
+                      return;
+                    }
+                    const targetStudent = students.find(s => s.id === permitStudentId);
+                    if (!targetStudent) {
+                      showAlert('danger', 'Santri tidak ditemukan.');
+                      return;
+                    }
+
+                    const newLog: SecurityLog = {
+                      id: 'SEC-' + Date.now(),
+                      studentId: targetStudent.id,
+                      studentName: targetStudent.fullName,
+                      permitType: permitType,
+                      description: permitDescription.trim() || (permitType === 'Pulang (Keluarga)' ? 'Pulang menjenguk keluarga' : 'Keperluan santri'),
+                      destinationCity: permitDestination.trim() || targetStudent.address || 'Rumah Wali',
+                      outDate: permitOutDate || new Date().toISOString().slice(0, 16),
+                      expectedReturnDate: permitExpectedReturnDate || new Date(Date.now() + 48 * 3600 * 1000).toISOString().slice(0, 16),
+                      status: 'Aktif / Keluar',
+                      signedBy: currentAdminName || settings.namaKeamanan || settings.namaPengurus || 'Kepala Bidang Keamanan'
+                    };
+
+                    let updatedStudents: Student[] = [];
+                    setStudents(prev => {
+                      const updated = prev.map(s => {
+                        if (s.id === targetStudent.id) {
+                          const logs = [newLog, ...(s.securityLogs || [])];
+                          return { ...s, securityLogs: logs };
+                        }
+                        return s;
+                      });
+                      updatedStudents = updated;
+                      return updated;
+                    });
+
+                    localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
+                    if (isSupabaseConfigured()) {
+                      const updatedObj = updatedStudents.find(s => s.id === targetStudent.id);
+                      if (updatedObj) pushStudentToSupabase(updatedObj).catch(console.error);
+                    }
+                    window.dispatchEvent(new Event('pesantren_db_sync'));
+                    showAlert('success', `Surat izin untuk ${targetStudent.fullName} berhasil diterbitkan.`);
+                    setIsCreatePermitOpen(false);
+                    setPermitStudentId('');
+                    setPermitDescription('');
+                    setPermitDestination('');
+                  }}
+                  className="space-y-3.5 text-xs text-left"
+                >
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Pilih Santri <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={permitStudentId}
+                      onChange={(e) => {
+                        const sid = e.target.value;
+                        setPermitStudentId(sid);
+                        const stud = students.find(s => s.id === sid);
+                        if (stud && stud.address) {
+                          setPermitDestination(stud.address);
+                        }
+                      }}
+                      required
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-emerald-600 cursor-pointer"
+                    >
+                      <option value="">-- Pilih Santri Aktif --</option>
+                      {students
+                        .filter(s => s && s.status === 'Aktif')
+                        .sort((a, b) => a.fullName.localeCompare(b.fullName))
+                        .map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.fullName} ({s.nis || s.id}) - Kamar: {s.kamar || '-'}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        Jenis Izin <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={permitType}
+                        onChange={(e) => {
+                          const val = e.target.value as any;
+                          setPermitType(val);
+                          if (val === 'Keluar Lingkungan') {
+                            setPermitExpectedReturnDate(new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 16));
+                          } else {
+                            setPermitExpectedReturnDate(new Date(Date.now() + 48 * 3600 * 1000).toISOString().slice(0, 16));
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-emerald-600 cursor-pointer"
+                      >
+                        <option value="Pulang (Keluarga)">Pulang ke Rumah (Harian)</option>
+                        <option value="Keluar Lingkungan">Keluar Lingkungan (Jam)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        Tujuan Izin / Kota
+                      </label>
+                      <input
+                        type="text"
+                        value={permitDestination}
+                        onChange={(e) => setPermitDestination(e.target.value)}
+                        placeholder="Contoh: Rumah orang tua / RS"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-emerald-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        Waktu Berangkat / Keluar <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={permitOutDate}
+                        onChange={(e) => setPermitOutDate(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 outline-none focus:bg-white focus:border-emerald-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        Batas Waktu Kembali <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={permitExpectedReturnDate}
+                        onChange={(e) => setPermitExpectedReturnDate(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 outline-none focus:bg-white focus:border-emerald-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Alasan / Keperluan Izin <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={permitDescription}
+                      onChange={(e) => setPermitDescription(e.target.value)}
+                      placeholder="Tulis alasan lengkap perizinan..."
+                      required
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-emerald-600"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatePermitOpen(false)}
+                      className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl transition cursor-pointer shadow-sm flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>Terbitkan & Simpan</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL: LAPOR KEMBALI SANTRI (Centered for Mobile & PC) */}
+          {returnModalTarget && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scale-in text-left">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                      <UserCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-900">Konfirmasi Lapor Kembali</h3>
+                      <p className="text-[11px] text-slate-500">Catat kedatangan santri kembali ke lingkungan pondok.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReturnModalTarget(null)}
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                  <div className="font-extrabold text-slate-900">{returnModalTarget.studentName}</div>
+                  <div className="text-[11px] text-slate-500">
+                    Batas Kembali: <span className="font-mono font-bold text-slate-700">{returnModalTarget.log.expectedReturnDate}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Keperluan: <span className="italic">{returnModalTarget.log.description}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block font-bold text-slate-700 text-xs">
+                    Waktu Realisasi Kembali ke Pondok
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={returnActualDate}
+                    onChange={(e) => setReturnActualDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 outline-none focus:bg-white focus:border-emerald-600"
+                  />
+                  {(() => {
+                    const exp = returnModalTarget.log.expectedReturnDate ? new Date(returnModalTarget.log.expectedReturnDate.replace(' ', 'T')).getTime() : 0;
+                    const act = new Date(returnActualDate.replace(' ', 'T')).getTime();
+                    const isLate = exp > 0 && act > exp;
+                    return (
+                      <div className={`p-2.5 rounded-xl text-[11px] font-bold border ${
+                        isLate 
+                          ? 'bg-rose-50 text-rose-800 border-rose-200' 
+                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      }`}>
+                        {isLate ? ' Santri kembali melebihi batas waktu (Status: Terlambat).' : ' Santri kembali tepat waktu (Status: Tepat Waktu).'}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setReturnModalTarget(null)}
+                    className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl text-xs transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const returnTimeStr = returnActualDate || new Date().toISOString().slice(0, 16);
+                      let updatedStudents: Student[] = [];
+                      setStudents(prev => {
+                        const updated = prev.map(s => {
+                          if (s.id === returnModalTarget.studentId) {
+                            const logs = (s.securityLogs || []).map(l => {
+                              if (l.id === returnModalTarget.log.id) {
+                                const expTime = l.expectedReturnDate ? new Date(l.expectedReturnDate.replace(' ', 'T')).getTime() : 0;
+                                const actTime = new Date(returnTimeStr.replace(' ', 'T')).getTime();
+                                const isLate = expTime > 0 && actTime > expTime;
+                                return {
+                                  ...l,
+                                  actualReturnDate: returnTimeStr,
+                                  status: isLate ? ('Terlambat' as const) : ('Kembali' as const)
+                                };
+                              }
+                              return l;
+                            });
+                            return { ...s, securityLogs: logs };
+                          }
+                          return s;
+                        });
+                        updatedStudents = updated;
+                        return updated;
+                      });
+
+                      localStorage.setItem('pesantren_students', JSON.stringify(updatedStudents));
+                      if (isSupabaseConfigured()) {
+                        const updatedObj = updatedStudents.find(s => s.id === returnModalTarget.studentId);
+                        if (updatedObj) pushStudentToSupabase(updatedObj).catch(console.error);
+                      }
+                      window.dispatchEvent(new Event('pesantren_db_sync'));
+                      showAlert('success', `${returnModalTarget.studentName} berhasil dicatat lapor kembali.`);
+                      setReturnModalTarget(null);
+                    }}
+                    className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs transition cursor-pointer shadow-sm flex items-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Konfirmasi Kembali</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

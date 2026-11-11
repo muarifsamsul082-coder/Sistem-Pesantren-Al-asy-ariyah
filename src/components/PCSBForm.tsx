@@ -143,7 +143,6 @@ export default function PCSBForm({
                 // Perbarui data dengan status terbaru
                 if (!isCancelled) setExistingRegistration(match);
                 localStorage.setItem('last_pcsb_registration', JSON.stringify(match));
-                return;
               }
             }
           }
@@ -151,8 +150,18 @@ export default function PCSBForm({
           console.warn('Gagal memverifikasi status pendaftaran ke server:', serverErr);
         }
 
-        if (!isCancelled) {
-          setExistingRegistration(parsed);
+        // Check local active ppdb list as secondary fallback
+        let localPpdb: any[] = [];
+        try {
+          const raw = localStorage.getItem('pesantren_ppdb');
+          if (raw) localPpdb = JSON.parse(raw);
+        } catch (e) {}
+        const matchLocal = Array.isArray(localPpdb) && localPpdb.find((p: any) => p && p.id === parsed.id && !deletedIds.has(p.id));
+        if (matchLocal) {
+          if (!isCancelled) setExistingRegistration(matchLocal);
+        } else {
+          localStorage.removeItem('last_pcsb_registration');
+          if (!isCancelled) setExistingRegistration(null);
         }
       } catch (e) {
         localStorage.removeItem('last_pcsb_registration');
@@ -486,47 +495,9 @@ export default function PCSBForm({
         }
       }
 
-      // 3. Search archive & deleted records if not found in active list
-      // "Data PCSB yang sudah dihapus tetap bisa di cek status walaupun datanya sudah tidak ada"
-      if (!found) {
-        let archiveList: any[] = [];
-        try {
-          const archRes = await fetch('/api/ppdb-archive');
-          if (archRes.ok) {
-            const archData = await archRes.json();
-            if (archData && archData.success && Array.isArray(archData.archive)) {
-              archiveList = archData.archive;
-            }
-          }
-        } catch (e) {}
-
-        if (archiveList.length === 0) {
-          try {
-            const localArch = localStorage.getItem('pesantren_ppdb_archive');
-            if (localArch) archiveList = JSON.parse(localArch);
-          } catch (e) {}
-        }
-
-        const matchArchive = Array.isArray(archiveList) ? archiveList.find(matchRegistration) : null;
-        if (matchArchive) {
-          found = {
-            ...matchArchive,
-            status: matchArchive.status === 'Diterima' ? 'Diterima' : (matchArchive.status === 'Ditolak' ? 'Ditolak' : 'Dihapus'),
-            isDeletedOrArchived: true,
-            statusNote: matchArchive.notes || (matchArchive.status === 'Ditolak' ? 'Pendaftaran belum dapat diterima oleh panitia seleksi.' : 'Data pendaftaran ini telah dihapus / diselesaikan oleh Panitia Pesantren.')
-          };
-        }
-      }
-
-      // 4. Fallback: jika nomor registrasi cocok dengan ID yang pernah dihapus
-      if (!found && isRecordDeleted(query.toUpperCase())) {
-        found = {
-          id: query.toUpperCase(),
-          fullName: 'Calon Santri (Data Telah Dihapus)',
-          status: 'Dihapus',
-          isDeletedOrArchived: true,
-          statusNote: 'Data pendaftaran dengan kode ini telah dibatalkan atau dihapus dari sistem oleh Panitia Pesantren.'
-        };
+      // Deleted or non-existent records must NOT show up in Cek Status
+      if (found && isRecordDeleted(found.id)) {
+        found = null;
       }
 
       if (found) {
